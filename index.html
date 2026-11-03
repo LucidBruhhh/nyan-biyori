@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>にゃん日和 · Nyan Biyori</title>
+  <meta name="description" content="A super kawaii Japanese virtual kitty. Pet, feed, bathe and play with your anime cat in a cozy washitsu room.">
+  <meta name="theme-color" content="#ffb3cb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="にゃん日和">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&family=Yusei+Magic&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-mode="title">
+  <canvas id="scene" aria-label="Your kitty's room. Stroke the cat to pet it."></canvas>
+
+  <!-- HUD -->
+  <header id="hud" hidden>
+    <div class="hud-row">
+      <button class="profile-chip" data-ui="album" aria-label="Album and profile">
+        <span class="avatar-wrap"><span id="xpring"></span><canvas id="avatar" width="96" height="96"></canvas><span class="lvl">Lv<b id="lvl">1</b></span></span>
+        <span class="who"><b id="petname">Mochi</b><small id="pettitle">こねこ</small></span>
+      </button>
+      <div class="hud-right">
+        <div class="coins" aria-label="Koban coins"><i class="koban"></i><b id="coins">0</b></div>
+        <button class="round" id="btn-omikuji" data-ui="omikuji" aria-label="Daily omikuji fortune" data-icon-name="omikuji"></button>
+        <button class="round" id="btn-sound" data-ui="sound" aria-label="Toggle sound" data-icon-name="sound"></button>
+        <button class="round" data-ui="settings" aria-label="Settings" data-icon-name="settings"></button>
+      </div>
+    </div>
+    <div class="meters">
+      <div class="meter" data-k="hunger" role="meter" aria-label="Hunger" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="hunger"></i><span class="bar"><span></span></span><small>おなか</small></div>
+      <div class="meter" data-k="fun" role="meter" aria-label="Happiness" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="fun"></i><span class="bar"><span></span></span><small>ごきげん</small></div>
+      <div class="meter" data-k="clean" role="meter" aria-label="Cleanliness" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="clean"></i><span class="bar"><span></span></span><small>きれい</small></div>
+      <div class="meter" data-k="energy" role="meter" aria-label="Energy" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="energy"></i><span class="bar"><span></span></span><small>げんき</small></div>
+    </div>
+  </header>
+
+  <div id="hint" role="status" aria-live="polite"></div>
+  <div id="modebar" hidden></div>
+
+  <nav id="actions" hidden aria-label="Actions">
+    <button data-act="feed"><i data-icon-name="feed"></i><b>ごはん</b><small>Feed</small></button>
+    <button data-act="play"><i data-icon-name="play"></i><b>あそぶ</b><small>Play</small></button>
+    <button data-act="bath"><i data-icon-name="bath"></i><b>おふろ</b><small>Bath</small></button>
+    <button data-act="sleep"><i data-icon-name="sleep"></i><b>ねる</b><small>Sleep</small></button>
+    <button data-act="games"><i data-icon-name="games"></i><b>ゲーム</b><small>Games</small></button>
+    <button data-act="shop"><i data-icon-name="shop"></i><b>おみせ</b><small>Shop</small></button>
+  </nav>
+
+  <!-- Title -->
+  <section id="title" hidden>
+    <div class="petals" aria-hidden="true"></div>
+    <div class="logo">
+      <div class="logo-sub">〜 a kawaii kitty life 〜</div>
+      <h1><span class="l1">にゃん</span><span class="l2">日和</span></h1>
+      <div class="romaji">NYAN BIYORI</div>
+    </div>
+    <button class="start" data-ui="start"><span>タップしてはじめる</span><small>Tap to start</small></button>
+    <p class="foot">🎧 Best with sound · No ads · Works offline</p>
+  </section>
+
+  <section id="adopt" hidden></section>
+  <div id="sheet" class="sheet" hidden></div>
+  <div id="modal" class="modal" hidden></div>
+  <div id="mg" hidden></div>
+  <div id="toasts" aria-live="polite"></div>
+
+  <noscript><p style="padding:2rem;text-align:center">にゃん日和 needs JavaScript to run.</p></noscript>
+
+  <script src="js/util.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/cat.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/minigames.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
