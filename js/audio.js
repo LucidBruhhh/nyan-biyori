@@ -206,15 +206,33 @@ NB.Audio = (() => {
     snore: (t) => { noise(t, 0.9, 0.08, sfxBus, 'lowpass', 400, 3, { a: 0.4, sweep: 250 }); },
     yawn: (t) => { osc('sawtooth', 300, t, 0.8, 0.06, sfxBus, { slide: 180, a: 0.2 }); },
     shower: (t) => { noise(t, 1.2, 0.18, sfxBus, 'highpass', 3000, 0.5, { a: 0.1 }); },
+    clack: (t) => { osc('square', 900, t, 0.04, 0.1, sfxBus); osc('sine', 320, t, 0.14, 0.22, sfxBus, { slide: 170, verb: true }); noise(t, 0.03, 0.18, sfxBus, 'bandpass', 2000, 3); },
+    scratch: (t) => { noise(t, 0.09, 0.14, sfxBus, 'bandpass', U.rand(3000, 4200), 2, { a: 0.01 }); },
     sweep: (t) => { noise(t, 0.25, 0.2, sfxBus, 'bandpass', 1500, 1, { sweep: 4000, a: 0.05 }); },
   };
+  let rainNode = null;
+  function setRain(on) {
+    if (!ac) return;
+    if (on && !rainNode) {
+      const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 600;
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
+      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.09, ac.currentTime + 2);
+      s.connect(hp); hp.connect(lp); lp.connect(g); g.connect(sfxBus); s.start();
+      rainNode = { s, g };
+    } else if (!on && rainNode) {
+      const r = rainNode; rainNode = null;
+      r.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.5);
+      setTimeout(() => { try { r.s.stop(); } catch (e) { /* already stopped */ } }, 2500);
+    }
+  }
   function play(name) {
     if (!ac || !sfxOn || !SFX[name]) return;
     SFX[name](ac.currentTime + 0.005);
   }
 
   return {
-    unlock, play, meow, startPurr, stopPurr,
+    unlock, play, meow, startPurr, stopPurr, setRain,
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(on ? 0.32 : 0, ac.currentTime, 0.2); },

@@ -1,8 +1,8 @@
 /* にゃん日和 — offline cache */
-const VERSION = 'nyanbiyori-v2';
+const VERSION = 'nyanbiyori-v3';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest',
-  './js/util.js', './js/data.js', './js/audio.js', './js/cat.js', './js/scene.js', './js/minigames.js', './js/game.js',
+  './js/util.js', './js/data.js', './js/audio.js', './js/cat.js', './js/scene.js', './js/habitat.js', './js/minigames.js', './js/game.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 

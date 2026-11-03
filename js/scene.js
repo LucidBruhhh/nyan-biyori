@@ -56,7 +56,9 @@ NB.Scene = (() => {
   function drawOutside(ctx, L, env, t) {
     const { win } = L;
     const { x, y, w, h } = win;
-    const [top, bot] = skyAt(env.hour);
+    let [top, bot] = skyAt(env.hour);
+    const grey = env.weather === 'rain' ? 0.55 : env.weather === 'cloudy' ? 0.3 : 0;
+    if (grey) { top = U.mix(top, '#8a90a8', grey); bot = U.mix(bot, '#b8bccb', grey); }
     const g = ctx.createLinearGradient(0, y, 0, y + h);
     g.addColorStop(0, top); g.addColorStop(1, bot);
     ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
@@ -71,7 +73,7 @@ NB.Scene = (() => {
     }
     // sun / moon arc
     const dayT = (env.hour - 6) / 12;
-    if (dayT > -0.1 && dayT < 1.1) {
+    if (dayT > -0.1 && dayT < 1.1 && env.weather !== 'rain') {
       const sxp = x + w * (0.1 + 0.8 * dayT), syp = y + h * (0.55 - Math.sin(Math.PI * U.clamp(dayT, 0, 1)) * 0.42);
       const sg = ctx.createRadialGradient(sxp, syp, 2, sxp, syp, 40);
       sg.addColorStop(0, 'rgba(255,250,220,1)'); sg.addColorStop(0.35, 'rgba(255,220,150,0.8)'); sg.addColorStop(1, 'rgba(255,200,150,0)');
@@ -89,10 +91,11 @@ NB.Scene = (() => {
     // clouds
     clouds.forEach(([cx, cy, cs], i) => {
       const px = x + (((cx + t * 0.004 * (i + 1)) % 1.4) - 0.2) * w;
-      ctx.fillStyle = `rgba(255,255,255,${0.75 - night * 0.55})`;
+      ctx.fillStyle = grey ? `rgba(225,228,238,${0.9 - night * 0.6})` : `rgba(255,255,255,${0.75 - night * 0.55})`;
       [[0, 0, 22], [18, -6, 18], [36, 0, 20], [16, 6, 18]].forEach(([dx, dy, r]) => { U.ell(ctx, px + dx * cs, y + cy * h + dy * cs, r * cs, r * cs * 0.75); ctx.fill(); });
     });
-    // Mt Fuji
+    // Mt Fuji (far layer: barely moves)
+    ctx.save(); ctx.translate((env.par || 0) * w * 0.012, 0);
     const fx = x + w * 0.42, fy = y + h * 0.86, fw = w * 0.42, fh = h * 0.44;
     const mcol = U.mix('#7d8fd6', '#262a5e', night);
     ctx.fillStyle = mcol;
@@ -100,12 +103,13 @@ NB.Scene = (() => {
     ctx.fillStyle = U.mix('#ffffff', '#c9cdf0', night);
     ctx.beginPath(); ctx.moveTo(fx - fw * 0.12, fy - fh); ctx.lineTo(fx + fw * 0.12, fy - fh);
     ctx.lineTo(fx + fw * 0.26, fy - fh * 0.62); ctx.lineTo(fx + fw * 0.14, fy - fh * 0.7); ctx.lineTo(fx + fw * 0.05, fy - fh * 0.6); ctx.lineTo(fx - fw * 0.06, fy - fh * 0.7); ctx.lineTo(fx - fw * 0.16, fy - fh * 0.6); ctx.lineTo(fx - fw * 0.26, fy - fh * 0.62); ctx.closePath(); ctx.fill();
+    ctx.restore();
     // hills
     ctx.fillStyle = U.mix(env.season === 'winter' ? '#e9f0ff' : env.season === 'autumn' ? '#c99a6b' : '#8fcf8a', '#1d2550', night * 0.85);
     ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x, y + h * 0.82);
     ctx.quadraticCurveTo(x + w * 0.3, y + h * 0.7, x + w * 0.6, y + h * 0.84); ctx.quadraticCurveTo(x + w * 0.85, y + h * 0.92, x + w, y + h * 0.8); ctx.lineTo(x + w, y + h); ctx.fill();
-    // pagoda silhouette
-    drawPagoda(ctx, x + w * 0.16, y + h * 0.82, h * 0.0042, U.mix('#a2577a', '#1a1a3e', night * 0.8), night);
+    // the garden: wall, trees, koi pond, lantern, engawa
+    NB.Habitat.drawGarden(ctx, L, env, t);
     // koinobori
     if (env.decor.koinobori) drawKoinobori(ctx, x + w * 0.86, y + h * 0.96, h, t, night);
     // tree branch
@@ -195,6 +199,7 @@ NB.Scene = (() => {
     ctx.save(); ctx.beginPath(); ctx.rect(win.x, win.y, win.w, win.h); ctx.clip();
     drawOutside(ctx, L, env, t);
     env.drawOutsideParticles && env.drawOutsideParticles(ctx);
+    NB.Habitat.drawGlass(ctx, L, env, t);
     ctx.restore();
     // frame
     ctx.strokeStyle = '#7a4b33'; ctx.lineWidth = 8; ctx.strokeRect(win.x, win.y, win.w, win.h);
@@ -209,7 +214,7 @@ NB.Scene = (() => {
     // beams (nageshi) + pillars
     ctx.fillStyle = '#9a6444'; ctx.fillRect(0, win.y - 26, W, 14);
     ctx.fillStyle = '#b37a52'; ctx.fillRect(0, win.y - 26, W, 4);
-    ctx.fillStyle = '#7a4b33'; ctx.fillRect(0, 0, W, Math.max(10, win.y - 70));
+    NB.Habitat.drawCeiling(ctx, L);
     ctx.fillStyle = '#9a6444';
     [sx + 6, sx + SW * 0.645, sx + SW - 20].forEach((px) => { ctx.fillRect(px, 0, 14, floorY); ctx.fillStyle = '#b37a52'; ctx.fillRect(px, 0, 3, floorY); ctx.fillStyle = '#9a6444'; });
 
@@ -218,6 +223,7 @@ NB.Scene = (() => {
 
     // floor
     drawTatami(ctx, L, night);
+    NB.Habitat.drawAO(ctx, L);
 
     // furin wind chime at window
     if (env.decor.furin) drawFurin(ctx, win.x + win.w * 0.3, win.y + 8, t, env.windT || 0);

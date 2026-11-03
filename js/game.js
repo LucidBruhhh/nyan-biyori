@@ -91,7 +91,7 @@
   function catScale() {
     const lv = st ? st.level : 3;
     const g = lv < 5 ? 0.84 : lv < 10 ? 0.93 : 1;
-    return L.scale * g;
+    return L.scale * g * 0.9;
   }
   function look() {
     if (!st) return { fur: 'mike', eye: 'amber', acc: {} };
@@ -105,7 +105,8 @@
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     L = S.layout(W, H);
-    cat.y = L.catY; cat.depth = 1; cat.perch = null; cat.hop = null; cat.inBox = false;
+    cat.y = L.catY; cat.depth = 1; cat.perch = null; cat.hop = null; cat.inBox = false; cat.goal = null; cat.chase = null;
+    if (cat.act !== 'eat' && cat.act !== 'sleep') setAct('idle', 0.5);
     if (!cat.x) { cat.x = homeX(); cat.tx = cat.x; }
     cat.x = U.clamp(cat.x, L.minX, L.maxX); cat.tx = U.clamp(cat.tx, L.minX, L.maxX);
   }
@@ -349,12 +350,12 @@
       return;
     }
     if (Math.random() < 0.45) { startExplore(); return; }
-    if (r < 0.38) { cat.tx = U.rand(L.minX, L.maxX); setAct('walk', 6); }
+    if (r < 0.38) { const band = L.catY - L.floorY; goTo(U.rand(L.minX, L.maxX), null, false, U.rand(L.floorY + band * 0.3, L.catY)); }
     else if (r < 0.52) setAct('groom', U.rand(2, 3.2));
     else if (r < 0.62) { setAct('beckon', 2.2); }
     else if (r < 0.7) { setAct('yawn', 1.6); }
     else if (r < 0.8) { if (Math.random() < 0.5) { say(env.hour >= 19 || env.hour < 5 ? 'night' : 'idle'); A.meow(U.rand(0.95, 1.2)); } }
-    else if (r < 0.88 && st.poops.length === 0 && st.decor.includes('zabuton')) { cat.tx = homeX(); setAct('walk', 6); }
+    else if (r < 0.88 && st.poops.length === 0 && st.decor.includes('zabuton')) goTo(homeX());
     else { cat.lookTarget = { x: U.rand(-1, 1), y: U.rand(-0.6, 0.4) }; cat.lookT = 2; }
   }
 
@@ -394,13 +395,19 @@
     if (mode === 'room') {
       if (cat.hop) updateHop(dt);
       else if (cat.act === 'walk') {
-        if (cat.chase === 'ball') cat.tx = U.clamp(ball.x, L.minX, L.maxX);
-        const dx = cat.tx - cat.x;
-        if (cat.chase === 'ball' && Math.abs(ball.x - cat.x) < 44 * s && ball.h > -30) batBall();
-        else if (Math.abs(dx) < 4 && cat.chase !== 'bug') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
-        else if (Math.abs(dx) >= 4) { cat.dir = Math.sign(dx); cat.x += Math.sign(dx) * Math.min(Math.abs(dx), (cat.fast || cat.chase ? 150 : 70) * s * dt); }
+        if (cat.chase === 'ball') { cat.tx = U.clamp(ball.x, L.minX, L.maxX); cat.ty = L.catY; }
+        if (cat.chase === 'bug') cat.ty = L.catY;
+        const dx = cat.tx - cat.x, dy = (cat.ty == null ? L.catY : cat.ty) - cat.y, dist = Math.hypot(dx, dy);
+        if (cat.chase === 'ball' && Math.abs(ball.x - cat.x) < 44 * s && ball.h > -30 && Math.abs(dy) < 24) batBall();
+        else if (dist < 4 && cat.chase !== 'bug') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
+        else if (dist >= 4) {
+          const step = Math.min(1, ((cat.fast || cat.chase ? 150 : 70) * s * cat.depth * dt) / dist);
+          if (Math.abs(dx) > 2) cat.dir = Math.sign(dx);
+          cat.x += dx * step; cat.y += dy * step;
+          cat.depth = depthAt(cat.y);
+        }
         if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
-      } else if (['perch', 'box', 'knead', 'nap', 'bat'].includes(cat.act)) {
+      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe'].includes(cat.act)) {
         updateActivity(dt);
       } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch'].includes(cat.act)) {
         if (cat.actT > cat.actDur) setAct('idle', 0.5);
@@ -475,12 +482,16 @@
         const chatter = cat.perch === 'sill' && birds.some((b) => b.state === 'perch');
         if (chatter) { p.eyes = 'sparkle'; p.mouthOpen = 0.25 + Math.abs(Math.sin(T * 22)) * 0.3; p.tailPhase = T * 9; p.earTwitchL = p.earTwitchR = 0.3; }
         else if (cat.perch === 'toko') { p.pawR = 0.55 + Math.max(0, Math.sin(T * 4)) * 0.45; p.eyes = 'happy'; p.mouthOpen = 0.3; }
+        else if (cat.perch === 'tower' && cat.actT > 3) { p.loaf = 1; p.eyes = 'closed'; p.blush = 0.7; p.tailPhase = T * 0.6; }
         p.tailAmp = 0.6; break;
       }
       case 'box': p.loaf = 1; p.lookX = Math.sin(T * 0.9) * 0.9; p.lookY = -0.2; if (Math.sin(T * 0.35) > 0.8) p.eyes = 'sparkle'; break;
       case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
       case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'drink': p.headY = 20 + Math.sin(T * 9) * 1.5; p.tongue = (Math.sin(T * 12) + 1) / 2; p.eyes = 'closed'; p.tailPhase = T * 1.2; break;
+      case 'scratch': p.pawL = 0.8 + Math.sin(T * 16) * 0.18; p.pawR = 0.8 - Math.sin(T * 16) * 0.18; p.pawLx = -6; p.pawRx = -6; p.flip = -1; p.lean = -0.08; p.eyes = 'happy'; p.mouthOpen = 0.3; break;
+      case 'sunbathe': p.loaf = 1; p.eyes = 'closed'; p.blush = 0.85; p.tailAmp = 0.3; p.tailPhase = T * 0.5; p.mouth = 'w'; p.sy = 1 + Math.sin(T * 1.4) * 0.025; break;
       case 'sleep': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.5 + cat.petK * 0.5; p.mouth = 'w'; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       default: break;
     }
@@ -508,6 +519,10 @@
     ball: ['てまり', 'Temari ball', 'played with the temari ball'],
     bird: ['すずめ', 'Bird watching', 'chattered at a sparrow'],
     bug: ['ちょうちょ', 'Bug chase', 'chased a butterfly'],
+    tower: ['キャットタワー', 'Cat tower', 'climbed to the top of the cat tower'],
+    scratch: ['つめとぎ', 'Scratching post', 'sharpened her claws on the post'],
+    drink: ['みず', 'Water bowl', 'had a refreshing drink'],
+    sun: ['ひなたぼっこ', 'Sunbathing', 'sunbathed in a patch of light'],
   };
   function discover(id) {
     if (!st) return;
@@ -524,9 +539,12 @@
   const sillSpot = () => ({ x: L.win.x + L.win.w * U.rand(0.38, 0.62), y: L.win.y + L.win.h + 1, depth: 0.58 });
   const tokoSpot = () => ({ x: L.alcove.x + L.alcove.w * 0.5, y: L.alcove.y + L.alcove.h - 26, depth: 0.5 });
 
-  function goTo(x, then, fast) {
-    cat.tx = U.clamp(x, L.minX, L.maxX); cat.goal = then || null; cat.fast = !!fast;
-    setAct('walk', 9);
+  const spots = () => NB.Habitat.spots(L);
+  const depthAt = (y) => NB.Habitat.depthAt(L, y);
+  const towerS = () => L.scale * depthAt(spots().tower.y) * 0.95;
+  function goTo(x, then, fast, y) {
+    cat.tx = U.clamp(x, L.minX, L.maxX); cat.ty = y == null ? L.catY : y; cat.goal = then || null; cat.fast = !!fast;
+    setAct('walk', 12);
   }
   function hopTo(x, y, depth, then) {
     cat.hop = { x0: cat.x, y0: cat.y, d0: cat.depth, x1: x, y1: y, d1: depth, t: 0, dur: 0.62, then };
@@ -544,18 +562,36 @@
   }
   function getDown(instant) {
     cat.inBox = false; cat.goal = null; cat.chase = null;
-    if (!cat.perch && !cat.hop) return;
+    if (instant || !L) { cat.hop = null; cat.perch = null; cat.y = L.catY; cat.depth = 1; return; }
+    if (!cat.perch) return;
+    const from = cat.perch, band = L.catY - L.floorY;
     cat.perch = null;
-    if (instant || !L) { cat.hop = null; cat.y = L.catY; cat.depth = 1; return; }
-    hopTo(U.clamp(cat.x + U.rand(-50, 50), L.minX, L.maxX), L.catY, 1);
+    const ly = from === 'tower' ? spots().tower.y + 10 : L.floorY + band * 0.42;
+    hopTo(U.clamp(cat.x + (from === 'tower' ? 50 * towerS() : U.rand(-50, 50)), L.minX, L.maxX), ly, depthAt(ly));
   }
-  function startExplore() {
-    const opts = [['sill', 3], ['toko', 2], ['box', 3], ['ball', 3]];
+  function startExplore(force) {
+    const opts = [['sill', 3], ['toko', 2], ['box', 3], ['ball', 3], ['tower', 3], ['scratch', 2], ['drink', 2]];
     if (shown('zabuton')) opts.push(['knead', 2]);
     if (shown('daruma')) opts.push(['daruma', 2]);
+    if (env.sun && S.nightness(env.hour) < 0.5) opts.push(['sun', 4]);
     let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), pick = opts[0][0];
     for (const [id, w] of opts) { if ((r -= w) <= 0) { pick = id; break; } }
-    const s = catScale();
+    if (force) pick = force;
+    const s = catScale(), sp = spots(), ts = towerS(), band = L.catY - L.floorY;
+    if (pick === 'tower') {
+      goTo(sp.tower.x + 60 * ts, () => hopTo(sp.tower.x + 18 * ts, sp.tower.y - 186 * ts + 5, depthAt(sp.tower.y) * 0.64, () => {
+        cat.perch = 'tower'; setAct('perch', U.rand(10, 18)); discover('tower');
+        st.needs.fun = U.clamp(st.needs.fun + 2, 0, 100); sayText('たかい！', 'So high!', true);
+      }), false, sp.tower.y + 8);
+      return;
+    }
+    if (pick === 'scratch') { goTo(sp.tower.x + 44 * ts, () => { cat.dir = -1; setAct('scratch', U.rand(2.5, 4)); discover('scratch'); }, false, sp.tower.y + 6); return; }
+    if (pick === 'drink') { const bs = L.scale * depthAt(sp.bowls.y); goTo(sp.bowls.x + 26 * bs, () => { setAct('drink', U.rand(2.5, 4)); discover('drink'); }, false, sp.bowls.y - 4); return; }
+    if (pick === 'sun') {
+      const sun = env.sun; if (!sun) return;
+      goTo(sun.cx, () => { setAct('sunbathe', U.rand(9, 15)); discover('sun'); sayText('ぽかぽか〜', 'So warm~', true); }, false, U.clamp(sun.cy, L.floorY + band * 0.3, L.catY));
+      return;
+    }
     if (pick === 'sill' || pick === 'toko') {
       const sp = pick === 'sill' ? sillSpot() : tokoSpot();
       goTo(sp.x + (sp.x > cat.x ? -60 : 60) * s, () => hopTo(sp.x, sp.y, sp.depth, () => {
@@ -568,7 +604,7 @@
     } else if (pick === 'knead') {
       goTo(homeX(), () => { setAct('knead', U.rand(3.5, 5)); discover('knead'); A.startPurr(); cat.purring = true; });
     } else if (pick === 'daruma') {
-      goTo(darumaX() + 64 * s, () => { cat.dir = -1; setAct('bat', 0.6); cat.batT = 0.15; });
+      goTo(darumaX() - 58 * s * depthAt(sp.daruma.y), () => { cat.dir = 1; setAct('bat', 0.6); cat.batT = 0.15; }, false, sp.daruma.y + 4);
     } else if (pick === 'ball') {
       cat.chase = 'ball'; goTo(ball.x, null, true);
     }
@@ -583,6 +619,16 @@
         if (Math.random() < dt * 3) A.meow(1.7, 0.18);
       } else if (cat.perch === 'sill') { cat.lookTarget = { x: Math.sin(T * 0.5) * 0.8, y: -0.5 }; cat.lookT = 1; }
       if (cat.actT > cat.actDur) { cat.chattered = false; getDown(); }
+    } else if (cat.act === 'drink') {
+      if (Math.random() < dt * 4) A.play('bubble');
+      if (cat.actT > cat.actDur) { st.needs.hunger = U.clamp(st.needs.hunger + 3, 0, 100); cat.happyT = 0.8; setAct('idle', 0.5); }
+    } else if (cat.act === 'scratch') {
+      if (Math.random() < dt * 9) A.play('scratch');
+      if (cat.actT > cat.actDur) { st.needs.fun = U.clamp(st.needs.fun + 3, 0, 100); setAct('idle', 0.5); }
+    } else if (cat.act === 'sunbathe') {
+      st.needs.energy = U.clamp(st.needs.energy + dt * 0.35, 0, 100);
+      if (Math.random() < dt * 0.6) S.emit({ type: 'sparkle', x: cat.x + U.rand(-40, 40) * s, y: cat.y - U.rand(20, 90) * s, vy: -20, life: 1.2, size: 5, color: '#fff3c4' });
+      if (!env.sun || cat.actT > cat.actDur) setAct('yawn', 1.4);
     } else if (cat.act === 'box') {
       if (cat.actT > cat.actDur) popOut();
     } else if (cat.act === 'knead') {
@@ -802,6 +848,11 @@
   }
   function updateWorld(dt) {
     updateBall(dt); updateBirds(dt); updateBugs(dt);
+    const target = T - ptr.lastMove < 3 && ptr.x > -900 ? (ptr.x / W - 0.5) * 2 : Math.sin(T * 0.12) * 0.5;
+    env.par = U.damp(env.par || 0, target, 1.5, dt);
+    NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
+    const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
+    if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }
     env.scrollSwing = Math.max(0, (env.scrollSwing || 0) - dt * 0.6);
   }
 
@@ -809,7 +860,7 @@
   function feed(food) {
     if (mode !== 'room') setMode('room');
     if (cat.act === 'eat') return;
-    getDown(true);
+    if (cat.perch || cat.hop || cat.inBox) getDown(true);
     if (st.needs.hunger >= 96) { say('full', true); setAct('refuse', 1.2); A.meow(0.9, 0.7); return; }
     if (food.price > 0) {
       if (st.coins < food.price) { toast('Not enough koban for that… try a minigame! 🎮'); A.play('fail'); return; }
@@ -1029,7 +1080,10 @@
     for (const b of bugs) if (Math.hypot(x - b.x, y - b.y) < 34) return { type: 'bug', b };
     for (let i = 0; i < st.poops.length; i++) { const px = L.sx + st.poops[i].x * L.SW; if (Math.hypot(x - px, y - (L.catY + 6) + 18) < 36) return { type: 'poop', i }; }
     if (shown('furin') && Math.hypot(x - (L.win.x + L.win.w * 0.3), y - (L.win.y + 50)) < 34) return { type: 'furin' };
-    if (shown('daruma') && Math.hypot(x - darumaX(), y - (L.floorY + (L.catY - L.floorY) * 0.25 - 26 * L.scale)) < 36 * L.scale) return { type: 'daruma' };
+    const sp = spots();
+    if (shown('daruma') && Math.hypot(x - sp.daruma.x, y - (sp.daruma.y - 26 * L.scale * depthAt(sp.daruma.y))) < 36 * L.scale) return { type: 'daruma' };
+    { const ts = towerS(); if (Math.abs(x - sp.tower.x) < 52 * ts && y < sp.tower.y + 4 && y > sp.tower.y - 196 * ts) return { type: 'tower' }; }
+    { const bs = L.scale * depthAt(sp.bowls.y); if (Math.abs(x - sp.bowls.x) < 58 * bs && Math.abs(y - sp.bowls.y) < 22 * bs) return { type: 'bowls' }; }
     if (shown('maneki') && Math.hypot(x - (L.alcove.x + L.alcove.w * 0.75), y - (L.alcove.y + L.alcove.h - 60 * L.scale)) < 40 * L.scale) return { type: 'maneki' };
     if (shown('chochin') && Math.hypot(x - (L.sx + L.SW * 0.12), y - (L.win.y + 32)) < 36) return { type: 'chochin' };
     const a = L.alcove;
@@ -1040,7 +1094,7 @@
     if (y > L.floorY) return { type: 'floor' };
     return null;
   }
-  const darumaX = () => L.sx + L.SW * 0.13;
+  const darumaX = () => spots().daruma.x;
   const shown = (id) => st && st.decor.includes(id) && !st.hidden.includes(id);
 
   function onDown(e) {
@@ -1118,6 +1172,8 @@
       else { A.play('pop'); S.burst('sparkle', boxX(), L.catY - 60 * L.scale, 5, { p: { color: '#fff3a8', size: 7 } }); if (mode === 'room' && cat.act === 'idle' && !cat.perch) startExploreBox(); }
     } else if (tg.type === 'bug') { tg.b.flee = 1.5; tg.b.retarget = 0; A.play('whoosh'); }
     else if (tg.type === 'scroll') { env.scrollSwing = 1; A.play('whoosh'); }
+    else if (tg.type === 'tower') { A.play('boing'); if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) startExplore('tower'); }
+    else if (tg.type === 'bowls') { A.play('bubble'); S.burst('sparkle', ptr.x, ptr.y - 10, 6, { p: { color: '#bfe3ff', size: 6 } }); if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) startExplore('drink'); }
     else if (tg.type === 'flowers') { S.burst('petal', ptr.x, ptr.y, 8, { p: { color: env.season === 'autumn' ? '#ff8a4c' : '#ffb3cb', size: 8, g: 120, life: 1.6 } }); A.play('chime'); }
     else if (tg.type === 'window') {
       if (S.nightness(env.hour) < 0.5) { if (birds.length < 3) spawnBird(); A.play('tap'); }
@@ -1204,6 +1260,9 @@
     env.season = st && st.settings.season !== 'auto' ? st.settings.season : S.seasonOf(now.getMonth());
     env.decor = {}; if (st) st.decor.forEach((d) => { if (!st.hidden.includes(d)) env.decor[d] = true; });
     if (!st) env.decor = { zabuton: true, chochin: true, furin: true };
+    const wk = U.dayKey() + env.season;
+    if (env.wKey !== wk) { env.wKey = wk; env.weather = NB.Habitat.weatherFor(wk, env.season); }
+    if (DEV && window.__weather) env.weather = window.__weather;
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
@@ -1211,24 +1270,44 @@
     env.lampOff = !!(st && st.lampOff);
     S.drawRoom(ctx, L, env, T);
     const s = catScale();
-    // floor props (behind cat)
-    if (env.decor.bamboo) S.drawBamboo(ctx, L.sx + L.SW * 0.035, L.floorY + 14 * L.scale, L.scale * 0.85, T);
-    if (env.decor.zabuton) S.drawZabuton(ctx, homeX(), L.catY + 4, L.scale * (0.92));
-    if (env.decor.daruma) { wobbleDaruma = Math.max(0, wobbleDaruma - 1 / 60); S.drawDaruma(ctx, darumaX(), L.floorY + (L.catY - L.floorY) * 0.25, L.scale * 0.95, T + Math.sin(T * 14) * wobbleDaruma * 0.8); }
-    if (st) st.poops.forEach((p, i) => S.drawPoop(ctx, L.sx + p.x * L.SW, L.catY + 6, L.scale * 0.9, T, i));
+    // light pouring in from the window, lantern glow on the floor
+    env.sun = NB.Habitat.sunInfo(L, env);
+    NB.Habitat.drawLight(ctx, L, env, env.sun, T);
+    if (env.decor.chochin) NB.Habitat.drawLampPool(ctx, L, env, L.sx + L.SW * 0.12);
 
-    if (st) { drawBox(ctx, false); if (!cat.inBox) drawBox(ctx, true); }
-    if (mode === 'bath') drawTub(ctx, false);
+    // everything standing on the floor is drawn back-to-front
+    const sp = spots(), items = [];
+    const add = (key, fn) => items.push([key, fn]);
+    if (env.decor.bamboo) add(sp.bamboo.y, () => S.drawBamboo(ctx, sp.bamboo.x, sp.bamboo.y, L.scale * 0.78, T));
+    if (st) add(sp.tower.y, () => NB.Habitat.drawTower(ctx, sp.tower.x, sp.tower.y, towerS(), T));
+    if (st) add(sp.bowls.y, () => NB.Habitat.drawBowls(ctx, sp.bowls.x, sp.bowls.y, L.scale * depthAt(sp.bowls.y), st.needs.hunger));
+    if (env.decor.daruma) {
+      wobbleDaruma = Math.max(0, wobbleDaruma - 1 / 60);
+      add(sp.daruma.y, () => S.drawDaruma(ctx, sp.daruma.x, sp.daruma.y, L.scale * 0.95 * depthAt(sp.daruma.y), T + Math.sin(T * 14) * wobbleDaruma * 0.8));
+    }
+    if (env.decor.zabuton) add(L.catY - 2, () => S.drawZabuton(ctx, homeX(), L.catY + 4, L.scale * 0.92));
+    if (st) st.poops.forEach((p, i) => add(L.catY + 6, () => S.drawPoop(ctx, L.sx + p.x * L.SW, L.catY + 6, L.scale * 0.9, T, i)));
+    if (st && !cat.inBox) add(L.catY - 3, () => { drawBox(ctx, false); drawBox(ctx, true); });
+    if (st) add(ballY(), () => drawBall(ctx));
+    if (mode === 'bath') { add(L.catY - 1, () => drawTub(ctx, false)); add(L.catY + 1, () => drawTub(ctx, true)); }
+    let catKey = cat.y;
+    if (cat.perch === 'sill' || cat.perch === 'toko') catKey = -1;
+    else if (cat.perch === 'tower') catKey = sp.tower.y + 1;
+    else if (cat.hop) catKey = Math.max(cat.hop.y0, cat.hop.y1) + 1;
+    if (cat.inBox) catKey = L.catY - 3;
     const look_ = look();
-    const onFloor = cat.depth === 1 && !cat.hop;
-    if (st && !onFloor) drawBall(ctx); // a perched cat sits further back than the ball
-    if (cat.inBox) { const b = boxDims(); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, b.y - b.h + 2); ctx.rect(b.x - b.w, b.y - b.h, b.w * 2, b.h); ctx.clip(); }
-    C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY + (cat.inBox ? 30 * s : 0), cs());
-    if (cat.inBox) ctx.restore();
-    if (cat.inBox) drawBox(ctx, true);
-    if (st && onFloor) drawBall(ctx);
-    if (mode === 'bath') drawTub(ctx, true);
-    if (meal.id) S.drawFood(ctx, meal.id, cat.x, cat.y + 22 * s, s * 1.55, meal.t / meal.dur);
+    add(catKey, () => {
+      if (cat.inBox) {
+        const b = boxDims();
+        drawBox(ctx, false);
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, b.y - b.h + 2); ctx.rect(b.x - b.w, b.y - b.h, b.w * 2, b.h); ctx.clip();
+        C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY + 30 * s, cs());
+        ctx.restore();
+        drawBox(ctx, true);
+      } else C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY, cs());
+      if (meal.id) S.drawFood(ctx, meal.id, cat.x, cat.y + 22 * cs(), cs() * 1.55, meal.t / meal.dur);
+    });
+    items.sort((a, b) => a[0] - b[0]).forEach((it) => it[1]());
 
     // lighting
     const night = S.nightness(env.hour);
@@ -1243,6 +1322,8 @@
     drawBugs(ctx);
     if (mode === 'play') drawWand(ctx);
     S.drawParts(ctx, T);
+    NB.Habitat.drawForeground(ctx, L, T);
+    NB.Habitat.drawVignette(ctx, L);
     drawThought(ctx);
     drawSpeech(ctx);
     if (mode === 'bath' && ptr.x > -900 && !RM) drawSponge(ctx);
@@ -1264,6 +1345,10 @@
     const w = L.win;
     const lim = RM ? 0.35 : 1;
     ambientT = 0.12 / lim;
+    if (env.sun && Math.random() < 0.5) {
+      const k = Math.random();
+      S.emit({ type: 'snow', x: U.lerp(L.win.x + L.win.w * 0.5, env.sun.cx, k) + U.rand(-0.3, 0.3) * L.win.w, y: U.lerp(L.win.y + L.win.h * 0.5, env.sun.cy, k), vx: U.rand(-5, 5), vy: U.rand(-4, 3), life: 4, size: U.rand(3, 5), alpha: 0.55, sway: 6 });
+    }
     if (sea === 'spring') {
       if (Math.random() < 0.25) S.emit({ type: 'petal', x: U.rand(-20, W), y: -10, vx: U.rand(20, 60), vy: U.rand(30, 60), life: 12, size: U.rand(6, 10), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 40 });
       if (Math.random() < 0.4) S.emit({ type: 'petal', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(20, 40), life: 8, size: 5, rot: 1, vr: 2, color: '#ffc7da', sway: 30 }, S.outside);
@@ -1882,7 +1967,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { cat, ball, birds, bugs, startExplore, startExploreBox, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { cat, ball, birds, bugs, startExplore, startExploreBox, env, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
