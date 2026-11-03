@@ -18,6 +18,7 @@
     shop: `<svg viewBox="0 0 48 48"><rect x="8" y="20" width="32" height="22" rx="3" fill="#fff3e2" stroke="${O}" stroke-width="3"/><path d="M5 12h38l-2 9c-2 3-5 3-6 0-1 3-5 3-6 0-1 3-5 3-6 0-1 3-5 3-6 0-1 3-5 3-6 0-1 3-4 3-6 0z" fill="#ff6b8b" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><path d="M12 12l-2 9M24 12v9M36 12l2 9" stroke="#fff" stroke-width="3"/><rect x="20" y="29" width="9" height="13" rx="2" fill="#c98a4f" stroke="${O}" stroke-width="2.5"/></svg>`,
     album: `<svg viewBox="0 0 48 48"><rect x="9" y="6" width="30" height="36" rx="4" fill="#ff8fb1" stroke="${O}" stroke-width="3"/><rect x="9" y="6" width="7" height="36" rx="3" fill="#e8628f" stroke="${O}" stroke-width="3"/><circle cx="28" cy="25" r="5" fill="#fff"/><circle cx="23" cy="17" r="2.6" fill="#fff"/><circle cx="28.5" cy="15.5" r="2.6" fill="#fff"/><circle cx="33.5" cy="18" r="2.6" fill="#fff"/></svg>`,
     settings: `<svg viewBox="0 0 48 48"><g fill="#c9b6ff" stroke="${O}" stroke-width="2.5"><ellipse cx="24" cy="11" rx="6.5" ry="8"/><ellipse cx="24" cy="11" rx="6.5" ry="8" transform="rotate(72 24 24)"/><ellipse cx="24" cy="11" rx="6.5" ry="8" transform="rotate(144 24 24)"/><ellipse cx="24" cy="11" rx="6.5" ry="8" transform="rotate(216 24 24)"/><ellipse cx="24" cy="11" rx="6.5" ry="8" transform="rotate(288 24 24)"/></g><circle cx="24" cy="24" r="6" fill="#ffe27a" stroke="${O}" stroke-width="2.5"/></svg>`,
+    daily: `<svg viewBox="0 0 48 48"><rect x="9" y="7" width="30" height="36" rx="5" fill="#fffaf0" stroke="${O}" stroke-width="3"/><rect x="16" y="3" width="16" height="8" rx="3" fill="#ff8fb1" stroke="${O}" stroke-width="2.5"/><path d="M15 20l3 3 5-6M15 31l3 3 5-6" stroke="#4fcfa8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 20h7M27 31h7" stroke="${O}" stroke-width="2.5" stroke-linecap="round"/></svg>`,
     omikuji: `<svg viewBox="0 0 48 48"><path d="M4 12q20-6 40 0l-2 5H6z" fill="#e8344e" stroke="${O}" stroke-width="2.5" stroke-linejoin="round"/><rect x="8" y="21" width="32" height="4" fill="#e8344e" stroke="${O}" stroke-width="2"/><rect x="11" y="16" width="5" height="28" fill="#e8344e" stroke="${O}" stroke-width="2.5"/><rect x="32" y="16" width="5" height="28" fill="#e8344e" stroke="${O}" stroke-width="2.5"/><rect x="21" y="16" width="6" height="6" fill="#ffe27a" stroke="${O}" stroke-width="1.5"/></svg>`,
     hunger: `<svg viewBox="0 0 48 48"><path d="M5 24q15-16 30 0-15 16-30 0z" fill="#7fb6ff" stroke="${O}" stroke-width="3"/><path d="M34 24l10-8v16z" fill="#7fb6ff" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><circle cx="14" cy="22" r="2.5" fill="${O}"/></svg>`,
     fun: `<svg viewBox="0 0 48 48"><path d="M24 41C8 30 4 22 4 16 4 10 9 6 14 6c4 0 8 2 10 6 2-4 6-6 10-6 5 0 10 4 10 10 0 6-4 14-20 25z" fill="#ff7aa8" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><ellipse cx="14" cy="15" rx="4" ry="2.5" fill="#fff" opacity=".8"/></svg>`,
@@ -38,11 +39,21 @@
       asleep: false, poops: [], pendingPoop: 0,
       stats: { fed: 0, pets: 0, baths: 0, sleeps: 0, catches: 0, omikuji: 0, daikichi: 0, cleaned: 0, games: 0 },
       best: {}, tasted: [], ach: [], lastOmikuji: '', tut: 0,
+      daily: null, streak: 0, bestStreak: 0, lastDailyDone: '', roadClaimed: [], found: [], lampOff: false,
       settings: { music: true, sfx: true, haptics: true, season: 'auto', english: true },
     };
   }
   function load() {
-    try { const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null; const s = JSON.parse(raw); return s && s.v === 1 ? s : null; } catch (e) { return null; }
+    try {
+      const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s || s.v !== 1) return null;
+      // migrate saves from before missions / Kizuna Road
+      if (!s.roadClaimed) s.roadClaimed = [];
+      if (!s.found) s.found = [];
+      if (s.streak == null) { s.streak = 0; s.bestStreak = 0; s.lastDailyDone = ''; s.daily = null; }
+      return s;
+    } catch (e) { return null; }
   }
   let saveTimer = 0;
   function save() {
@@ -74,6 +85,7 @@
     look: { x: 0, y: 0 }, lookTarget: { x: 0, y: 0 }, lookT: 0,
     happyT: 0, petK: 0, purring: false, speech: null, thought: null,
     twitchL: 0, twitchR: 0, pose: C.defaultPose(), squash: 0, pawSwipe: 0,
+    depth: 1, perch: null, hop: null, inBox: false, goal: null, chase: null, fast: false, batT: 0,
   };
 
   function catScale() {
@@ -93,7 +105,7 @@
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     L = S.layout(W, H);
-    cat.y = L.catY;
+    cat.y = L.catY; cat.depth = 1; cat.perch = null; cat.hop = null; cat.inBox = false;
     if (!cat.x) { cat.x = homeX(); cat.tx = cat.x; }
     cat.x = U.clamp(cat.x, L.minX, L.maxX); cat.tx = U.clamp(cat.tx, L.minX, L.maxX);
   }
@@ -151,10 +163,155 @@
   function addXP(n) {
     if (!st) return;
     st.xp += n;
-    let leveled = false;
-    while (st.xp >= xpNeed(st.level)) { st.xp -= xpNeed(st.level); st.level++; leveled = true; }
-    if (leveled) levelUp();
+    const from = st.level;
+    while (st.xp >= xpNeed(st.level)) { st.xp -= xpNeed(st.level); st.level++; }
+    if (st.level > from) {
+      const gained = [];
+      for (let lv = from + 1; lv <= st.level; lv++) { const r = grantRoad(lv); if (r) gained.push(r); }
+      levelUp(gained);
+    }
     renderHUD(true);
+  }
+
+  /* ================= KIZUNA ROAD ================= */
+  function roadLabel(r) {
+    if (r.coins) return { jp: `${r.coins}`, en: `${r.coins} koban`, kind: 'coins' };
+    if (r.acc) { const a = D.ACCESSORIES.find((x) => x.id === r.acc); return { jp: a.jp, en: a.name, kind: 'acc' }; }
+    const d = D.DECOR.find((x) => x.id === r.decor); return { jp: d.jp, en: d.name, kind: 'decor' };
+  }
+  function grantRoad(lv) {
+    const r = D.ROAD.find((x) => x.lv === lv);
+    if (!r || st.roadClaimed.includes(lv)) return null;
+    st.roadClaimed.push(lv);
+    if (r.coins) st.coins += r.coins;
+    if (r.acc && !st.owned.includes(r.acc)) st.owned.push(r.acc);
+    if (r.decor && !st.decor.includes(r.decor)) st.decor.push(r.decor);
+    return r;
+  }
+  function catchUpRoad() {
+    // existing saves get every milestone they already passed
+    const got = [];
+    D.ROAD.forEach((r) => { if (r.lv <= st.level) { const g = grantRoad(r.lv); if (g) got.push(g); } });
+    if (got.length) setTimeout(() => toast(`<span class="mini-hanko">絆</span><span><b>Kizuna Road rewards!</b><br>${got.map((g) => roadLabel(g).en).join(' · ')}</span>`, 'ach'), 2500);
+  }
+
+  /* ================= DAILY MISSIONS ================= */
+  function seededRng(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return (h >>> 0) / 4294967296; };
+  }
+  const mission = (id) => D.MISSIONS.find((m) => m.id === id);
+  const missionText = (m) => m.text.replace('{n}', m.n).replace('{name}', st.name);
+  function ensureDaily() {
+    if (!st) return;
+    const key = U.dayKey();
+    if (st.daily && st.daily.key === key) return;
+    const rng = seededRng(key + ':' + st.created);
+    const pool = D.MISSIONS.slice();
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const list = []; let games = 0;
+    for (const m of pool) {
+      if (list.length >= 3) break;
+      if (m.game) { if (games) continue; games++; }
+      if (m.id === 'fortune' && st.lastOmikuji === key) continue;
+      list.push({ id: m.id, prog: m.kind === 'min' ? null : 0, done: false, claimed: false });
+    }
+    st.daily = { key, list, bonus: false };
+    renderHUD(true);
+  }
+  function track(ev, val = 1) {
+    if (!st) return;
+    ensureDaily();
+    let changed = false;
+    st.daily.list.forEach((d) => {
+      const m = mission(d.id);
+      if (m.ev !== ev || d.done) return;
+      if (m.kind === 'max') d.prog = Math.max(d.prog || 0, val);
+      else if (m.kind === 'min') d.prog = d.prog == null ? val : Math.min(d.prog, val);
+      else d.prog = (d.prog || 0) + val;
+      if (m.kind === 'min' ? d.prog <= m.n : d.prog >= m.n) {
+        d.done = true;
+        setTimeout(() => { toast(`<span class="mini-hanko">${m.jp}</span><span><b>Mission complete!</b><br>${missionText(m)} · claim it in おつとめ</span>`, 'ach'); A.play('success'); }, 300);
+      }
+      changed = true;
+    });
+    if (changed) { renderHUD(true); if (document.querySelector('.sheet.daily.open')) openDaily(true); }
+  }
+  const dailyClaimable = () => st && st.daily && (st.daily.list.some((d) => d.done && !d.claimed) || (!st.daily.bonus && st.daily.list.every((d) => d.claimed)));
+  function liveStreak() {
+    const today = U.dayKey(), yest = U.dayKey(new Date(Date.now() - 86400000));
+    return st.lastDailyDone === today || st.lastDailyDone === yest ? st.streak : 0;
+  }
+  function claimMission(i) {
+    const d = st.daily.list[i]; if (!d || !d.done || d.claimed) return;
+    const m = mission(d.id);
+    d.claimed = true;
+    addCoins(m.coins, W / 2, H * 0.3);
+    addXP(m.xp);
+    U.vibrate(15);
+    save(); openDaily(true);
+  }
+  function claimBonus() {
+    if (!st.daily.list.every((d) => d.claimed) || st.daily.bonus) return;
+    const today = U.dayKey(), yest = U.dayKey(new Date(Date.now() - 86400000));
+    st.streak = st.lastDailyDone === yest ? st.streak + 1 : st.lastDailyDone === today ? st.streak : 1;
+    st.lastDailyDone = today;
+    st.bestStreak = Math.max(st.bestStreak || 0, st.streak);
+    st.stats.dailyDone = (st.stats.dailyDone || 0) + 1;
+    st.daily.bonus = true;
+    const coins = 60 + Math.min(st.streak, 10) * 10;
+    A.play('fanfare'); U.vibrate([20, 40, 20, 40, 60]);
+    for (let i = 0; i < 60; i++) S.emit({ type: 'confetti', x: U.rand(0, W), y: -10, vx: U.rand(-40, 40), vy: U.rand(80, 220), life: 4, size: U.rand(8, 12), rot: U.rand(0, 6), vr: U.rand(-8, 8), color: U.pick(['#ff6f9f', '#ffd34e', '#7fb6ff', '#9ad17f', '#c591ea']), sway: 50 });
+    closeSheet();
+    modal(`<div class="chest-open"><div class="chest">🎁</div><h2>ごほうび！ <small>Daily reward</small></h2>
+      <p>All of today's missions are done. ${st.name} is so proud of you!</p>
+      <div class="streak-big"><b>${st.streak}</b><span>日連続<br><small>day streak</small></span></div>
+      <p class="reward">+${coins} <i class="koban"></i></p><p class="sub">+30 bond XP${st.streak < 10 ? ` · Tomorrow's chest: +${60 + Math.min(st.streak + 1, 10) * 10}` : ' · Max streak bonus!'}</p>
+      <button class="btn" data-ui="closemodal">やったー！</button></div>`, 'chestmodal');
+    addCoins(coins); addXP(30);
+    cat.happyT = 2.5; say('happy', true); A.meow(1.25);
+    checkAch(); save();
+  }
+  const MISSION_GO = { pet: null, feed: 'feed', treat: 'feed', wand: 'play', bath: 'bath', sleep: 'sleep', boop: null, game: 'games', catchScore: 'g:catch', taikoCombo: 'g:taiko', memoryMoves: 'g:memory', allNeeds: null, buy: 'shop', omikuji: 'omikuji' };
+  function missionGo(ev) {
+    const go = MISSION_GO[ev]; closeSheet(); if (!go) return;
+    setTimeout(() => {
+      if (go.startsWith('g:')) { if (st.needs.energy < 10) { toast(`${st.name} is too sleepy for games 💤`); return; } playGame(go.slice(2)); }
+      else if (go === 'feed') openFeed(); else if (go === 'games') openGames(); else if (go === 'shop') openShop(); else if (go === 'omikuji') openOmikuji();
+      else if (mode !== go) setMode(go);
+    }, 280);
+  }
+  function openDaily(refresh) {
+    ensureDaily();
+    const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const left = mid - now, hh = Math.floor(left / 3600000), mm = Math.floor((left % 3600000) / 60000);
+    const allClaimed = st.daily.list.every((d) => d.claimed);
+    const streak = liveStreak();
+    const cards = st.daily.list.map((d, i) => {
+      const m = mission(d.id);
+      const pct = m.kind === 'min' ? (d.done ? 100 : 0) : Math.min(100, ((d.prog || 0) / m.n) * 100);
+      const progTxt = m.kind === 'min' ? (d.prog == null ? 'Not tried yet' : `Best: ${d.prog} moves`) : `${Math.min(d.prog || 0, m.n)} / ${m.n}`;
+      const btn = d.claimed ? '<span class="claimed">✓ もらった</span>'
+        : d.done ? `<button class="btn small" data-claim="${i}">Claim!</button>`
+        : MISSION_GO[m.ev] ? `<button class="btn small ghost" data-go="${m.ev}">Go ›</button>` : '';
+      return `<div class="mission ${d.done ? 'done' : ''} ${d.claimed ? 'claimed-card' : ''}">
+        <div class="m-hanko"><span>${m.jp}</span></div>
+        <div class="m-body"><b>${missionText(m)}</b>
+          <div class="m-bar"><span style="width:${pct}%"></span></div>
+          <small>${progTxt} · <span class="price"><i class="koban"></i>${m.coins}</span> +${m.xp} XP</small></div>
+        <div class="m-act">${btn}</div></div>`;
+    }).join('');
+    const html = `<div class="daily-top"><div class="streak"><span class="flame">${streak ? '🔥' : '🌱'}</span><b>${streak}</b><small>日連続<br>day streak</small></div>
+      <div class="reset">New missions in<br><b>${hh}h ${mm}m</b></div></div>
+      <p class="sub">Finish all three for a reward chest. Keep your streak going for bigger chests (up to 10 days)!</p>
+      <div class="missions">${cards}</div>
+      <div class="chest-row ${allClaimed && !st.daily.bonus ? 'ready' : ''} ${st.daily.bonus ? 'opened' : ''}">
+        <div class="chest-ic">${st.daily.bonus ? '✨' : '🎁'}</div>
+        <div><b>ごほうび箱 Reward chest</b><small>${st.daily.bonus ? 'Opened today. See you tomorrow!' : `${st.daily.list.filter((d) => d.claimed).length}/3 missions claimed`}</small></div>
+        ${allClaimed && !st.daily.bonus ? '<button class="btn small" data-ui="bonus">Open!</button>' : ''}</div>`;
+    if (refresh && document.querySelector('.sheet.daily.open .sheet-body')) { document.querySelector('.sheet.daily .sheet-body').innerHTML = html; return; }
+    openSheet('Daily Missions', 'おつとめ', html, null, 'daily');
   }
   function titleFor(lv) { let t = D.TITLES[0]; D.TITLES.forEach((x) => { if (lv >= x[0]) t = x; }); return t; }
   function addCoins(n, x, y) {
@@ -191,6 +348,7 @@
       if (need === 'energy') setAct('yawn', 1.6), A.play('yawn');
       return;
     }
+    if (Math.random() < 0.45) { startExplore(); return; }
     if (r < 0.38) { cat.tx = U.rand(L.minX, L.maxX); setAct('walk', 6); }
     else if (r < 0.52) setAct('groom', U.rand(2, 3.2));
     else if (r < 0.62) { setAct('beckon', 2.2); }
@@ -234,11 +392,16 @@
 
     // behaviour by mode
     if (mode === 'room') {
-      if (cat.act === 'walk') {
+      if (cat.hop) updateHop(dt);
+      else if (cat.act === 'walk') {
+        if (cat.chase === 'ball') cat.tx = U.clamp(ball.x, L.minX, L.maxX);
         const dx = cat.tx - cat.x;
-        if (Math.abs(dx) < 4) setAct('idle', 0.5);
-        else { cat.dir = Math.sign(dx); cat.x += Math.sign(dx) * Math.min(Math.abs(dx), 70 * s * dt); }
-        if (cat.actT > cat.actDur) setAct('idle', 0.5);
+        if (cat.chase === 'ball' && Math.abs(ball.x - cat.x) < 44 * s && ball.h > -30) batBall();
+        else if (Math.abs(dx) < 4 && cat.chase !== 'bug') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
+        else if (Math.abs(dx) >= 4) { cat.dir = Math.sign(dx); cat.x += Math.sign(dx) * Math.min(Math.abs(dx), (cat.fast || cat.chase ? 150 : 70) * s * dt); }
+        if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
+      } else if (['perch', 'box', 'knead', 'nap', 'bat'].includes(cat.act)) {
+        updateActivity(dt);
       } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch'].includes(cat.act)) {
         if (cat.actT > cat.actDur) setAct('idle', 0.5);
       } else if (cat.act === 'eat') {
@@ -307,6 +470,17 @@
       case 'dizzy': p.eyes = 'dizzy'; p.headTilt = Math.sin(T * 5) * 0.18; p.mouthOpen = 0.3; p.lean = Math.sin(T * 5) * 0.05; break;
       case 'boop': p.eyes = 'surprised'; p.mouthOpen = 0.55; p.earTwitchL = p.earTwitchR = -0.6; p.sy += 0.04; break;
       case 'jump': p.pawL = 1; p.pawR = 0.9; p.eyes = 'sparkle'; p.mouthOpen = 0.6; p.sy = 1.08; p.sx = 0.94; break;
+      case 'hop': p.pawL = 0.55; p.pawR = 0.55; p.eyes = 'sparkle'; p.sy = 1.06; p.sx = 0.95; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'perch': {
+        const chatter = cat.perch === 'sill' && birds.some((b) => b.state === 'perch');
+        if (chatter) { p.eyes = 'sparkle'; p.mouthOpen = 0.25 + Math.abs(Math.sin(T * 22)) * 0.3; p.tailPhase = T * 9; p.earTwitchL = p.earTwitchR = 0.3; }
+        else if (cat.perch === 'toko') { p.pawR = 0.55 + Math.max(0, Math.sin(T * 4)) * 0.45; p.eyes = 'happy'; p.mouthOpen = 0.3; }
+        p.tailAmp = 0.6; break;
+      }
+      case 'box': p.loaf = 1; p.lookX = Math.sin(T * 0.9) * 0.9; p.lookY = -0.2; if (Math.sin(T * 0.35) > 0.8) p.eyes = 'sparkle'; break;
+      case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
+      case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
+      case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
       case 'sleep': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.5 + cat.petK * 0.5; p.mouth = 'w'; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       default: break;
     }
@@ -324,10 +498,318 @@
     cat.pose = p;
   }
 
+  /* ================= EXPLORATION & INTERACTIVE ROOM ================= */
+  const DISCOVER = {
+    sill: ['窓辺', 'Window sill', 'loves the view from the window sill'],
+    toko: ['床の間', 'Tokonoma', 'climbed up beside the maneki-neko'],
+    box: ['段ボール', 'Cardboard box', 'found the perfect box. If it fits, it sits!'],
+    knead: ['ふみふみ', 'Kneading', 'made biscuits on the zabuton'],
+    daruma: ['だるま', 'Daruma bop', 'bopped the daruma'],
+    ball: ['てまり', 'Temari ball', 'played with the temari ball'],
+    bird: ['すずめ', 'Bird watching', 'chattered at a sparrow'],
+    bug: ['ちょうちょ', 'Bug chase', 'chased a butterfly'],
+  };
+  function discover(id) {
+    if (!st) return;
+    track('explore');
+    if (st.found.includes(id)) return;
+    st.found.push(id);
+    const d = DISCOVER[id];
+    addXP(10);
+    setTimeout(() => toast(`<span class="mini-hanko">${d[0]}</span><span><b>New discovery!</b><br>${st.name} ${d[2]} · +10 XP</span>`, 'ach'), 200);
+    A.play('sparkle'); checkAch();
+  }
+  const cs = () => catScale() * cat.depth;
+  const boxX = () => L.sx + L.SW * 0.78;
+  const sillSpot = () => ({ x: L.win.x + L.win.w * U.rand(0.38, 0.62), y: L.win.y + L.win.h + 1, depth: 0.58 });
+  const tokoSpot = () => ({ x: L.alcove.x + L.alcove.w * 0.5, y: L.alcove.y + L.alcove.h - 26, depth: 0.5 });
+
+  function goTo(x, then, fast) {
+    cat.tx = U.clamp(x, L.minX, L.maxX); cat.goal = then || null; cat.fast = !!fast;
+    setAct('walk', 9);
+  }
+  function hopTo(x, y, depth, then) {
+    cat.hop = { x0: cat.x, y0: cat.y, d0: cat.depth, x1: x, y1: y, d1: depth, t: 0, dur: 0.62, then };
+    cat.dir = Math.sign(x - cat.x) || cat.dir;
+    setAct('hop', 99); A.play('boing'); cat.squash = 0.6;
+  }
+  function updateHop(dt) {
+    const h = cat.hop;
+    h.t += dt;
+    const k = Math.min(1, h.t / h.dur), e = U.easeInOut(k);
+    cat.x = U.lerp(h.x0, h.x1, e); cat.depth = U.lerp(h.d0, h.d1, e);
+    const peak = Math.min(h.y0, h.y1) - 110 * catScale();
+    cat.y = (1 - k) * (1 - k) * h.y0 + 2 * (1 - k) * k * peak + k * k * h.y1;
+    if (k >= 1) { cat.hop = null; cat.squash = 1; setAct('idle', 0.5); h.then && h.then(); }
+  }
+  function getDown(instant) {
+    cat.inBox = false; cat.goal = null; cat.chase = null;
+    if (!cat.perch && !cat.hop) return;
+    cat.perch = null;
+    if (instant || !L) { cat.hop = null; cat.y = L.catY; cat.depth = 1; return; }
+    hopTo(U.clamp(cat.x + U.rand(-50, 50), L.minX, L.maxX), L.catY, 1);
+  }
+  function startExplore() {
+    const opts = [['sill', 3], ['toko', 2], ['box', 3], ['ball', 3]];
+    if (shown('zabuton')) opts.push(['knead', 2]);
+    if (shown('daruma')) opts.push(['daruma', 2]);
+    let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), pick = opts[0][0];
+    for (const [id, w] of opts) { if ((r -= w) <= 0) { pick = id; break; } }
+    const s = catScale();
+    if (pick === 'sill' || pick === 'toko') {
+      const sp = pick === 'sill' ? sillSpot() : tokoSpot();
+      goTo(sp.x + (sp.x > cat.x ? -60 : 60) * s, () => hopTo(sp.x, sp.y, sp.depth, () => {
+        cat.perch = pick; setAct('perch', U.rand(8, 15));
+        st.needs.fun = U.clamp(st.needs.fun + 2, 0, 100); discover(pick);
+        if (pick === 'toko' && shown('maneki')) sayText('まねきねこ！', 'Same pose!', true);
+      }));
+    } else if (pick === 'box') {
+      goTo(boxX(), () => { cat.inBox = true; setAct('box', U.rand(6, 11)); A.play('pop'); discover('box'); st.needs.fun = U.clamp(st.needs.fun + 3, 0, 100); });
+    } else if (pick === 'knead') {
+      goTo(homeX(), () => { setAct('knead', U.rand(3.5, 5)); discover('knead'); A.startPurr(); cat.purring = true; });
+    } else if (pick === 'daruma') {
+      goTo(darumaX() + 64 * s, () => { cat.dir = -1; setAct('bat', 0.6); cat.batT = 0.15; });
+    } else if (pick === 'ball') {
+      cat.chase = 'ball'; goTo(ball.x, null, true);
+    }
+  }
+  function updateActivity(dt) {
+    const s = cs();
+    if (cat.act === 'perch') {
+      const bird = birds.find((b) => b.state === 'perch');
+      if (cat.perch === 'sill' && bird) {
+        cat.lookTarget = { x: U.clamp((bird.x - cat.x) / 80, -1, 1), y: -0.6 }; cat.lookT = 1;
+        if (!cat.chattered) { cat.chattered = true; discover('bird'); sayText('カカカッ', '*chatter chatter*', true); }
+        if (Math.random() < dt * 3) A.meow(1.7, 0.18);
+      } else if (cat.perch === 'sill') { cat.lookTarget = { x: Math.sin(T * 0.5) * 0.8, y: -0.5 }; cat.lookT = 1; }
+      if (cat.actT > cat.actDur) { cat.chattered = false; getDown(); }
+    } else if (cat.act === 'box') {
+      if (cat.actT > cat.actDur) popOut();
+    } else if (cat.act === 'knead') {
+      if (Math.random() < dt * 2) S.emit({ type: 'heart', x: cat.x + U.rand(-20, 20), y: cat.y - 40 * s, vy: -50, life: 1, size: 6, color: '#ff9dbf' });
+      if (cat.actT > cat.actDur) { A.stopPurr(); cat.purring = false; setAct('nap', U.rand(5, 8)); }
+    } else if (cat.act === 'nap') {
+      if (Math.random() < dt * 0.7) S.emit({ type: 'zzz', x: cat.x + 36 * s, y: cat.y - 120 * s, vx: 16, vy: -26, life: 2, size: 8, color: '#8fa6ff', sway: 25 });
+      if (cat.actT > cat.actDur) { st.needs.energy = U.clamp(st.needs.energy + 5, 0, 100); setAct('yawn', 1.4); }
+    } else if (cat.act === 'bat') {
+      if (cat.batT > 0) {
+        cat.batT -= dt;
+        if (cat.batT <= 0) {
+          if (Math.abs(cat.x - darumaX()) < 100 * s && shown('daruma') && !cat.chase) { wobbleDaruma = 1.6; A.play('boing'); discover('daruma'); sayText('えいっ！', 'Bop!', true); }
+        }
+      }
+      if (cat.actT > cat.actDur) setAct('idle', 0.5);
+    }
+  }
+  function startExploreBox() { goTo(boxX(), () => { cat.inBox = true; setAct('box', U.rand(6, 11)); A.play('pop'); discover('box'); }); }
+  function popOut() {
+    cat.inBox = false; setAct('boop', 0.6);
+    cat.jumpV = -480 * catScale(); cat.jumpY = -1;
+    A.meow(1.4, 0.5); S.burst('sparkle', cat.x, cat.y - 80 * catScale(), 8, { p: { color: '#fff3a8', size: 8 } });
+  }
+
+  /* ---------- temari ball ---------- */
+  const ball = { x: 0, h: 0, vx: 0, vh: 0, rot: 0, init: false };
+  const ballY = () => L.catY + 16 * L.scale;
+  const ballR = () => 17 * L.scale;
+  function kickBall(vx, vh) { ball.vx = vx; ball.vh = vh; A.play('pop'); }
+  function updateBall(dt) {
+    if (!ball.init) { ball.x = L.sx + L.SW * 0.3; ball.init = true; }
+    ball.vh += 1500 * dt; ball.h += ball.vh * dt;
+    if (ball.h > 0) { ball.h = 0; ball.vh = Math.abs(ball.vh) > 90 ? -ball.vh * 0.45 : 0; }
+    ball.x += ball.vx * dt; ball.vx *= Math.exp(-(ball.h < 0 ? 0.3 : 1.3) * dt);
+    if (Math.abs(ball.vx) < 4) ball.vx = 0;
+    const lo = L.sx + 24 * L.scale, hi = L.sx + L.SW - 24 * L.scale;
+    if (ball.x < lo) { ball.x = lo; ball.vx = Math.abs(ball.vx) * 0.7; }
+    if (ball.x > hi) { ball.x = hi; ball.vx = -Math.abs(ball.vx) * 0.7; }
+    ball.rot += ball.vx * dt / ballR();
+    // a rolling ball is irresistible
+    if (mode === 'room' && Math.abs(ball.vx) > 80 && cat.act === 'idle' && !cat.perch && !cat.inBox && !cat.hop && Math.random() < dt * 4) { cat.chase = 'ball'; goTo(ball.x, null, true); }
+  }
+  function batBall() {
+    const s = catScale();
+    cat.chase = null; cat.goal = null;
+    const toward = ball.x < L.sx + L.SW / 2 ? 1 : -1;
+    cat.dir = Math.sign(ball.x - cat.x) || 1;
+    setAct('bat', 0.5); cat.batT = 0;
+    kickBall(toward * U.rand(220, 420) * L.scale, -U.rand(220, 420)); A.play('swat');
+    st.needs.fun = U.clamp(st.needs.fun + 3, 0, 100);
+    discover('ball');
+    if (Math.random() < 0.3) cat.happyT = 0.8;
+    S.emit({ type: 'ring', x: ball.x, y: ballY() - ballR(), life: 0.4, size: 10, color: '#ffd34e' });
+  }
+  function drawBall(c) {
+    const r = ballR(), x = ball.x, y = ballY() + ball.h - r;
+    c.fillStyle = 'rgba(60,30,40,0.18)'; U.ell(c, x, ballY(), r * (1 - Math.min(0.5, -ball.h / 240)), r * 0.28); c.fill();
+    c.save(); c.translate(x, y); c.rotate(ball.rot);
+    U.ell(c, 0, 0, r, r); c.fillStyle = '#e8344e'; c.fill();
+    c.save(); U.ell(c, 0, 0, r, r); c.clip();
+    ['#ffd34e', '#ffffff', '#3d6fd3', '#4fcfa8', '#ffffff', '#ffd34e'].forEach((col, i) => {
+      c.save(); c.rotate((i * Math.PI) / 6); c.strokeStyle = col; c.lineWidth = r * 0.16;
+      c.beginPath(); c.ellipse(0, 0, r * 1.05, r * 0.3, 0, 0, Math.PI * 2); c.stroke(); c.restore();
+    });
+    c.fillStyle = '#ffffff'; U.star(c, 0, 0, r * 0.28, 8, 0.5); c.fill();
+    c.restore();
+    c.strokeStyle = '#8a1428'; c.lineWidth = 2; U.ell(c, 0, 0, r, r); c.stroke();
+    c.restore();
+    c.fillStyle = 'rgba(255,255,255,0.6)'; U.ell(c, x - r * 0.35, y - r * 0.4, r * 0.25, r * 0.15, -0.6); c.fill();
+  }
+
+  /* ---------- cardboard box (みかん箱) ---------- */
+  const boxDims = () => { const s = L.scale * catScale() / L.scale; return { s, x: boxX(), y: L.catY + 6, w: 74 * s, h: 58 * s }; };
+  function drawBox(c, front) {
+    const { s, x, y, w, h } = boxDims(), lid = 18 * s;
+    c.save();
+    if (!front) {
+      c.fillStyle = 'rgba(60,30,40,0.18)'; U.ell(c, x, y + 2, w + 10 * s, 10 * s); c.fill();
+      c.fillStyle = '#b98149'; c.fillRect(x - w, y - h - lid, w * 2, lid + 4);
+      c.fillStyle = '#6b4334'; c.fillRect(x - w + 4 * s, y - h - 4 * s, w * 2 - 8 * s, 8 * s);
+      // back flap
+      c.fillStyle = '#c99158'; c.strokeStyle = '#8a5a30'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(x - w, y - h - lid); c.lineTo(x - w + 8 * s, y - h - lid - 22 * s); c.lineTo(x + w - 8 * s, y - h - lid - 22 * s); c.lineTo(x + w, y - h - lid); c.closePath(); c.fill(); c.stroke();
+    } else {
+      c.fillStyle = '#d9a066'; c.strokeStyle = '#8a5a30'; c.lineWidth = 2.5;
+      c.fillRect(x - w, y - h, w * 2, h); c.strokeRect(x - w, y - h, w * 2, h);
+      c.fillStyle = 'rgba(255,255,255,0.15)'; c.fillRect(x - w, y - h, w * 2, 6 * s);
+      // side flaps flopping open
+      c.fillStyle = '#e3ad74';
+      [-1, 1].forEach((sd) => { c.beginPath(); c.moveTo(x + sd * w, y - h); c.lineTo(x + sd * (w + 20 * s), y - h - 12 * s); c.lineTo(x + sd * (w + 16 * s), y - h + 10 * s); c.lineTo(x + sd * w, y - h + 14 * s); c.closePath(); c.fill(); c.stroke(); });
+      // みかん print
+      c.fillStyle = '#ff8a2a'; U.ell(c, x - 24 * s, y - h * 0.48, 9 * s, 8 * s); c.fill();
+      c.fillStyle = '#4caf6a'; U.ell(c, x - 22 * s, y - h * 0.48 - 8 * s, 4 * s, 2 * s, -0.5); c.fill();
+      c.fillStyle = '#c4532e'; c.font = `900 ${15 * s}px "M PLUS Rounded 1c", sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillText('みかん', x - 12 * s, y - h * 0.48);
+      c.strokeStyle = 'rgba(138,90,48,0.35)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x - w, y - h * 0.15); c.lineTo(x + w, y - h * 0.15); c.stroke();
+    }
+    c.restore();
+  }
+
+  /* ---------- sparrows outside the window ---------- */
+  const birds = [];
+  let birdT = 10;
+  function spawnBird() {
+    const w = L.win, from = Math.random() < 0.5 ? -1 : 1;
+    birds.push({ x: from < 0 ? w.x - 20 : w.x + w.w + 20, y: w.y + w.h * U.rand(0.1, 0.4), tx: w.x + w.w * U.rand(0.62, 0.9), ty: w.y + w.h * U.rand(0.08, 0.13), state: 'in', t: 0, stay: U.rand(5, 10), dir: -from, hop: 0 });
+  }
+  function updateBirds(dt) {
+    const day = S.nightness(env.hour) < 0.5;
+    birdT -= dt;
+    if (birdT <= 0) { birdT = U.rand(18, 40); if (day && birds.length < 2 && mode !== 'title') spawnBird(); }
+    for (let i = birds.length - 1; i >= 0; i--) {
+      const b = birds[i]; b.t += dt;
+      if (b.state === 'in') {
+        b.x = U.damp(b.x, b.tx, 2.5, dt); b.y = U.damp(b.y, b.ty, 2.5, dt);
+        if (Math.hypot(b.x - b.tx, b.y - b.ty) < 3) { b.state = 'perch'; b.t = 0; A.play('tap'); }
+      } else if (b.state === 'perch') {
+        if (Math.random() < dt * 1.2) { b.hop = 1; b.dir = U.pick([-1, 1]); b.x += b.dir * 6; }
+        b.hop = Math.max(0, b.hop - dt * 5);
+        const scared = cat.perch === 'sill' && Math.abs(cat.x - b.x) < 60 && cat.actT > 4;
+        if (b.t > b.stay || scared) { b.state = 'out'; b.dir = Math.random() < 0.5 ? -1 : 1; }
+      } else {
+        b.x += b.dir * 160 * dt; b.y -= 70 * dt;
+        if (b.x < L.win.x - 40 || b.x > L.win.x + L.win.w + 40) birds.splice(i, 1);
+      }
+    }
+  }
+  function drawBirds(c) {
+    birds.forEach((b) => {
+      const s = L.scale * 0.9, flying = b.state !== 'perch';
+      c.save(); c.translate(b.x, b.y - b.hop * 5); c.scale(b.dir * s, s);
+      c.fillStyle = '#a8764e'; U.ell(c, 0, -7, 9, 7); c.fill();
+      c.fillStyle = '#f6e3c8'; U.ell(c, 2, -4, 6, 4); c.fill();
+      c.fillStyle = '#6b4334'; U.ell(c, 6, -12, 5, 4.5); c.fill();
+      c.fillStyle = '#ffffff'; U.ell(c, 7, -10, 3, 2); c.fill();
+      c.fillStyle = '#1e1a22'; U.ell(c, 8, -12, 1.3, 1.3); c.fill();
+      c.fillStyle = '#ffb347'; c.beginPath(); c.moveTo(10, -12); c.lineTo(14, -11); c.lineTo(10, -10); c.fill();
+      c.fillStyle = '#7a5a3a'; c.beginPath(); c.moveTo(-8, -8); c.lineTo(-15, -12); c.lineTo(-14, -6); c.fill();
+      const flap = flying ? Math.sin(b.t * 30) * 8 : 0;
+      c.fillStyle = '#8a5a3a'; c.beginPath(); c.moveTo(-3, -9); c.quadraticCurveTo(-4, -16 - flap, -9, -12 - flap * 0.5); c.quadraticCurveTo(-6, -7, -3, -9); c.fill();
+      c.restore();
+    });
+  }
+
+  /* ---------- butterflies & dragonflies ---------- */
+  const bugs = [];
+  let bugT = 12;
+  function spawnBug() {
+    const w = L.win;
+    const kind = env.season === 'autumn' ? 'tombo' : 'cho';
+    bugs.push({ kind, x: w.x + w.w * U.rand(0.3, 0.7), y: w.y + w.h * 0.4, vx: 0, vy: 0, tx: 0, ty: 0, t: 0, life: U.rand(18, 28), retarget: 0, col: U.pick(['#ffb3cb', '#ffe27a', '#bfe3ff', '#d9c6ff']), flee: 0 });
+  }
+  function updateBugs(dt) {
+    const day = S.nightness(env.hour) < 0.5;
+    bugT -= dt;
+    if (bugT <= 0) { bugT = U.rand(35, 70); if (day && !bugs.length && env.season !== 'winter' && mode === 'room') spawnBug(); }
+    for (let i = bugs.length - 1; i >= 0; i--) {
+      const b = bugs[i]; b.t += dt; b.retarget -= dt; b.flee = Math.max(0, b.flee - dt);
+      const leaving = b.t > b.life;
+      if (b.retarget <= 0) {
+        b.retarget = U.rand(1.2, 2.6);
+        if (leaving) { b.tx = L.win.x + L.win.w / 2; b.ty = L.win.y + L.win.h * 0.3; }
+        else { b.tx = U.rand(L.sx + 30, L.sx + L.SW - 30); b.ty = U.rand(L.win.y + 30, L.catY - 60 * L.scale); }
+      }
+      const sp = b.flee > 0 ? 260 : b.kind === 'tombo' ? 140 : 70;
+      const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy) || 1;
+      b.vx = U.damp(b.vx, (dx / d) * sp, b.kind === 'tombo' ? 6 : 2.5, dt);
+      b.vy = U.damp(b.vy, (dy / d) * sp, b.kind === 'tombo' ? 6 : 2.5, dt);
+      b.x += b.vx * dt; b.y += b.vy * dt + (b.kind === 'cho' ? Math.sin(b.t * 7) * 30 * dt : 0);
+      if (leaving && d < 20) { bugs.splice(i, 1); continue; }
+      // the cat hunts it
+      const s = catScale();
+      if (mode === 'room' && !cat.perch && !cat.inBox && !cat.hop && (cat.act === 'idle' || (cat.act === 'walk' && cat.chase === 'bug'))) {
+        if (cat.act === 'idle' && Math.random() < dt * 0.8) { cat.chase = 'bug'; goTo(b.x, null, true); }
+        if (cat.chase === 'bug') {
+          cat.tx = U.clamp(b.x, L.minX, L.maxX);
+          const above = cat.y - b.y;
+          if (Math.abs(b.x - cat.x) < 50 * s && above > 150 * s && above < 420 * s && cat.jumpY === 0 && b.flee <= 0) {
+            cat.jumpV = -Math.sqrt(2 * 2400 * s * Math.max(above - 150 * s, 40 * s)); cat.jumpY = -1; cat.chase = null; cat.goal = null;
+            setAct('jump', 2); A.play('boing');
+            b.flee = 1.4; b.retarget = 0; b.ty = b.y - 120; discover('bug');
+            st.needs.fun = U.clamp(st.needs.fun + 5, 0, 100); addXP(2);
+          }
+        }
+      }
+    }
+    if (cat.chase === 'bug' && !bugs.length) { cat.chase = null; if (cat.act === 'walk') setAct('idle', 0.5); }
+  }
+  function drawBugs(c) {
+    bugs.forEach((b) => {
+      const s = L.scale;
+      c.save(); c.translate(b.x, b.y); c.scale(s, s);
+      if (b.kind === 'cho') {
+        const f = 0.35 + Math.abs(Math.sin(b.t * 14)) * 0.65;
+        c.fillStyle = b.col; c.strokeStyle = '#7a5a6a'; c.lineWidth = 1.2;
+        [-1, 1].forEach((sd) => {
+          c.save(); c.scale(sd * f, 1);
+          c.beginPath(); c.ellipse(7, -5, 8, 7, -0.4, 0, Math.PI * 2); c.fill(); c.stroke();
+          c.beginPath(); c.ellipse(6, 5, 5.5, 5, 0.4, 0, Math.PI * 2); c.fill(); c.stroke();
+          c.fillStyle = 'rgba(255,255,255,0.7)'; U.ell(c, 8, -6, 2.5, 2.5); c.fill();
+          c.restore();
+        });
+        c.fillStyle = '#4a3a4a'; U.ell(c, 0, 0, 1.8, 7); c.fill();
+        c.strokeStyle = '#4a3a4a'; c.beginPath(); c.moveTo(0, -6); c.lineTo(-3, -11); c.moveTo(0, -6); c.lineTo(3, -11); c.stroke();
+      } else {
+        c.rotate(Math.atan2(b.vy, b.vx));
+        const f = Math.sin(b.t * 40) * 0.3;
+        c.fillStyle = 'rgba(220,240,255,0.65)'; c.strokeStyle = 'rgba(120,150,180,0.6)'; c.lineWidth = 0.8;
+        [[-2, -1], [2, 1]].forEach(([ox, k]) => { [-1, 1].forEach((sd) => { c.beginPath(); c.ellipse(ox, sd * 8, 3, 9, sd * (0.2 + f * k), 0, Math.PI * 2); c.fill(); c.stroke(); }); });
+        c.fillStyle = '#e8463c'; c.fillRect(-18, -1.5, 18, 3);
+        U.ell(c, 2, 0, 3.5, 3); c.fill();
+        c.fillStyle = '#7a1022'; U.ell(c, 5, -1.5, 1.6, 1.6); c.fill(); U.ell(c, 5, 1.5, 1.6, 1.6); c.fill();
+      }
+      c.restore();
+    });
+  }
+  function updateWorld(dt) {
+    updateBall(dt); updateBirds(dt); updateBugs(dt);
+    env.scrollSwing = Math.max(0, (env.scrollSwing || 0) - dt * 0.6);
+  }
+
   /* ================= MEALS ================= */
   function feed(food) {
     if (mode !== 'room') setMode('room');
     if (cat.act === 'eat') return;
+    getDown(true);
     if (st.needs.hunger >= 96) { say('full', true); setAct('refuse', 1.2); A.meow(0.9, 0.7); return; }
     if (food.price > 0) {
       if (st.coins < food.price) { toast('Not enough koban for that… try a minigame! 🎮'); A.play('fail'); return; }
@@ -346,6 +828,7 @@
     n.energy = U.clamp(n.energy + f.energy, 0, 100);
     st.stats.fed++;
     if (!st.tasted.includes(f.id)) st.tasted.push(f.id);
+    track('feed'); if (f.price > 0) track('treat');
     if (!st.pendingPoop && Math.random() < 0.45) st.pendingPoop = U.rand(50, 140);
     meal.id = null;
     setAct('nod', 1);
@@ -394,6 +877,7 @@
   function catchWand() {
     cat.caught = true;
     st.stats.catches++;
+    track('wand');
     st.needs.fun = U.clamp(st.needs.fun + 6, 0, 100);
     st.needs.energy = U.clamp(st.needs.energy - 1.5, 0, 100);
     S.burst('star', wand.x, wand.y, 8, { p: { color: U.pick(['#ffd34e', '#ff8fb1', '#8fd3ff']), size: 9 } });
@@ -476,6 +960,7 @@
       if (bath.rinse <= 0) {
         bath.done = true;
         st.stats.baths++;
+        track('bath');
         S.burst('sparkle', cat.x, cat.y - 120 * s, 16, { p: { color: '#ffffff', size: 10 } });
         A.play('sparkle'); say('clean', true);
         addXP(15); U.vibrate([10, 40, 10]);
@@ -496,6 +981,7 @@
   /* ================= MODES ================= */
   function setMode(m) {
     const prev = mode;
+    if (m !== 'room' && L) { getDown(true); A.stopPurr(); cat.purring = false; }
     mode = m;
     document.body.dataset.mode = m;
     $('#modebar').hidden = !['play', 'bath', 'sleep'].includes(m);
@@ -507,7 +993,7 @@
       hint('Wave the feather wand — up high to make them jump!'); say('bored', true); A.meow(1.2);
     }
     if (m === 'bath') { bath.scrub = 0; bath.rinse = 0; bath.done = false; cat.act = 'idle'; hint('Rub your kitty to make bubbles 🫧'); A.play('whoosh'); }
-    if (m === 'sleep') { st.asleep = true; st.stats.sleeps++; hint('Shh… sweet dreams. Tap “Wake” any time.'); A.play('yawn'); addXP(6); checkAch(); }
+    if (m === 'sleep') { st.asleep = true; st.stats.sleeps++; track('sleep'); hint('Shh… sweet dreams. Tap “Wake” any time.'); A.play('yawn'); addXP(6); checkAch(); }
     if (m === 'room' || m === 'title') hint(null);
     if (m === 'room' && cat.act !== 'eat') setAct('idle', 0.5);
     updateMusic();
@@ -528,7 +1014,7 @@
 
   /* ================= INPUT ================= */
   function hitCat(px, py) {
-    const s = catScale(), p = cat.pose;
+    const s = cs(), p = cat.pose;
     const lx = (px - cat.x) / s, ly = (py - (cat.y + cat.jumpY)) / s;
     const hy = p.headY + p.loaf * 26;
     if (Math.hypot(lx, ly - (-106 + hy)) < 15) return 'nose';
@@ -538,11 +1024,20 @@
     return null;
   }
   function propAt(x, y) {
+    if (Math.hypot(x - ball.x, y - (ballY() + ball.h - ballR())) < ballR() * 1.8) return { type: 'ball' };
+    if (Math.abs(x - boxX()) < 70 * L.scale && y > L.catY - 80 * L.scale && y < L.catY + 10) return { type: 'box' };
+    for (const b of bugs) if (Math.hypot(x - b.x, y - b.y) < 34) return { type: 'bug', b };
     for (let i = 0; i < st.poops.length; i++) { const px = L.sx + st.poops[i].x * L.SW; if (Math.hypot(x - px, y - (L.catY + 6) + 18) < 36) return { type: 'poop', i }; }
     if (shown('furin') && Math.hypot(x - (L.win.x + L.win.w * 0.3), y - (L.win.y + 50)) < 34) return { type: 'furin' };
     if (shown('daruma') && Math.hypot(x - darumaX(), y - (L.floorY + (L.catY - L.floorY) * 0.25 - 26 * L.scale)) < 36 * L.scale) return { type: 'daruma' };
     if (shown('maneki') && Math.hypot(x - (L.alcove.x + L.alcove.w * 0.75), y - (L.alcove.y + L.alcove.h - 60 * L.scale)) < 40 * L.scale) return { type: 'maneki' };
     if (shown('chochin') && Math.hypot(x - (L.sx + L.SW * 0.12), y - (L.win.y + 32)) < 36) return { type: 'chochin' };
+    const a = L.alcove;
+    if (x > a.x + a.w * 0.25 && x < a.x + a.w * 0.75 && y > a.y + 14 && y < a.y + a.h * 0.62) return { type: 'scroll' };
+    if (x > a.x && x < a.x + a.w * 0.45 && y > a.y + a.h * 0.62 && y < a.y + a.h) return { type: 'flowers' };
+    const w = L.win;
+    if (x > w.x && x < w.x + w.w && y > w.y && y < w.y + w.h) return { type: 'window' };
+    if (y > L.floorY) return { type: 'floor' };
     return null;
   }
   const darumaX = () => L.sx + L.SW * 0.13;
@@ -579,6 +1074,7 @@
           st.needs.fun = U.clamp(st.needs.fun + 1.2, 0, 100);
           S.emit({ type: 'heart', x: x + U.rand(-10, 10), y: y - 10, vx: U.rand(-30, 30), vy: -110, life: 1.1, size: U.rand(7, 12), color: U.pick(['#ff6f9f', '#ff9dbf', '#ff4f8b']), drag: 1 });
           if (st.stats.pets % 6 === 0) addXP(1);
+          track('pet');
           if (st.stats.pets % 15 === 0) say('pet', true);
           U.vibrate(4);
           checkAch(); tutorialStep('pet');
@@ -591,6 +1087,11 @@
     ptr.down = false;
     const tap = ptr.moved < 12 && T - ptr.t0 < 0.45;
     if (mode === 'play' || mode === 'bath') return;
+    if (ptr.target && ptr.target.type === 'ball' && !tap) {
+      const dt = Math.max(0.05, T - ptr.t0);
+      kickBall(U.clamp((ptr.x - ptr.sx) / dt * 0.6, -900, 900), -U.clamp(Math.abs(ptr.y - ptr.sy) / dt * 0.5 + 200, 200, 700));
+      return;
+    }
     if (!tap || !ptr.target) return;
     const tg = ptr.target;
     if (tg.type === 'cat') tapCat(tg.part);
@@ -607,15 +1108,43 @@
       const key = U.dayKey();
       if (st.manekiDay !== key) { st.manekiDay = key; addCoins(15, ptr.x, ptr.y - 40); toast('The maneki-neko beckoned some luck! +15'); }
       else { A.play('chime'); S.burst('sparkle', ptr.x, ptr.y, 6, { p: { color: '#ffd34e', size: 7 } }); }
-    } else if (tg.type === 'chochin') { A.play('tap'); }
+    } else if (tg.type === 'chochin') {
+      st.lampOff = !st.lampOff; A.play('tap');
+      toast(st.lampOff ? 'Lantern off 🌙' : 'Lantern on 🏮');
+    } else if (tg.type === 'ball') {
+      kickBall((ball.x < cat.x ? -1 : 1) * U.rand(200, 380) * L.scale, -U.rand(300, 480));
+    } else if (tg.type === 'box') {
+      if (cat.inBox) popOut();
+      else { A.play('pop'); S.burst('sparkle', boxX(), L.catY - 60 * L.scale, 5, { p: { color: '#fff3a8', size: 7 } }); if (mode === 'room' && cat.act === 'idle' && !cat.perch) startExploreBox(); }
+    } else if (tg.type === 'bug') { tg.b.flee = 1.5; tg.b.retarget = 0; A.play('whoosh'); }
+    else if (tg.type === 'scroll') { env.scrollSwing = 1; A.play('whoosh'); }
+    else if (tg.type === 'flowers') { S.burst('petal', ptr.x, ptr.y, 8, { p: { color: env.season === 'autumn' ? '#ff8a4c' : '#ffb3cb', size: 8, g: 120, life: 1.6 } }); A.play('chime'); }
+    else if (tg.type === 'window') {
+      if (S.nightness(env.hour) < 0.5) { if (birds.length < 3) spawnBird(); A.play('tap'); }
+      else {
+        const w = L.win;
+        for (let i = 0; i < 10; i++) S.emit({ type: 'sparkle', x: w.x + w.w * 0.8 - i * 8, y: w.y + 30 + i * 5, vx: -220, vy: 110, life: 0.5 + i * 0.03, size: 6 - i * 0.4, color: '#fffbe0' }, S.outside);
+        A.play('sparkle'); toast('A shooting star! ながれぼし ✨');
+      }
+    } else if (tg.type === 'floor' && mode === 'room') {
+      S.emit({ type: 'ring', x: ptr.x, y: ptr.y, life: 0.45, size: 8, color: '#ff8fb1' });
+      if (T - (cat.floorTap || -9) < 0.4) {
+        cat.floorTap = -9;
+        if (cat.act === 'eat') return;
+        const tx = ptr.x;
+        const go = () => { goTo(tx, () => { cat.happyT = 1; S.emit({ type: 'heart', x: cat.x, y: cat.y - 200 * catScale(), vy: -70, life: 1, size: 11, color: '#ff6f9f' }); }); sayText('にゃ？', 'Coming!', true); A.meow(1.2, 0.6); };
+        if (cat.perch) { getDown(); setTimeout(go, 700); } else { cat.inBox = false; cat.chase = null; go(); }
+      } else cat.floorTap = T;
+    }
   }
   function tapCat(part) {
+    if (cat.inBox) { popOut(); sayText('みつかった！', 'You found me!', true); return; }
     if (mode === 'sleep') { cat.petK = Math.min(1, cat.petK + 0.3); S.emit({ type: 'heart', x: ptr.x, y: ptr.y - 10, vy: -60, life: 1, size: 8, color: '#ff9dbf' }); return; }
     if (cat.act === 'eat') return;
     tapTimes = tapTimes.filter((t) => T - t < 2); tapTimes.push(T);
     if (tapTimes.length >= 6) { tapTimes = []; setAct('dizzy', 2.2); say('dizzy', true); A.play('boing'); return; }
     const s = catScale();
-    if (part === 'nose') { setAct('boop', 0.7); say('boop', true); A.meow(1.45, 0.5); S.emit({ type: 'ring', x: ptr.x, y: ptr.y, life: 0.4, size: 10, color: '#ff8fb1' }); U.vibrate(12); }
+    if (part === 'nose') { track('boop'); setAct('boop', 0.7); say('boop', true); A.meow(1.45, 0.5); S.emit({ type: 'ring', x: ptr.x, y: ptr.y, life: 0.4, size: 10, color: '#ff8fb1' }); U.vibrate(12); }
     else if (part === 'belly') { setAct('swat', 0.6); say('belly', true); A.play('swat'); U.vibrate([6, 30, 6]); }
     else {
       cat.jumpV = -420 * s; cat.jumpY = -1; cat.happyT = 0.9; A.meow(U.rand(1, 1.25), 0.8); U.vibrate(8);
@@ -628,7 +1157,7 @@
   /* ================= DRAW ================= */
   function drawSpeech(ctx2) {
     const sp = cat.speech; if (!sp) return;
-    const s = catScale();
+    const s = cs();
     const k = Math.min(1, sp.t / 0.18), out = sp.t > sp.dur - 0.25 ? (sp.dur - sp.t) / 0.25 : 1;
     const sc = U.easeOutBack(k) * out;
     const bx = U.clamp(cat.x, 110, W - 110), by = cat.y + cat.jumpY + (cat.pose.loaf ? -170 : -238) * s - (st && st.wear.head ? 18 : 0);
@@ -653,7 +1182,7 @@
   }
   function drawThought(ctx2) {
     const th = cat.thought; if (!th || cat.speech) return;
-    const s = catScale();
+    const s = cs();
     const k = Math.min(1, th.t / 0.25) * (th.t > th.dur - 0.3 ? (th.dur - th.t) / 0.3 : 1);
     const x = cat.x + 90 * s, y = cat.y - 250 * s + Math.sin(T * 2) * 4;
     ctx2.save(); ctx2.globalAlpha = k;
@@ -678,7 +1207,8 @@
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    env.drawOutsideParticles = (c) => S.drawOutsideParts(c, T);
+    env.drawOutsideParticles = (c) => { S.drawOutsideParts(c, T); if (st) drawBirds(c); };
+    env.lampOff = !!(st && st.lampOff);
     S.drawRoom(ctx, L, env, T);
     const s = catScale();
     // floor props (behind cat)
@@ -687,9 +1217,16 @@
     if (env.decor.daruma) { wobbleDaruma = Math.max(0, wobbleDaruma - 1 / 60); S.drawDaruma(ctx, darumaX(), L.floorY + (L.catY - L.floorY) * 0.25, L.scale * 0.95, T + Math.sin(T * 14) * wobbleDaruma * 0.8); }
     if (st) st.poops.forEach((p, i) => S.drawPoop(ctx, L.sx + p.x * L.SW, L.catY + 6, L.scale * 0.9, T, i));
 
+    if (st) { drawBox(ctx, false); if (!cat.inBox) drawBox(ctx, true); }
     if (mode === 'bath') drawTub(ctx, false);
     const look_ = look();
-    C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY, s);
+    const onFloor = cat.depth === 1 && !cat.hop;
+    if (st && !onFloor) drawBall(ctx); // a perched cat sits further back than the ball
+    if (cat.inBox) { const b = boxDims(); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, b.y - b.h + 2); ctx.rect(b.x - b.w, b.y - b.h, b.w * 2, b.h); ctx.clip(); }
+    C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY + (cat.inBox ? 30 * s : 0), cs());
+    if (cat.inBox) ctx.restore();
+    if (cat.inBox) drawBox(ctx, true);
+    if (st && onFloor) drawBall(ctx);
     if (mode === 'bath') drawTub(ctx, true);
     if (meal.id) S.drawFood(ctx, meal.id, cat.x, cat.y + 22 * s, s * 1.55, meal.t / meal.dur);
 
@@ -701,8 +1238,9 @@
       g.addColorStop(0, 'rgba(255,230,180,0.18)'); g.addColorStop(1, 'rgba(255,230,180,0)');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (night > 0) {
-      ctx.fillStyle = `rgba(30,24,80,${0.16 * night})`; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = `rgba(30,24,80,${(env.lampOff || !shown('chochin') ? 0.26 : 0.16) * night})`; ctx.fillRect(0, 0, W, H);
     }
+    drawBugs(ctx);
     if (mode === 'play') drawWand(ctx);
     S.drawParts(ctx, T);
     drawThought(ctx);
@@ -750,10 +1288,11 @@
       tickNeeds(dt);
       if (mode === 'bath') updateBath(dt);
       saveTimer += dt; if (saveTimer > 6) { saveTimer = 0; save(); }
-      hudT -= dt; if (hudT <= 0) { hudT = 0.3; renderHUD(); }
+      hudT -= dt; if (hudT <= 0) { hudT = 0.3; renderHUD(); const n = st.needs; track('allNeeds', Math.min(n.hunger, n.fun, n.clean, n.energy)); }
     }
     if (mode !== 'game') {
       updateCat(dt);
+      if (st) updateWorld(dt);
       ambient(dt);
       S.update(dt);
       frame();
@@ -784,6 +1323,7 @@
     $('#pettitle').textContent = titleFor(st.level)[1];
     const omi = $('#btn-omikuji');
     omi.classList.toggle('ready', st.lastOmikuji !== U.dayKey());
+    $('#btn-daily').classList.toggle('ready', !!dailyClaimable());
   }
   function renderAvatar() {
     if (!st) return;
@@ -793,7 +1333,9 @@
   }
 
   /* ================= UI: sheets, modals, toasts ================= */
+  let sheetTimer = 0, modalTimer = 0;
   function openSheet(title, jp, html, onMount, cls = '') {
+    clearTimeout(sheetTimer);
     A.play('pop');
     const sh = $('#sheet');
     sh.className = 'sheet ' + cls;
@@ -809,9 +1351,10 @@
     const sh = $('#sheet');
     if (sh.hidden) return;
     sh.classList.remove('open');
-    setTimeout(() => { sh.hidden = true; sh.innerHTML = ''; }, 260);
+    sheetTimer = setTimeout(() => { sh.hidden = true; sh.innerHTML = ''; }, 260);
   }
   function modal(html, cls = '') {
+    clearTimeout(modalTimer);
     const m = $('#modal');
     m.className = 'modal ' + cls;
     m.innerHTML = `<div class="modal-card">${html}</div>`;
@@ -822,7 +1365,7 @@
   function closeModal() {
     const m = $('#modal');
     m.classList.remove('open');
-    setTimeout(() => { m.hidden = true; m.innerHTML = ''; }, 250);
+    modalTimer = setTimeout(() => { m.hidden = true; m.innerHTML = ''; }, 250);
   }
   function toast(msg, cls = '') {
     const t = document.createElement('div');
@@ -894,7 +1437,7 @@
       const slots = [['head', 'あたま', 'Head'], ['neck', 'くび', 'Neck'], ['body', 'ふく', 'Outfit']];
       body = slots.map(([slot, jp, en]) => `<h3>${jp} <small>${en}</small></h3><div class="grid acc">${D.ACCESSORIES.filter((a) => a.slot === slot).map((a) => {
         const owned = st.owned.includes(a.id), worn = st.wear[slot] === a.id;
-        return `<button class="item ${worn ? 'worn' : ''}" data-acc="${a.id}"><div class="ic" data-acc-icon="${a.id}"></div><div class="nm"><b>${a.jp}</b><small>${a.name}</small></div>${owned ? `<span class="state">${worn ? 'Wearing ✓' : 'Wear'}</span>` : koban(a.price)}</button>`;
+        return `<button class="item ${worn ? 'worn' : ''} ${a.road ? 'excl' : ''}" data-acc="${a.id}"><div class="ic" data-acc-icon="${a.id}"></div><div class="nm"><b>${a.jp}</b><small>${a.name}</small></div>${owned ? `<span class="state">${worn ? 'Wearing ✓' : 'Wear'}</span>` : a.road ? `<span class="price lock">🔒 Lv ${a.road}</span>` : koban(a.price)}</button>`;
       }).join('')}</div>`).join('');
     } else {
       body = `<div class="grid decor">${D.DECOR.map((d) => {
@@ -915,9 +1458,10 @@
   }
   function accAction(id) {
     const a = D.ACCESSORIES.find((x) => x.id === id);
+    if (!st.owned.includes(id) && a.road) { toast(`🔒 Unlocks at <b>Lv ${a.road}</b> on the Kizuna Road`); A.play('fail'); return; }
     if (!st.owned.includes(id)) {
       if (st.coins < a.price) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
-      st.coins -= a.price; st.owned.push(id); A.play('coin'); toast(`Bought <b>${a.jp}</b> ${a.name}!`);
+      st.coins -= a.price; st.owned.push(id); A.play('coin'); track('buy'); toast(`Bought <b>${a.jp}</b> ${a.name}!`);
       st.wear[a.slot] = id;
     } else {
       st.wear[a.slot] = st.wear[a.slot] === id ? null : id;
@@ -931,7 +1475,7 @@
     const d = D.DECOR.find((x) => x.id === id);
     if (!st.decor.includes(id)) {
       if (st.coins < d.price) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
-      st.coins -= d.price; st.decor.push(id); A.play('success'); toast(`<b>${d.jp}</b> placed in your room!`);
+      st.coins -= d.price; st.decor.push(id); A.play('success'); track('buy'); toast(`<b>${d.jp}</b> placed in your room!`);
       addXP(10);
     } else {
       st.hidden = st.hidden.includes(id) ? st.hidden.filter((x) => x !== id) : st.hidden.concat(id);
@@ -962,6 +1506,10 @@
       updateMusic();
       if (!res) return;
       st.stats.games++;
+      track('game');
+      if (id === 'catch') track('catchScore', res.best.catch);
+      if (id === 'taiko') track('taikoCombo', res.best.taikoCombo);
+      if (id === 'memory') track('memoryMoves', res.best.memory);
       st.needs.fun = U.clamp(st.needs.fun + res.fun, 0, 100);
       st.needs.energy = U.clamp(st.needs.energy - 8, 0, 100);
       Object.keys(res.best || {}).forEach((k) => {
@@ -996,7 +1544,7 @@
       const total = D.OMIKUJI.reduce((a, b) => a + b.w, 0);
       let r = Math.random() * total, res = D.OMIKUJI[0];
       for (const o of D.OMIKUJI) { if ((r -= o.w) <= 0) { res = o; break; } }
-      st.lastOmikuji = U.dayKey(); st.lastFortune = res.jp; st.stats.omikuji++;
+      st.lastOmikuji = U.dayKey(); st.lastFortune = res.jp; st.stats.omikuji++; track('omikuji');
       if (res.jp === '大吉') { st.stats.daikichi++; A.play('fanfare'); } else A.play('success');
       const num = U.randi(1, 99);
       modal(`<div class="omi result"><div class="slip"><div class="no">第${num}番</div><div class="fortune-jp">${res.jp}</div><div class="ro">${res.ro}</div><p class="en">${res.en}</p><p class="msg">“${res.msg}”</p></div>
@@ -1018,9 +1566,20 @@
       <li>Fur: <b>${C.FURS[st.look.fur].jp}</b> · Eyes: <b>${C.EYES[st.look.eye].jp}</b></li>
       <li>Pets <b>${st.stats.pets}</b> · Meals <b>${st.stats.fed}</b> · Baths <b>${st.stats.baths}</b></li>
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
+      <h3>絆の道 <small>Kizuna Road · rewards for growing together</small></h3>
+      <div class="road">${D.ROAD.map((r) => { const l = roadLabel(r); const got = st.level >= r.lv; return `<div class="node ${got ? 'got' : ''} ${r.lv === st.level + 1 ? 'next' : ''}"><div class="lv">Lv ${r.lv}</div><div class="gift" data-road-icon="${r.acc || r.decor || ''}">${l.kind === 'coins' ? '<i class="koban"></i>' : ''}</div><b>${l.kind === 'coins' ? l.jp : l.jp}</b><small>${l.kind === 'coins' ? 'koban' : l.en}</small>${r.note ? `<em>${r.note}</em>` : ''}${got ? '<span class="ok">✓</span>' : ''}</div>`; }).join('')}</div>
+      <h3>はっけん <small>Discoveries · ${st.found.length}/${Object.keys(DISCOVER).length}</small></h3>
+      <div class="finds">${Object.entries(DISCOVER).map(([id, d]) => st.found.includes(id) ? `<span class="find got"><b>${d[0]}</b>${d[1]}</span>` : '<span class="find"><b>？？？</b>Keep watching…</span>').join('')}</div>
       <h3>はんこ帳 <small>Stamp Book · ${st.ach.length}/${D.ACHIEVEMENTS.length}</small></h3>
       <div class="stamps">${D.ACHIEVEMENTS.map((a) => `<div class="stamp ${st.ach.includes(a.id) ? 'got' : ''}"><div class="hanko"><span>${a.jp}</span></div><b>${a.name}</b><small>${a.desc}</small><i>+${a.reward}</i></div>`).join('')}</div>`;
     openSheet('Album', 'おもいで', html, (sh) => {
+      sh.querySelectorAll('[data-road-icon]').forEach((el) => {
+        const id = el.dataset.roadIcon; if (!id) return;
+        const a = D.ACCESSORIES.find((x) => x.id === id);
+        if (a) { const c = document.createElement('canvas'); c.width = c.height = 104; c.style.width = c.style.height = '52px'; C.portrait(c, { fur: st.look.fur, eye: st.look.eye, acc: { [a.slot]: a.id } }, a.slot === 'head' ? { zoom: 1 } : { zoom: 0.75, full: true }); el.appendChild(c); }
+        else el.appendChild(decorIcon(id, 52));
+      });
+      const road = sh.querySelector('.road .next'); if (road) road.scrollIntoView({ inline: 'center', block: 'nearest' });
       const c = sh.querySelector('#albumcat');
       C.portrait(c, look(), { zoom: 0.92, full: true, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'sparkle', blush: 0.8, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0, pawR: 0.8 } });
     });
@@ -1056,7 +1615,11 @@
   }
   function applySettings() {
     A.setMusic(st.settings.music); A.setSfx(st.settings.sfx);
-    $('#btn-sound').innerHTML = st.settings.music || st.settings.sfx ? ICON.sound : ICON.mute;
+    const on = st.settings.music || st.settings.sfx;
+    $('#btn-sound').innerHTML = on ? ICON.sound : ICON.mute;
+    $('#btn-sound').classList.toggle('muted', !on);
+    $('#btn-sound').setAttribute('aria-label', on ? 'Mute sound' : 'Turn sound on');
+    $('#btn-sound').setAttribute('aria-pressed', String(!on));
   }
   async function exportSave() {
     save();
@@ -1077,7 +1640,7 @@
   }
 
   /* ---------- Level up & achievements ---------- */
-  function levelUp() {
+  function levelUp(gained = []) {
     const t = titleFor(st.level);
     const bonus = 10 + st.level * 5;
     st.coins += bonus;
@@ -1088,7 +1651,9 @@
       modal(`<div class="lvup"><div class="burst"></div><canvas id="lvcat" width="260" height="260"></canvas><h2>Lv ${st.level}!</h2>
         <p>${grew ? `<b>${st.name}</b> grew into a <b>${t[1]}</b> (${t[2]})!` : `<b>${st.name}</b>'s bond with you grew stronger!`}</p>
         ${st.level === 20 ? '<p class="sub">✦ Legend says a cat who is truly loved grows a second tail… ✦</p>' : ''}
-        <p class="reward">+${bonus} <i class="koban"></i></p><button class="btn" data-ui="closemodal">やったー！</button></div>`, 'levelup');
+        <p class="reward">+${bonus} <i class="koban"></i></p>
+        ${gained.map((r) => { const l = roadLabel(r); return `<div class="road-gift"><span class="mini-hanko">絆</span><span><b>Kizuna Road · Lv ${r.lv}</b><br>${l.kind === 'coins' ? `+${l.en}` : `Unlocked <b>${l.jp}</b> ${l.en}${l.kind === 'acc' ? ' (in Shop › Fashion)' : ' (placed in your room)'}`}</span></div>`; }).join('')}
+        <button class="btn" data-ui="closemodal">やったー！</button></div>`, 'levelup');
       C.portrait($('#lvcat'), look(), { zoom: 0.95, full: true, pose: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.6, pawR: 0.9, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } });
     }, 500);
     say('levelup', true);
@@ -1158,6 +1723,7 @@
   function enterRoom(fromBoot) {
     const off = applyOffline();
     $('#hud').hidden = false; $('#actions').hidden = false;
+    catchUpRoad(); ensureDaily();
     renderAvatar(); renderHUD(true);
     setMode(st.asleep ? 'sleep' : 'room');
     if (fromBoot) setTimeout(() => welcomeBack(off), 700);
@@ -1235,7 +1801,7 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
     if (el.dataset.act) {
       const a = el.dataset.act;
@@ -1254,6 +1820,8 @@
     if (el.dataset.decor) { decorAction(el.dataset.decor); return; }
     if (el.dataset.tab) { shopTab = el.dataset.tab; openShop(); return; }
     if (el.dataset.game) { playGame(el.dataset.game); return; }
+    if (el.dataset.claim) { claimMission(+el.dataset.claim); return; }
+    if (el.dataset.go) { missionGo(el.dataset.go); return; }
     if (el.dataset.fur) { adoptLook.fur = el.dataset.fur; adoptLook.pop = 0.6; A.meow(U.rand(1, 1.3), 0.6); document.querySelectorAll('[data-fur]').forEach((b) => b.classList.toggle('on', b === el)); return; }
     if (el.dataset.eye) { adoptLook.eye = el.dataset.eye; adoptLook.pop = 0.6; A.play('sparkle'); document.querySelectorAll('[data-eye]').forEach((b) => b.classList.toggle('on', b === el)); return; }
     const ui = el.dataset.ui;
@@ -1265,6 +1833,8 @@
       case 'album': openAlbum(); break;
       case 'settings': openSettings(); break;
       case 'omikuji': openOmikuji(); break;
+      case 'daily': openDaily(); break;
+      case 'bonus': claimBonus(); break;
       case 'shake': shakeOmikuji(); break;
       case 'sound': { const on = !(st.settings.music || st.settings.sfx); st.settings.music = st.settings.sfx = on; applySettings(); save(); toast(on ? 'Sound on 🔊' : 'Sound off 🔇'); break; }
       case 'export': exportSave(); break;
@@ -1312,5 +1882,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
+  if (DEV) NB.Game.dbg = { cat, ball, birds, bugs, startExplore, startExploreBox, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+    step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

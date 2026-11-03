@@ -222,7 +222,7 @@ NB.Scene = (() => {
     // furin wind chime at window
     if (env.decor.furin) drawFurin(ctx, win.x + win.w * 0.3, win.y + 8, t, env.windT || 0);
     // hanging lantern
-    if (env.decor.chochin) drawChochin(ctx, sx + SW * 0.12, win.y - 12, t, night);
+    if (env.decor.chochin) drawChochin(ctx, sx + SW * 0.12, win.y - 12, t, env.lampOff ? 0 : night);
   }
 
   function drawShojiPanel(ctx, x, y, w, h, night) {
@@ -266,7 +266,7 @@ NB.Scene = (() => {
     ctx.fillStyle = 'rgba(120,80,50,0.12)'; ctx.fillRect(a.x, a.y, a.w, 18);
     // hanging scroll
     const sw = a.w * 0.42, sh = a.h * 0.56, scx = a.x + a.w / 2;
-    ctx.save(); ctx.translate(scx, a.y + 14); ctx.rotate(Math.sin(t * 0.7) * 0.006);
+    ctx.save(); ctx.translate(scx, a.y + 14); ctx.rotate(Math.sin(t * 0.7) * 0.006 + Math.sin(t * 7) * (env.scrollSwing || 0) * 0.09);
     ctx.fillStyle = '#5a7f6a'; ctx.fillRect(-sw / 2 - 5, 10, sw + 10, sh);
     ctx.fillStyle = '#fbf5e6'; ctx.fillRect(-sw / 2 + 2, 20, sw - 4, sh - 24);
     ctx.fillStyle = '#6b4334'; ctx.fillRect(-sw / 2 - 8, 6, sw + 16, 6); ctx.fillRect(-sw / 2 - 8, sh + 6, sw + 16, 6);

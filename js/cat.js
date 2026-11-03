@@ -391,8 +391,8 @@ NB.Cat = (() => {
   /* ---------- accessories ---------- */
   function drawBodyAcc(ctx, id, w, h) {
     const cy = -h;
-    if (id === 'yukata' || id === 'kimono' || id === 'happi') {
-      const base = id === 'yukata' ? '#2e4a8f' : id === 'kimono' ? '#ff9ec0' : '#e8463c';
+    if (id === 'yukata' || id === 'kimono' || id === 'happi' || id === 'haori') {
+      const base = id === 'yukata' ? '#2e4a8f' : id === 'kimono' ? '#ff9ec0' : id === 'haori' ? '#3b2f7a' : '#e8463c';
       ctx.fillStyle = base; U.ell(ctx, 0, cy, w + 2, h + 2); ctx.fill();
       // pattern
       if (id === 'yukata') {
@@ -400,6 +400,10 @@ NB.Cat = (() => {
         for (let y = cy - h; y < cy + h; y += 12) for (let x = -w; x < w; x += 18) { ctx.beginPath(); ctx.arc(x + ((y / 12) % 2) * 9, y, 6, Math.PI, 0); ctx.stroke(); }
       } else if (id === 'kimono') {
         for (let y = cy - h; y < cy + h; y += 22) for (let x = -w; x < w; x += 24) U.flower(ctx, x + ((y / 22) % 2) * 12, y, 7, '#ffffff', '#ffd25e');
+      } else if (id === 'haori') {
+        ctx.fillStyle = '#ffe27a';
+        [[-30, -20], [24, -10], [-12, 14], [34, 18], [-38, 10], [8, -30]].forEach(([x, y], i) => { U.star(ctx, x, cy + y, i % 2 ? 4 : 6, 5, 0.45); ctx.fill(); });
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(-20, cy + 28, 9, 0.4, 2.6); ctx.stroke();
       } else {
         ctx.fillStyle = '#ffffff'; ctx.fillRect(-w, cy + h * 0.55, w * 2, 6);
       }
@@ -409,6 +413,11 @@ NB.Cat = (() => {
       if (id === 'happi') {
         ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px "Yusei Magic", "M PLUS Rounded 1c", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('祭', 0, cy + 10);
+      } else if (id === 'haori') {
+        // white himo tie
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#c9c0e8'; ctx.lineWidth = 1.5;
+        U.ell(ctx, 0, cy - h * 0.25, 6, 5); ctx.fill(); ctx.stroke();
+        [-1, 1].forEach((s) => { U.ell(ctx, s * 9, cy - h * 0.25 + 3, 6, 3.5, s * 0.6); ctx.fill(); ctx.stroke(); });
       } else {
         // obi
         ctx.fillStyle = id === 'yukata' ? '#ff8fb1' : '#f6c453';
@@ -421,13 +430,16 @@ NB.Cat = (() => {
 
   function drawNeckAcc(ctx, id, p, t) {
     const y = -88;
-    if (id === 'suzu' || id === 'omamori') {
+    if (id === 'suzu' || id === 'omamori' || id === 'goldsuzu') {
+      const gold = id === 'goldsuzu';
       ctx.strokeStyle = '#7a1022'; ctx.lineWidth = 2;
-      ctx.fillStyle = id === 'suzu' ? '#e8344e' : '#4a7be0';
+      ctx.fillStyle = gold ? '#24306e' : id === 'suzu' ? '#e8344e' : '#4a7be0';
       U.rr(ctx, -40, y - 6, 80, 11, 6); ctx.fill(); ctx.stroke();
+      if (gold) { ctx.fillStyle = '#ffd34e'; for (let x = -34; x <= 34; x += 10) { U.star(ctx, x, y - 0.5, 2.6, 4, 0.4); ctx.fill(); } }
       const sw = Math.sin(t * 3) * 0.12;
       ctx.save(); ctx.translate(0, y + 4); ctx.rotate(sw);
-      if (id === 'suzu') {
+      if (id !== 'omamori') {
+        if (gold) { ctx.scale(1.25, 1.25); ctx.fillStyle = 'rgba(255,240,150,' + (0.35 + 0.25 * Math.sin(t * 4)) + ')'; U.ell(ctx, 0, 10, 18, 18); ctx.fill(); }
         const g = ctx.createRadialGradient(-4, 6, 1, 0, 9, 13);
         g.addColorStop(0, '#fff6c2'); g.addColorStop(0.5, '#ffcf3a'); g.addColorStop(1, '#d48b0b');
         U.ell(ctx, 0, 10, 11, 11); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = '#9a5f00'; ctx.stroke();
@@ -508,6 +520,18 @@ NB.Cat = (() => {
       // steam
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 3;
       [-12, 8].forEach((x, i) => { const yy = -222 - ((t * 20 + i * 10) % 14); ctx.beginPath(); ctx.moveTo(x, yy + 14); ctx.quadraticCurveTo(x + 6, yy + 7, x, yy); ctx.stroke(); });
+    } else if (id === 'momiji') {
+      NB.Scene.drawMomiji(ctx, -48, -180, 17, '#e8463c', -0.4);
+      NB.Scene.drawMomiji(ctx, -30, -186, 12, '#ff8a4c', 0.5);
+      ctx.fillStyle = '#ffd34e'; U.ell(ctx, -40, -180, 3.5, 3.5); ctx.fill();
+    } else if (id === 'hoshi') {
+      ctx.save(); ctx.translate(46, -178);
+      [[0, 0, 14, '#ffd34e'], [-16, 10, 8, '#ffb3cb'], [14, 12, 7, '#9fd6ff']].forEach(([x, y, r, col], i) => {
+        ctx.fillStyle = col; ctx.strokeStyle = '#b07a00'; ctx.lineWidth = 2;
+        U.star(ctx, x, y, r, 5, 0.48, Math.sin(t * 2 + i) * 0.15); ctx.fill(); ctx.stroke();
+      });
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * Math.sin(t * 5)) + ')'; U.star(ctx, -6, -14, 5, 4, 0.3); ctx.fill();
+      ctx.restore();
     } else if (id === 'crown') {
       ctx.save(); ctx.translate(0, -196);
       ctx.fillStyle = '#ffd34e'; ctx.strokeStyle = '#b07a00'; ctx.lineWidth = 2.5;
