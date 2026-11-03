@@ -398,6 +398,8 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 .price.lock { background: #f1ebf7; color: #7a5af0; }
 
 #btn-sound.muted { background: #f1e6ec; }
+.steps { text-align: left; margin: 10px auto; padding-left: 22px; line-height: 1.8; font-size: 14px; max-width: 280px; }
+.share-ic { display: inline-block; padding: 0 5px; border: 1.5px solid #7fb6ff; border-radius: 5px; color: #3d7be0; font-size: 12px; }
 /* discoveries */
 .finds { display: flex; flex-wrap: wrap; gap: 8px; }
 .find { display: flex; flex-direction: column; align-items: center; min-width: 78px; padding: 8px 10px; border-radius: 16px; background: #fff; box-shadow: 0 3px 0 #f0dde5; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); opacity: .6; }

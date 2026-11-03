@@ -72,5 +72,5 @@ NB.U = {
   isIOS: () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
   standalone: () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
   reducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  vibrate(p) { try { if (navigator.vibrate && NB.state && NB.state.settings.haptics) navigator.vibrate(p); } catch (e) { /* ignore */ } },
+  vibrate(p) { try { const ua = navigator.userActivation; if (navigator.vibrate && NB.state && NB.state.settings.haptics && (!ua || ua.hasBeenActive)) navigator.vibrate(p); } catch (e) { /* ignore */ } },
 };

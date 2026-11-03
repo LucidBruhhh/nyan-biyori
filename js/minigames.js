@@ -80,7 +80,7 @@ NB.Mini = (() => {
     A.play('tap');
     if (a === 'quit') { const cb = onEnd; cleanup(); cb && cb(null); }
     else if (a === 'home') { const cb = onEnd, r = root._res; cleanup(); cb && cb(r); }
-    else if (a === 'again') { const cb = onEnd, r = root._res, id = root._id; cb && cb(r); start(id, opts, cb); }
+    else if (a === 'again') { const cb = onEnd, r = root._res, id = root._id; cb && cb(r, true); start(id, opts, cb); }
   });
   window.addEventListener('keydown', (e) => { keys[e.key] = true; if (cur && cur.key) cur.key(e); });
   window.addEventListener('keyup', (e) => { keys[e.key] = false; });

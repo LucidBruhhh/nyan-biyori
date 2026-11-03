@@ -1,5 +1,5 @@
 /* にゃん日和 — offline cache */
-const VERSION = 'nyanbiyori-v3';
+const VERSION = 'nyanbiyori-v4';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest',
   './js/util.js', './js/data.js', './js/audio.js', './js/cat.js', './js/scene.js', './js/habitat.js', './js/minigames.js', './js/game.js',

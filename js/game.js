@@ -29,6 +29,7 @@
   };
 
   /* ================= SAVE ================= */
+  const cleanName = (v) => String(v || '').replace(/[<>&"'`\\]/g, '').trim().slice(0, 12) || 'Mochi';
   function freshState(name, look) {
     const n = Date.now();
     return {
@@ -52,6 +53,7 @@
       if (!s.roadClaimed) s.roadClaimed = [];
       if (!s.found) s.found = [];
       if (s.streak == null) { s.streak = 0; s.bestStreak = 0; s.lastDailyDone = ''; s.daily = null; }
+      s.name = cleanName(s.name);
       return s;
     } catch (e) { return null; }
   }
@@ -221,6 +223,7 @@
     st.daily = { key, list, bonus: false };
     renderHUD(true);
   }
+  function cared() { const n = st.needs; track('allNeeds', Math.min(n.hunger, n.fun, n.clean, n.energy)); }
   function track(ev, val = 1) {
     if (!st) return;
     ensureDaily();
@@ -880,6 +883,7 @@
     st.stats.fed++;
     if (!st.tasted.includes(f.id)) st.tasted.push(f.id);
     track('feed'); if (f.price > 0) track('treat');
+    cared();
     if (!st.pendingPoop && Math.random() < 0.45) st.pendingPoop = U.rand(50, 140);
     meal.id = null;
     setAct('nod', 1);
@@ -929,6 +933,7 @@
     cat.caught = true;
     st.stats.catches++;
     track('wand');
+    cared();
     st.needs.fun = U.clamp(st.needs.fun + 6, 0, 100);
     st.needs.energy = U.clamp(st.needs.energy - 1.5, 0, 100);
     S.burst('star', wand.x, wand.y, 8, { p: { color: U.pick(['#ffd34e', '#ff8fb1', '#8fd3ff']), size: 9 } });
@@ -1012,6 +1017,7 @@
         bath.done = true;
         st.stats.baths++;
         track('bath');
+        cared();
         S.burst('sparkle', cat.x, cat.y - 120 * s, 16, { p: { color: '#ffffff', size: 10 } });
         A.play('sparkle'); say('clean', true);
         addXP(15); U.vibrate([10, 40, 10]);
@@ -1129,6 +1135,7 @@
           S.emit({ type: 'heart', x: x + U.rand(-10, 10), y: y - 10, vx: U.rand(-30, 30), vy: -110, life: 1.1, size: U.rand(7, 12), color: U.pick(['#ff6f9f', '#ff9dbf', '#ff4f8b']), drag: 1 });
           if (st.stats.pets % 6 === 0) addXP(1);
           track('pet');
+          cared();
           if (st.stats.pets % 15 === 0) say('pet', true);
           U.vibrate(4);
           checkAch(); tutorialStep('pet');
@@ -1373,7 +1380,7 @@
       tickNeeds(dt);
       if (mode === 'bath') updateBath(dt);
       saveTimer += dt; if (saveTimer > 6) { saveTimer = 0; save(); }
-      hudT -= dt; if (hudT <= 0) { hudT = 0.3; renderHUD(); const n = st.needs; track('allNeeds', Math.min(n.hunger, n.fun, n.clean, n.energy)); }
+      hudT -= dt; if (hudT <= 0) { hudT = 0.3; renderHUD(); }
     }
     if (mode !== 'game') {
       updateCat(dt);
@@ -1438,19 +1445,30 @@
     sh.classList.remove('open');
     sheetTimer = setTimeout(() => { sh.hidden = true; sh.innerHTML = ''; }, 260);
   }
-  function modal(html, cls = '') {
-    clearTimeout(modalTimer);
+  const modalQueue = [];
+  let modalShowing = false;
+  function modal(html, cls = '', opts = {}) {
     const m = $('#modal');
+    if (!opts.replace && modalShowing) { modalQueue.push([html, cls, opts]); return m; }
+    modalShowing = true;
+    clearTimeout(modalTimer);
     m.className = 'modal ' + cls;
     m.innerHTML = `<div class="modal-card">${html}</div>`;
     m.hidden = false;
     requestAnimationFrame(() => m.classList.add('open'));
+    if (opts.onShow) opts.onShow(m);
     return m;
   }
   function closeModal() {
     const m = $('#modal');
     m.classList.remove('open');
-    modalTimer = setTimeout(() => { m.hidden = true; m.innerHTML = ''; }, 250);
+    modalShowing = false;
+    modalTimer = setTimeout(() => {
+      m.hidden = true; m.innerHTML = '';
+      const next = modalQueue.shift();
+      if (next && !modalShowing) setTimeout(() => modal(next[0], next[1], next[2]), 120);
+      else if (next) modalQueue.unshift(next);
+    }, 250);
   }
   function toast(msg, cls = '') {
     const t = document.createElement('div');
@@ -1586,12 +1604,13 @@
     closeSheet();
     mode = 'game'; document.body.dataset.mode = 'game';
     A.stopPurr(); cat.purring = false;
-    NB.Mini.start(id, { look: look(), name: st.name, maneki: shown('maneki') }, (res) => {
-      mode = 'room'; document.body.dataset.mode = 'room';
-      updateMusic();
+    NB.Mini.start(id, { look: look(), name: st.name, maneki: shown('maneki') }, (res, again) => {
+      mode = again ? 'game' : 'room'; document.body.dataset.mode = mode;
+      if (!again) updateMusic();
       if (!res) return;
       st.stats.games++;
       track('game');
+      cared();
       if (id === 'catch') track('catchScore', res.best.catch);
       if (id === 'taiko') track('taikoCombo', res.best.taikoCombo);
       if (id === 'memory') track('memoryMoves', res.best.memory);
@@ -1633,7 +1652,7 @@
       if (res.jp === '大吉') { st.stats.daikichi++; A.play('fanfare'); } else A.play('success');
       const num = U.randi(1, 99);
       modal(`<div class="omi result"><div class="slip"><div class="no">第${num}番</div><div class="fortune-jp">${res.jp}</div><div class="ro">${res.ro}</div><p class="en">${res.en}</p><p class="msg">“${res.msg}”</p></div>
-        <p class="reward">+${res.coins} <i class="koban"></i></p><button class="btn" data-ui="closemodal">ありがとう！</button></div>`, 'omikuji');
+        <p class="reward">+${res.coins} <i class="koban"></i></p><button class="btn" data-ui="closemodal">ありがとう！</button></div>`, 'omikuji', { replace: true });
       addCoins(res.coins, W / 2, H * 0.3);
       if (res.jp === '大吉') for (let i = 0; i < 60; i++) S.emit({ type: 'confetti', x: U.rand(0, W), y: -10, vx: U.rand(-40, 40), vy: U.rand(80, 220), life: 4, size: U.rand(8, 12), rot: U.rand(0, 6), vr: U.rand(-8, 8), color: U.pick(['#ff6f9f', '#ffd34e', '#7fb6ff', '#9ad17f', '#c591ea']), sway: 50 });
       addXP(5); checkAch(); save(); renderHUD(true);
@@ -1692,7 +1711,7 @@
     openSheet('Settings', 'せってい', html, (sh) => {
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
         const k = el.dataset.set;
-        if (k === 'name') { const v = el.value.trim().slice(0, 12); if (v) { st.name = v; renderHUD(true); } }
+        if (k === 'name') { const v = cleanName(el.value); if (el.value.trim()) { st.name = v; el.value = v; renderHUD(true); } }
         else if (el.type === 'checkbox') s[k] = el.checked; else s[k] = el.value;
         applySettings(); save();
       }));
@@ -1720,7 +1739,8 @@
       const raw = decodeURIComponent(escape(atob($('#importcode').value.trim())));
       const s = JSON.parse(raw);
       if (!s || s.v !== 1 || !s.look) throw new Error('bad');
-      localStorage.setItem(SAVE_KEY, raw); location.reload();
+      s.name = cleanName(s.name);
+      localStorage.setItem(SAVE_KEY, JSON.stringify(s)); location.reload();
     } catch (e) { toast('That code doesn’t look right 😿'); }
   }
 
@@ -1738,8 +1758,9 @@
         ${st.level === 20 ? '<p class="sub">✦ Legend says a cat who is truly loved grows a second tail… ✦</p>' : ''}
         <p class="reward">+${bonus} <i class="koban"></i></p>
         ${gained.map((r) => { const l = roadLabel(r); return `<div class="road-gift"><span class="mini-hanko">絆</span><span><b>Kizuna Road · Lv ${r.lv}</b><br>${l.kind === 'coins' ? `+${l.en}` : `Unlocked <b>${l.jp}</b> ${l.en}${l.kind === 'acc' ? ' (in Shop › Fashion)' : ' (placed in your room)'}`}</span></div>`; }).join('')}
-        <button class="btn" data-ui="closemodal">やったー！</button></div>`, 'levelup');
-      C.portrait($('#lvcat'), look(), { zoom: 0.95, full: true, pose: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.6, pawR: 0.9, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } });
+        <button class="btn" data-ui="closemodal">やったー！</button></div>`, 'levelup', {
+        onShow: (m) => C.portrait(m.querySelector('#lvcat'), look(), { zoom: 0.95, full: true, pose: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.6, pawR: 0.9, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } }),
+      });
     }, 500);
     say('levelup', true);
     renderAvatar();
@@ -1805,10 +1826,23 @@
     if (!st) { openAdopt(); return; }
     enterRoom(true);
   }
+  function protectSave() {
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* not supported */ }
+    // Safari clears site data after ~7 days without a visit unless the game is on the Home Screen
+    if (U.isIOS() && !U.standalone() && !st.iosNudge && (Date.now() - st.created) > 10 * 60000) {
+      st.iosNudge = Date.now();
+      setTimeout(() => modal(`<div class="letter"><div class="envelope">📱</div><h2>おうちを守ろう <small>Keep ${st.name} safe</small></h2>
+        <p>Safari may clear ${st.name}'s save if you don't visit for a week. Adding the game to your Home Screen keeps it safe, and it opens full-screen like an app.</p>
+        <ol class="steps"><li>Tap <b>Share</b> <span class="share-ic">⬆︎</span> in Safari</li><li>Choose <b>Add to Home Screen</b></li><li>Open にゃん日和 from your Home Screen</li></ol>
+        <p class="sub">You can also copy a backup code any time in Settings.</p>
+        <button class="btn" data-ui="closemodal">わかった！ Got it</button></div>`, 'letter'), 4000);
+    }
+  }
   function enterRoom(fromBoot) {
     const off = applyOffline();
     $('#hud').hidden = false; $('#actions').hidden = false;
     catchUpRoad(); ensureDaily();
+    protectSave();
     renderAvatar(); renderHUD(true);
     setMode(st.asleep ? 'sleep' : 'room');
     if (fromBoot) setTimeout(() => welcomeBack(off), 700);
@@ -1849,7 +1883,7 @@
     A.setMode('title');
   }
   function adopt() {
-    const name = ($('#adoptname').value || 'Mochi').trim().slice(0, 12) || 'Mochi';
+    const name = cleanName($('#adoptname').value);
     st = freshState(name, { fur: adoptLook.fur, eye: adoptLook.eye });
     NB.state = st;
     save();
@@ -1967,7 +2001,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { cat, ball, birds, bugs, startExplore, startExploreBox, env, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

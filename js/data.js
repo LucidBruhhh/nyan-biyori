@@ -65,7 +65,7 @@ NB.Data = {
     { id: 'catch', jp: 'さかな名人', text: 'Score {n}+ in Sakana Catch', ev: 'catchScore', n: 150, kind: 'max', coins: 55, xp: 25, game: true },
     { id: 'taiko', jp: 'リズム', text: 'Reach a {n} combo in Taiko Nyan', ev: 'taikoCombo', n: 15, kind: 'max', coins: 55, xp: 25, game: true },
     { id: 'memory', jp: 'きおく', text: 'Clear Memory in {n} moves or fewer', ev: 'memoryMoves', n: 16, kind: 'min', coins: 55, xp: 25, game: true },
-    { id: 'happy', jp: 'ごきげん', text: 'Get all four needs above {n}', ev: 'allNeeds', n: 70, kind: 'max', coins: 45, xp: 20 },
+    { id: 'happy', jp: 'ごきげん', text: 'Care for {name} until all four needs are above {n}', ev: 'allNeeds', n: 80, kind: 'max', coins: 45, xp: 20 },
     { id: 'shop', jp: 'おかいもの', text: 'Buy something in the shop', ev: 'buy', n: 1, coins: 30, xp: 10 },
     { id: 'explore', jp: 'たんけん', text: 'Watch {name} explore {n} times', ev: 'explore', n: 3, coins: 35, xp: 15 },
     { id: 'fortune', jp: 'おみくじ', text: 'Draw today’s omikuji', ev: 'omikuji', n: 1, coins: 20, xp: 10 },
