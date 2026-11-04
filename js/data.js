@@ -91,7 +91,7 @@ NB.Data = {
   TITLES: [
     [1, 'こねこ', 'Kitten'], [5, 'わかねこ', 'Young Cat'], [10, 'おとなねこ', 'Grown Cat'], [15, 'まねきねこ', 'Lucky Cat'], [20, 'ねこまた', 'Nekomata ✦'],
   ],
-  NAMES: ['Mochi', 'Kinako', 'Azuki', 'Tama', 'Hana', 'Momo', 'Sora', 'Yuzu', 'Daifuku', 'Nori', 'Ume', 'Miso', 'Tofu', 'Hime', 'Kuri', 'Dango', 'Sushi', 'Pon', 'Chibi', 'Koharu'],
+  NAMES: ['Mochi', 'Kinako', 'Azuki', 'Kiki', 'Hana', 'Momo', 'Sora', 'Yuzu', 'Daifuku', 'Nori', 'Ume', 'Miso', 'Tofu', 'Hime', 'Kuri', 'Dango', 'Sushi', 'Pon', 'Chibi', 'Koharu'],
   PHRASES: {
     greet: [['おかえり！', 'Welcome back!'], ['にゃ〜ん♪', 'Nyaa~n♪'], ['あいたかった！', 'I missed you!']],
     happy: [['しあわせ〜', 'So happy~'], ['だいすき！', 'Love you!'], ['るんるん♪', 'La la la♪'], ['えへへ', 'Ehehe']],
