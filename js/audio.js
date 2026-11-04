@@ -3,7 +3,7 @@
 NB.Audio = (() => {
   const U = NB.U;
   let ac = null, master, musicBus, sfxBus, verb, verbSend;
-  let cozyOn = false, lastMeow = 0;
+  let cozyOn = false, lastMeow = 0, voice = { pitch: 1, sig: 0 };
   // in cozy mode only gentle sounds play; scratchy or bouncy ones are skipped
   const COZY_SKIP = new Set(['scratch', 'clack', 'boing', 'swat', 'whoosh', 'bubble', 'shake', 'thunk', 'bounce', 'fail']);
   let musicOn = true, sfxOn = true, radioVol = 0.8, radioOn = false;
@@ -111,7 +111,9 @@ NB.Audio = (() => {
     // short calls pick the shorter mews
     const sorted = s.cuts.slice().sort((a, b) => (a[1] - a[0]) - (b[1] - b[0]));
     const pool = len < 0.6 ? sorted.slice(0, Math.ceil(sorted.length / 2)) : sorted;
-    const [a, b] = pool[Math.floor(Math.random() * pool.length)];
+    // half the time it's this cat's own signature mew
+    const [a, b] = Math.random() < 0.5 ? s.cuts[voice.sig % s.cuts.length] : pool[Math.floor(Math.random() * pool.length)];
+    pitch *= voice.pitch;
     const t = ac.currentTime + 0.01, src = ac.createBufferSource();
     src.buffer = s.buf;
     src.playbackRate.value = U.clamp((kind === 'kitten' ? 1 : 1.05) * (0.86 + (pitch - 1) * 0.35) * U.rand(0.95, 1.06), 0.78, 1.35);
@@ -407,6 +409,7 @@ NB.Audio = (() => {
   }
 
   return {
+    setVoice(v) { if (v) voice = { pitch: v.pitch || 1, sig: v.sig || 0 }; },
     setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
     unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },

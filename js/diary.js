@@ -96,6 +96,10 @@ window.NB = window.NB || {};
     if (ev.capsule) add(35, 'A new little friend came out of a capsule. I sniffed it. It is acceptable.');
     if (ev.visitor) { const n = { kuro: 'Kuro', mikan: 'Mikan', tama: 'Grandpa Tama', hoshi: 'Hoshi' }[ev.visitor]; if (n) add(62, `${n} came to the window today. We talked through the glass. You shared a treat, which was very correct of you.`); }
     if (ev.shots >= 2) add(46, `You threw the ball into my box ${ev.shots} times. Show-off. I went in after it anyway.`);
+    if (ev.dream) add(39, { fish: 'I dreamed about an enormous fish. It was delicious.', you: 'I dreamed about you. You were holding treats. It was a good dream.', ball: 'I dreamed the ball rolled away forever. I woke up and checked. It is still here.', laser: 'I dreamed I finally caught the red dot. Then I woke up.', sakura: 'I dreamed about pink petals falling. I chased every single one.', friend: 'I dreamed about my friends at the window. We had a party.' }[ev.dream]);
+    if (ev.pref) add(54, 'Today you found out something about me. I am a cat of very particular taste.');
+    if (ev.ignoredGift) add(64, 'I left you a present and you didn\'t even pick it up. I am pretending not to care.');
+    if (c.opinion) add(41, c.opinion);
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');
