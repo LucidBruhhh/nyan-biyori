@@ -136,7 +136,7 @@ NB.Data = {
     { id: 'gift1', jp: 'おくりもの', name: 'A Present!', desc: 'Receive a gift from your cat', reward: 30, check: (s) => Object.keys(s.gifts || {}).length >= 1 },
     { id: 'gift10', jp: 'たからばこ', name: 'Treasure Box', desc: 'Collect 10 different gifts', reward: 120, check: (s) => Object.keys(s.gifts || {}).length >= 10 },
     { id: 'diary7', jp: 'にっき', name: 'Dear Diary', desc: 'Collect 7 diary pages', reward: 70, check: (s) => s.diary && s.diary.pages.length >= 7 },
-    { id: 'explorer', jp: 'たんけん家', name: 'Explorer', desc: 'Make all 12 room discoveries', reward: 150, check: (s) => (s.found || []).length >= 12 },
+    { id: 'explorer', jp: 'たんけん家', name: 'Explorer', desc: 'Make 12 room discoveries', reward: 150, check: (s) => (s.found || []).length >= 12 },
     { id: 'gourmet', jp: 'グルメ', name: 'Gourmet', desc: 'Try every food', reward: 80, check: (s) => NB.Data.FOODS.every((f) => s.tasted.includes(f.id)) },
   ],
 };

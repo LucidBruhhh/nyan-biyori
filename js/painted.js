@@ -18,6 +18,22 @@ NB.Painted = (function () {
     seatTop: 650, floorTop: 783, rug: { x: 592, y: 867 },
     floorL: 160, floorR: 840, cabinet: { x: 842, w: 171, top: 595 }, lamp: { x: 878, y: 292 },
   };
+  // things in the painting you can tap
+  const SPOTS = [
+    { id: 'radio', x: 955, y: 565, r: 58 },
+    { id: 'pillowL', x: 218, y: 610, r: 36 }, { id: 'pillowR', x: 705, y: 605, r: 48 },
+    { id: 'plant', x: 150, y: 588, r: 36 }, { id: 'plant', x: 55, y: 690, r: 40 }, { id: 'plant', x: 848, y: 552, r: 44 },
+    { id: 'photo', x: 920, y: 455, r: 30 }, { id: 'photo', x: 978, y: 480, r: 26 },
+  ];
+  const at = (L, s) => ({ x: L.painted.ox + s.x * L.painted.k, y: L.painted.oy + s.y * L.painted.k, r: s.r * L.painted.k });
+  function hit(L, x, y) {
+    for (const s of SPOTS) { const p = at(L, s); if (Math.hypot(x - p.x, y - p.y) < p.r) return s.id; }
+    const { k, ox, oy } = L.painted;
+    if (y > oy + 95 * k && y < oy + 160 * k && x > ox + 140 * k && x < ox + 880 * k) return 'lights';
+    return null;
+  }
+  const spot = (L, id) => at(L, SPOTS.find((s) => s.id === id));
+  const randomSpot = (L) => at(L, SPOTS[Math.floor(Math.random() * SPOTS.length)]);
 
   function layout(W, H) {
     const k = H / 1000, iw = SIZE * k, ox = (W - iw) / 2;
@@ -106,8 +122,14 @@ NB.Painted = (function () {
       g.addColorStop(0, 'rgba(30,20,55,0.45)'); g.addColorStop(1, 'rgba(30,20,55,0)');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
+    // fairy lights switched off: the string falls into shadow
+    if (env.fairyOff) {
+      const g = ctx.createLinearGradient(0, oy + 70 * k, 0, oy + 190 * k);
+      g.addColorStop(0, 'rgba(35,22,50,0)'); g.addColorStop(0.45, `rgba(35,22,50,${0.2 + 0.25 * night})`); g.addColorStop(1, 'rgba(35,22,50,0)');
+      ctx.fillStyle = g; ctx.fillRect(ox + 120 * k, oy + 70 * k, 780 * k, 120 * k);
+    }
     // a gentle twinkle on the painted fairy lights
-    if (night > 0.3 && !env.lightsOff) {
+    if (night > 0.3 && !env.lightsOff && !env.fairyOff) {
       for (let i = 0; i < 9; i++) {
         const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k, a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
         const g = ctx.createRadialGradient(px, py, 1, px, py, 22 * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
@@ -118,5 +140,5 @@ NB.Painted = (function () {
     if (env.decor.maneki) NB.Scene.drawManeki(ctx, L.alcove.x + L.alcove.w * 0.75, L.alcove.y + L.alcove.h - 26, L.scale * 0.8, t);
   }
 
-  return { layout, drawRoom, ready: () => ready, ART };
+  return { layout, drawRoom, ready: () => ready, ART, hit, spot, randomSpot };
 })();

@@ -602,6 +602,7 @@
     if (mode !== 'room') return;
     if (cat.sulk > 0) { if (Math.random() < 0.3) sayText('ぷいっ', '*looks away*'); cat.dir = Math.random() < 0.5 ? -1 : 1; return; }
     if (waitForMeal()) return;
+    if (radioPlaying() && Math.random() < 0.07) { startDance(); return; }
     const bi = bondStage();
     if (bi === 0 && Math.random() < 0.22) { startExploreBox(); return; }
     if (bi >= 3 && Math.random() < 0.12) { setAct('blink', 2.4); return; }
@@ -662,21 +663,23 @@
 
     // behaviour by mode
     if (mode === 'room') {
+      if (st) updateLaser(dt);
       if (cat.hop) updateHop(dt);
       else if (cat.act === 'walk') {
         if (cat.chase === 'ball') { cat.tx = U.clamp(ball.x, L.minX, L.maxX); cat.ty = L.catY; }
         if (cat.chase === 'bug') cat.ty = L.catY;
+        if (cat.chase === 'laser') { cat.tx = laser.x; cat.ty = laser.y; cat.actT = 0; if (laser.pounceT <= 0 && Math.hypot(laser.x - cat.x, laser.y - cat.y) < 36 * catScale()) pounce(); }
         const dx = cat.tx - cat.x, dy = (cat.ty == null ? L.catY : cat.ty) - cat.y, dist = Math.hypot(dx, dy);
         if (cat.chase === 'ball' && Math.abs(ball.x - cat.x) < 44 * s && ball.h > -30 && Math.abs(dy) < 24) batBall();
-        else if (dist < 4 && cat.chase !== 'bug') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
+        else if (dist < 4 && cat.chase !== 'bug' && cat.chase !== 'laser') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
         else if (dist >= 4) {
-          const step = Math.min(1, ((cat.fast === 'zoom' ? 330 : cat.fast || cat.chase ? 150 : 70) * s * cat.depth * dt) / dist);
+          const step = Math.min(1, ((cat.fast === 'zoom' ? 330 : cat.chase === 'laser' ? 240 : cat.fast || cat.chase ? 150 : 70) * s * cat.depth * dt) / dist);
           if (Math.abs(dx) > 2) cat.dir = Math.sign(dx);
           cat.x += dx * step; cat.y += dy * step;
           cat.depth = depthAt(cat.y);
         }
         if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
-      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe', 'wait', 'bump', 'blink', 'flop', 'trap'].includes(cat.act)) {
+      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe', 'wait', 'bump', 'blink', 'flop', 'trap', 'dance'].includes(cat.act)) {
         updateActivity(dt);
       } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch'].includes(cat.act)) {
         if (cat.actT > cat.actDur) setAct('idle', 0.5);
@@ -740,6 +743,7 @@
       case 'walk': {
         const k = T * (cat.fast === 'zoom' ? 24 : 10);
         if (cat.fast === 'zoom') { p.eyes = 'sparkle'; p.earDroop = 0.35; p.tailPhase = T * 12; p.mouthOpen = 0.3; }
+        if (cat.chase === 'laser') { p.eyes = 'sparkle'; p.tailPhase = T * 10; p.sy -= 0.04; }
         p.bob = -Math.abs(Math.sin(k)) * 6; p.lean = Math.sin(k) * 0.03;
         p.pawLx = Math.sin(k) * 5; p.pawRx = -Math.sin(k) * 5; p.flip = cat.dir < 0 ? -1 : 1;
         break;
@@ -766,6 +770,7 @@
       case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
       case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'dance': { const k = T * 6; p.headTilt = Math.sin(k) * 0.18; p.bob = -Math.abs(Math.sin(k)) * 7; p.eyes = 'happy'; p.mouthOpen = 0.35; p.pawL = Math.max(0, Math.sin(k)) * 0.75; p.pawR = Math.max(0, -Math.sin(k)) * 0.75; p.tailPhase = T * 6; p.lean = Math.sin(T * 3) * 0.05; break; }
       case 'flop': p.eyes = cat.petK > 0.2 ? 'closed' : 'happy'; p.blush = 0.95; p.mouth = 'w'; p.pawL = 0.5 + Math.sin(T * 1.7) * 0.12; p.pawR = 0.5 - Math.sin(T * 1.7) * 0.12; p.tailPhase = T * 1.4; p.headTilt = Math.sin(T * 0.8) * 0.08; break;
       case 'trap': p.eyes = 'sparkle'; p.mouthOpen = 0.55; p.pawL = 0.6 + Math.abs(Math.sin(T * 22)) * 0.4; p.pawR = 0.6 + Math.abs(Math.cos(T * 22)) * 0.4; p.bob = Math.sin(T * 30) * 3; p.tailPhase = T * 10; p.earDroop = 0.25; break;
       case 'wait': p.eyes = Math.sin(T * 0.7) > 0.6 ? 'sparkle' : 'open'; p.tailPhase = T * 2.4; p.headTilt = Math.sin(T * 0.9) * 0.08; p.mouthOpen = Math.sin(T * 0.5) > 0.9 ? 0.4 : 0; break;
@@ -808,6 +813,9 @@
     scratch: ['つめとぎ', 'Scratching post', 'sharpened their claws on the post'],
     drink: ['みず', 'Water bowl', 'had a refreshing drink'],
     sun: ['ひなたぼっこ', 'Sunbathing', 'sunbathed in a patch of light'],
+    dance: ['おどり', 'Radio dance', 'danced to the radio'],
+    laser: ['レーザー', 'Laser chase', 'pounced on the laser dot'],
+    cushion: ['クッション', 'Window cushion', 'kneaded a cushion on the window seat'],
   };
   function discover(id) {
     if (!st) return;
@@ -908,6 +916,9 @@
         if (Math.random() < dt * 3) A.meow(1.7, 0.18);
       } else if (cat.perch === 'sill') { cat.lookTarget = { x: Math.sin(T * 0.5) * 0.8, y: -0.5 }; cat.lookT = 1; }
       if (cat.actT > cat.actDur) { cat.chattered = false; getDown(); }
+    } else if (cat.act === 'dance') {
+      if (Math.random() < dt * 2.5) S.emit({ type: 'note', ch: Math.random() < 0.5 ? '♪' : '♫', x: cat.x + U.rand(-50, 50) * s, y: cat.y - 170 * s, vy: -50, vx: U.rand(-20, 20), life: 1.3, size: 8, color: '#c591ea' });
+      if (cat.actT > cat.actDur) { setAct('idle', 0.5); cat.happyT = 1.5; st.needs.fun = U.clamp(st.needs.fun + 4, 0, 100); }
     } else if (cat.act === 'flop') {
       if (Math.random() < dt * 0.5) A.meow(1.4, 0.25);
       if (cat.actT > cat.actDur) setAct('idle', 0.5);
@@ -948,7 +959,7 @@
       if (cat.actT > cat.actDur) { A.stopPurr(); cat.purring = false; setAct('nap', U.rand(5, 8)); }
     } else if (cat.act === 'nap') {
       if (Math.random() < dt * 0.7) S.emit({ type: 'zzz', x: cat.x + 36 * s, y: cat.y - 120 * s, vx: 16, vy: -26, life: 2, size: 8, color: '#8fa6ff', sway: 25 });
-      if (cat.actT > cat.actDur) { st.needs.energy = U.clamp(st.needs.energy + 5, 0, 100); setAct('yawn', 1.4); }
+      if (cat.actT > cat.actDur) { st.needs.energy = U.clamp(st.needs.energy + 5, 0, 100); if (cat.perch) { A.stopPurr(); cat.purring = false; getDown(); } else setAct('yawn', 1.4); }
     } else if (cat.act === 'bat') {
       if (cat.batT > 0) {
         cat.batT -= dt;
@@ -1181,6 +1192,101 @@
     const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
     if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }
     env.scrollSwing = Math.max(0, (env.scrollSwing || 0) - dt * 0.6);
+    if (L.painted && mode === 'room' && st) {
+      // now and then a soft sparkle hints at something you can tap
+      env.tipT = (env.tipT == null ? 5 : env.tipT) - dt;
+      if (env.tipT <= 0) { env.tipT = U.rand(6, 11); const p = NB.Painted.randomSpot(L); if (p.x > 0 && p.x < W) S.emit({ type: 'sparkle', x: p.x + U.rand(-10, 10), y: p.y - U.rand(0, 14), vy: -14, life: 1.1, size: 7, color: '#fff3a8' }); }
+      if (radioPlaying()) { env.noteT = (env.noteT || 0) - dt; if (env.noteT <= 0) { env.noteT = U.rand(0.7, 1.2); const r = NB.Painted.spot(L, 'radio'); S.emit({ type: 'note', ch: Math.random() < 0.5 ? '♪' : '♫', x: r.x + U.rand(-24, 24), y: r.y - 26, vx: U.rand(-14, 14), vy: -40, life: 1.8, size: 8, color: '#c591ea' }); } }
+    }
+  }
+
+  /* ================= ROOM TOYS ================= */
+  const STATIONS = [['lofi', 'Lo-fi Neko Radio', 'night'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
+  const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
+  const laser = { on: false, x: 0, y: 0, pounceT: 0 };
+  function tapRadio() {
+    const i = STATIONS.findIndex((s) => s[0] === st.radio), next = STATIONS[(i + 1) % STATIONS.length];
+    st.radio = next[0]; updateMusic(); A.play('tap');
+    toast(`📻 ${next[1]}`);
+    if (next[0] === 'off') return;
+    if (!st.settings.music) toast('Music is muted. Turn it on in Settings 🎵');
+    const r = NB.Painted.spot(L, 'radio');
+    for (let k = 0; k < 4; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-20, 20), y: r.y - 20, vx: U.rand(-20, 20), vy: -60 - k * 10, life: 1.6, size: 9, color: '#c591ea' });
+    if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox && Math.random() < 0.7) setTimeout(startDance, 700);
+  }
+  function startDance() {
+    if (mode !== 'room' || cat.perch || cat.inBox || !['idle', 'walk'].includes(cat.act)) return;
+    const r = L.painted ? NB.Painted.spot(L, 'radio') : { x: cat.x };
+    goTo(U.clamp(r.x - 70 * catScale(), L.minX, L.maxX), () => {
+      cat.dir = 1; setAct('dance', U.rand(4, 6)); discover('dance');
+      sayText('♪ にゃんにゃん ♪', '*dances to the music*', true); A.meow(1.3, 0.5);
+    });
+  }
+  function tapPlant(x, y) {
+    if (st.plantDay !== U.dayKey()) {
+      st.plantDay = U.dayKey(); noteSet('plants');
+      for (let k = 0; k < 10; k++) S.emit({ type: 'drop', x: x + U.rand(-18, 18), y: y - 50 - U.rand(0, 20), vy: U.rand(120, 200), g: 300, life: 0.6, size: 8 });
+      S.burst('sparkle', x, y - 10, 8, { p: { color: '#b8f0a8', size: 7 } });
+      A.play('bubble'); addCoins(5, x, y - 50);
+      toast('🪴 You watered the plants. They look happy!');
+      if (mode === 'room' && cat.act === 'idle' && !cat.perch) { cat.lookTarget = { x: U.clamp((x - cat.x) / 200, -1, 1), y: -0.2 }; cat.lookT = 2; }
+    } else {
+      S.burst('sparkle', x, y - 10, 5, { p: { color: '#9ad17f', size: 6 } }); A.play('whoosh');
+      toast('🌿 Already watered today');
+    }
+  }
+  function tapPillow(id) {
+    const p = NB.Painted.spot(L, id);
+    S.burst('sparkle', p.x, p.y - 6, 8, { p: { color: '#ffe0ec', size: 7 } }); A.play('pop');
+    if (mode !== 'room' || cat.act !== 'idle' || cat.perch || cat.inBox || cat.hop) return;
+    const seatY = L.win.y + L.win.h + 1, s = catScale();
+    goTo(p.x + (p.x > cat.x ? -60 : 60) * s, () => hopTo(p.x, seatY, 0.58, () => {
+      cat.perch = 'sill'; setAct('knead', U.rand(3.5, 5)); discover('cushion');
+      A.startPurr(); cat.purring = true; sayText('ふみふみ', '*kneads the cushion*', true);
+    }));
+  }
+  function tapLights() {
+    st.fairyOff = !st.fairyOff; A.play(st.fairyOff ? 'tap' : 'chime');
+    if (!st.fairyOff) { const { k, ox, oy } = L.painted; for (let i = 0; i < 12; i++) S.emit({ type: 'sparkle', x: ox + (180 + i * 58) * k, y: oy + (125 + 12 * Math.sin(i * 1.3)) * k, vy: -10, life: 0.9, size: 6, color: '#ffe0a0' }); }
+  }
+  function openPhoto() {
+    const days = Math.max(1, Math.floor((Date.now() - st.created) / 86400000) + 1);
+    const mem = B.memories(st, D.FOODS);
+    const cap = mem.length ? U.pick(mem)[1] : `${st.name} on our first days together`;
+    const pose = U.pick([{ eyes: 'happy', blush: 0.9, mouth: 'w' }, { eyes: 'sparkle', mouthOpen: 0.5, pawR: 0.8 }, { eyes: 'closed', blush: 0.8, mouth: 'w' }]);
+    modal(`<div class="polaroid"><canvas id="pcat" width="240" height="240"></canvas><p class="cap">Day ${days} · ${cap}</p></div>
+      <div class="btnrow"><button class="btn ghost" data-ui="album">Open album</button><button class="btn" data-ui="closemodal">とじる Close</button></div>`, 'photo', {
+      onShow: (m) => C.portrait(m.querySelector('#pcat'), look(), { zoom: 1, full: true, bg: ['#fff1f6', '#ffe0ec'], pose: Object.assign({ twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 }, pose) }),
+    });
+    A.play('page');
+  }
+  function drawLaser(c) {
+    const g = c.createRadialGradient(laser.x, laser.y, 1, laser.x, laser.y, 16);
+    g.addColorStop(0, 'rgba(255,60,80,0.9)'); g.addColorStop(0.35, 'rgba(255,60,80,0.45)'); g.addColorStop(1, 'rgba(255,60,80,0)');
+    c.fillStyle = g; U.ell(c, laser.x, laser.y, 16, 9); c.fill();
+    c.fillStyle = '#fff2f2'; U.ell(c, laser.x, laser.y, 2.5, 1.8); c.fill();
+  }
+  function updateLaser(dt) {
+    laser.pounceT -= dt;
+    const want = ptr.down && ptr.target && ptr.target.type === 'floor' && T - ptr.t0 > 0.3;
+    if (want) {
+      laser.on = true; laser.x = U.clamp(ptr.x, L.minX, L.maxX); laser.y = U.clamp(ptr.y, L.floorY + 12, L.catY + 18);
+      if (cat.perch && !cat.hop) getDown();
+      else if (!cat.perch && !cat.hop && !cat.inBox && cat.chase !== 'laser' && !['eat', 'flop', 'trap', 'sleep'].includes(cat.act)) {
+        cat.chase = 'laser'; goTo(laser.x, null, true, laser.y);
+        if (!st.bond.firsts.laser) { st.bond.firsts.laser = Date.now(); hint(null); }
+      }
+    } else if (laser.on) {
+      laser.on = false;
+      if (cat.chase === 'laser') { cat.chase = null; cat.goal = null; setAct('idle', 0.5); cat.lookTarget = { x: U.rand(-1, 1), y: 0.3 }; cat.lookT = 2; sayText('？', 'Where did it go?', true); }
+    }
+  }
+  function pounce() {
+    laser.pounceT = 0.9; cat.jumpV = -460 * catScale(); cat.jumpY = -1; cat.pawSwipe = 1;
+    A.play('swat'); U.vibrate(10); discover('laser'); noteAdd('laser');
+    st.needs.fun = U.clamp(st.needs.fun + 1.5, 0, 100); st.needs.energy = U.clamp(st.needs.energy - 0.5, 0, 100);
+    S.burst('star', laser.x, laser.y, 5, { p: { color: '#ff8fa0', size: 7 } });
+    if (Math.random() < 0.3) sayText('にゃっ！', 'Got it! …wait', true);
   }
 
   /* ================= MEALS ================= */
@@ -1398,6 +1504,8 @@
   }
   function updateMusic() {
     if (mode === 'game') return;
+    const stn = st && st.radio && !['sleep', 'title'].includes(mode) && STATIONS.find((s) => s[0] === st.radio);
+    if (stn) { A.setMode(stn[2]); return; }
     A.setMode(mode === 'sleep' ? 'sleep' : mode === 'title' ? 'title' : (env.hour >= 19 || env.hour < 5) ? 'night' : 'day');
   }
   function renderModeBar() {
@@ -1439,6 +1547,7 @@
     if (shown('daruma') && Math.hypot(x - sp.daruma.x, y - (sp.daruma.y - 26 * L.scale * depthAt(sp.daruma.y))) < 36 * L.scale) return { type: 'daruma' };
     { const ts = towerS(); if (Math.abs(x - sp.tower.x) < 52 * ts && y < sp.tower.y + 4 && y > sp.tower.y - 196 * ts) return { type: 'tower' }; }
     { const bs = L.scale * depthAt(sp.bowls.y); if (Math.abs(x - sp.bowls.x) < 58 * bs && Math.abs(y - sp.bowls.y) < 22 * bs) return { type: 'bowls' }; }
+    if (L.painted) { const h = NB.Painted.hit(L, x, y); if (h) return { type: h }; }
     if (shown('maneki') && Math.hypot(x - (L.alcove.x + L.alcove.w * 0.75), y - (L.alcove.y + L.alcove.h - 60 * L.scale)) < 40 * L.scale) return { type: 'maneki' };
     if (L.lamp ? Math.hypot(x - L.lamp.x, y - L.lamp.y) < 44 : shown('chochin') && Math.hypot(x - (L.sx + L.SW * 0.12), y - (L.win.y + 32)) < 36) return { type: 'chochin' };
     const a = L.alcove;
@@ -1531,6 +1640,11 @@
     const tg = ptr.target;
     if (tg.type === 'cat') tapCat(tg.part);
     else if (tg.type === 'gift') collectGift();
+    else if (tg.type === 'radio') tapRadio();
+    else if (tg.type === 'plant') tapPlant(ptr.x, ptr.y);
+    else if (tg.type === 'pillowL' || tg.type === 'pillowR') tapPillow(tg.type);
+    else if (tg.type === 'lights') tapLights();
+    else if (tg.type === 'photo') openPhoto();
     else if (tg.type === 'poop') {
       const p = st.poops.splice(tg.i, 1)[0];
       const px = L.sx + p.x * L.SW;
@@ -1674,6 +1788,7 @@
     ctx.clearRect(0, 0, W, H);
     env.drawOutsideParticles = (c) => { S.drawOutsideParts(c, T); if (st) drawBirds(c); };
     env.lampOff = !!(st && st.lampOff);
+    env.fairyOff = !!(st && st.fairyOff);
     S.drawRoom(ctx, L, env, T);
     const s = catScale();
     // light pouring in from the window, lantern glow on the floor
@@ -1693,6 +1808,7 @@
     }
     if (env.decor.zabuton) add(L.catY - 2, () => S.drawZabuton(ctx, homeX(), L.catY + 4, L.scale * 0.92));
     if (st && st.gift) add(L.catY + 8, () => drawFloorGift(ctx));
+    if (laser.on) add(laser.y - 1, () => drawLaser(ctx));
     if (st) st.poops.forEach((p, i) => add(L.catY + 6, () => S.drawPoop(ctx, L.sx + p.x * L.SW, L.catY + 6, L.scale * 0.9, T, i)));
     if (st && !cat.inBox) add(L.catY - 3, () => { drawBox(ctx, false); drawBox(ctx, true); });
     if (st) add(ballY(), () => drawBall(ctx));
@@ -2282,6 +2398,7 @@
     const v = arrive(off ? off.hrs : 0);
     if (fromBoot) setTimeout(() => welcomeBack(off, v), 700);
     if (st.tut < TUT.length) setTimeout(() => hint(TUT[st.tut][1]()), 2600);
+    else if (!st.bond.firsts.laserHint) { st.bond.firsts.laserHint = Date.now(); setTimeout(() => { if (mode === 'room') hint('Tip: press and hold on the floor for a laser pointer 🔴'); }, 9000); }
     checkAch();
   }
 
@@ -2385,7 +2502,7 @@
       case 'close': closeSheet(); break;
       case 'closemodal': closeModal(); renderHUD(true); break;
       case 'endmode': if (mode === 'sleep') wakeUp(); else { if (mode === 'bath' && !bath.done && st.needs.clean > 60) { st.stats.baths += 0; } setMode('room'); } break;
-      case 'album': openAlbum(); break;
+      case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'diary': openDiary(); break;
       case 'settings': openSettings(); break;
       case 'omikuji': openOmikuji(); break;
@@ -2441,7 +2558,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

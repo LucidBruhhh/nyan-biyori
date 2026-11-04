@@ -434,6 +434,11 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 .diary-peek b { display: block; font-family: "Yusei Magic", var(--font); font-weight: 400; color: var(--pink-deep); font-size: 15px; }
 .diary-peek span:not(.new) { display: block; font-family: "Yusei Magic", var(--font); font-size: 14px; line-height: 24px; color: var(--ink-soft); }
 .profile-chip.ready .avatar-wrap::after { content: ""; position: absolute; top: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--pink-deep); border: 2px solid #fff; animation: pulse 1.4s infinite; }
+/* photo frames */
+.photo .modal-card { background: transparent; box-shadow: none; }
+.polaroid { background: #fff; padding: 12px 12px 8px; border-radius: 4px; box-shadow: 0 10px 30px rgba(60,30,50,.25); transform: rotate(-3deg); margin: 0 auto 14px; width: max-content; }
+.polaroid canvas { display: block; width: 200px; height: 200px; border-radius: 2px; }
+.polaroid .cap { font-family: "Yusei Magic", var(--font); color: var(--ink); text-align: center; font-size: 14px; max-width: 200px; margin: 8px 0 0; line-height: 1.4; }
 /* gifts */
 .giftcard canvas { display: block; margin: 0 auto -4px; }
 .giftcard .rar { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: 1px; color: var(--ink-soft); }

@@ -30,6 +30,9 @@ window.NB = window.NB || {};
     scratch: 'sharpened my claws on the post. Very important work',
     drink: 'had a long drink of water. Delicious',
     sun: 'found a warm square of sunlight and melted into it',
+    dance: 'danced to the radio. I have excellent rhythm',
+    laser: 'chased the red dot all over the room. I almost caught it',
+    cushion: 'kneaded the cushion on the window seat until it was just right',
   };
   const OPEN = {
     rain: ['It rained all day. I watched the drops race down the window.', 'Rain day. The shishi-odoshi went clack… clack… clack.'],
@@ -84,6 +87,8 @@ window.NB = window.NB || {};
     if (ev.rough >= 2) add(33, 'Someone petted me too fast today. Gently, please. I am delicate.');
     if (ev.meals >= 3 && !ev.favMeal) add(32, `I ate ${ev.meals} times today. A respectable number.`);
     if (ev.sleep) add(28, 'You tucked me in and turned off the lantern. I dreamed about fish.');
+    if (ev.laser >= 3) add(57, `I pounced on the red dot ${ev.laser} times. It is very sneaky. I will get it tomorrow.`);
+    if (ev.plants) add(31, 'You watered the plants. I supervised.');
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');
