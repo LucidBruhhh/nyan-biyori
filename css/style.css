@@ -320,6 +320,15 @@ body[data-mode="play"] #scene { cursor: grab; }
   #actions button i { width: 42px; height: 42px; }
   #actions button b { font-size: 13px; }
 }
+/* tablets: a roomier, larger interface */
+.tablet #hud, .tablet #actions, .tablet .sheet-card, .tablet .modal-card, .tablet #toasts, .tablet #hint, .tablet #modebar { zoom: 1.22; }
+.tablet #hud { max-width: 820px; }
+.tablet .sheet-card { width: min(640px, 92%); max-height: min(66dvh, 640px); }
+.tablet .modal-card { max-height: 72dvh; }
+/* development-only device switch */
+.devbar { position: fixed; left: 8px; bottom: 8px; z-index: 60; display: flex; gap: 4px; align-items: center; background: rgba(43,34,56,.88); color: #fff; border-radius: 99px; padding: 4px 6px; font: 700 11px system-ui, sans-serif; }
+.devbar span { color: #ff8fb1; padding: 0 4px; }
+.devbar a, .devbar button { color: #fff; text-decoration: none; background: #4a3d5c; border: 0; border-radius: 99px; padding: 4px 8px; font: inherit; cursor: pointer; }
 @media (max-width: 420px) {
   #btn-sound { position: absolute; right: calc(var(--safe-r) + 12px); top: calc(100% + 8px); width: 36px; height: 36px; padding: 6px; }
   .coins { padding: 8px 10px; }

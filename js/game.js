@@ -113,7 +113,23 @@
   }
 
   /* ================= RESIZE ================= */
+  const PREVIEW_DEVICE = new URLSearchParams(location.search).get('device');
+  function layoutClass() {
+    const tablet = PREVIEW_DEVICE ? PREVIEW_DEVICE === 'ipad' : Math.min(window.innerWidth, window.innerHeight) >= 700 && window.matchMedia('(pointer: coarse)').matches;
+    document.documentElement.classList.toggle('tablet', tablet);
+  }
+  function toggleFullscreen() {
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    if (req && document.fullscreenEnabled !== false) { req.call(el).catch(() => {}); return; }
+    // iPhone Safari has no full-screen mode for web pages: the Home Screen app is full screen
+    modal(`<div class="letter"><div class="envelope">⛶</div><h2>ぜんがめん <small>Full screen</small></h2>
+      <p>On iPhone, add the game to your Home Screen and open it from there. It runs full screen like an app.</p>
+      <ol class="steps"><li>Tap <b>Share</b> <span class="share-ic">⬆︎</span></li><li>Choose <b>Add to Home Screen</b></li><li>Open にゃん日和 from your Home Screen</li></ol>
+      <button class="btn" data-ui="closemodal">わかった！ Got it</button></div>`, 'letter');
+  }
   function resize() {
+    layoutClass();
     W = window.innerWidth; H = window.innerHeight;
     DPR = Math.min(window.devicePixelRatio || 1, 2.5);
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
@@ -1607,7 +1623,7 @@
   }
 
   /* ================= ROOM TOYS ================= */
-  const STATIONS = [['lofi', 'Lo-fi Neko Radio', 'night'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
+  const STATIONS = [['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
   const laser = { on: false, x: 0, y: 0, pounceT: 0 };
   function tapRadio() {
@@ -2809,6 +2825,7 @@
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
+      ${NB.Native.isNative ? '' : `<button class="btn ghost" data-ui="fullscreen">⛶ Full screen${document.fullscreenElement ? ' · exit' : ''}</button>`}
       ${iosHint}
       ${installEvt ? '<button class="btn" data-ui="install">Install app 📲</button>' : ''}
       <h3>セーブ <small>Save data</small></h3>
@@ -3068,6 +3085,7 @@
   });
   window.addEventListener('pagehide', save);
   document.addEventListener('gesturestart', (e) => e.preventDefault()); // iOS pinch-zoom
+  document.addEventListener('keydown', (e) => { if ((e.key === 'f' || e.key === 'F') && !e.target.closest('input, textarea') && mode !== 'game') toggleFullscreen(); });
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
@@ -3107,6 +3125,7 @@
       case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'health': openHealth(); break;
       case 'endtrain': endTrain(); break;
+      case 'fullscreen': closeSheet(); toggleFullscreen(); break;
       case 'visitortreat': visitorTreat(); break;
       case 'capsule': spinCapsule(); break;
       case 'arrange': startArrange(); break;
@@ -3172,6 +3191,11 @@
     cat.happyT = 0;
     if (st) applySettings();
     document.body.classList.add('ready');
+    if (DEV && window.top === window) {
+      const bar = document.createElement('div'); bar.className = 'devbar';
+      bar.innerHTML = '<span>DEV</span><a href="tools/devices.html?d=phone">📱 Phone</a><a href="tools/devices.html?d=ipad">▯ iPad</a><a href="tools/devices.html?d=ipadl">▭ iPad ↻</a><button data-ui="fullscreen">⛶</button>';
+      document.body.appendChild(bar);
+    }
     if (NB.Native.isNative) {
       document.body.classList.add('native');
       NB.Native.ready();

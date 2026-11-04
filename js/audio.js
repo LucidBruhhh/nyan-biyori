@@ -20,6 +20,7 @@ NB.Audio = (() => {
     game:  { scale: 'ryukyu', root: 64, bpm: 124, density: 0.75, oct: 0, bass: true, perc: 1 },
     title: { scale: 'yo', root: 64, bpm: 76, density: 0.5, oct: 0, bass: true, perc: 0 },
     none: { scale: 'yo', root: 64, bpm: 120, density: 0, oct: 0, bass: false, perc: 0, silent: true },
+    lofi: { scale: 'in', root: 60, bpm: 72, density: 0, oct: 0, bass: false, perc: 0, lofi: true },
   };
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -106,7 +107,24 @@ NB.Audio = (() => {
     const o = Math.floor(deg / sc.length), i = ((deg % sc.length) + sc.length) % sc.length;
     return M.root + M.oct + o * 12 + sc[i];
   }
+  // lo-fi radio: ii-V-I-vi seventh chords on soft keys, a swung boom-bap beat and vinyl crackle
+  const LOFI_CHORDS = [[2, [0, 3, 7, 10]], [7, [0, 4, 7, 10]], [0, [0, 4, 7, 11]], [9, [0, 3, 7, 10]]];
+  function keys(f, t, dur, vol) { osc('sine', f, t, dur, vol, musicBus, { a: 0.01, verb: true }); osc('triangle', f * 2, t, dur * 0.4, vol * 0.2, musicBus, { a: 0.01 }); }
+  function lofiStep(M, s, t, spb) {
+    const bar = Math.floor(s / 8), pos = s % 8, [deg, ch] = LOFI_CHORDS[bar % 4], root = M.root + deg;
+    const sw = pos % 2 ? spb * 0.18 : 0;
+    if (pos === 0) ch.forEach((iv, i) => keys(mtof(root + iv), t + i * 0.015, spb * 7, 0.045));
+    if (pos === 4 && Math.random() < 0.5) ch.slice(1).forEach((iv, i) => keys(mtof(root + iv + 12), t + sw + i * 0.012, spb * 3, 0.025));
+    if (pos === 0 || pos === 5 || (pos === 3 && Math.random() < 0.5)) osc('sine', 110, t + sw, 0.28, 0.22, musicBus, { slide: 45, slideT: 0.12 });
+    if (pos === 2 || pos === 6) noise(t + sw, 0.12, 0.07, musicBus, 'bandpass', 1800, 0.8);
+    if (pos % 2) noise(t + sw, 0.03, 0.018, musicBus, 'highpass', 8000, 0.7);
+    if (pos === 0) osc('sine', mtof(root - 24), t, spb * 3, 0.15, musicBus, { a: 0.02 });
+    if (pos === 5) osc('sine', mtof(root - 17), t + sw, spb * 2, 0.11, musicBus, { a: 0.02 });
+    if (pos % 2 === 0 && Math.random() < 0.2) keys(mtof(root + 12 + U.pick(ch)), t + sw, spb * 2, 0.04);
+    if (Math.random() < 0.5) noise(t + Math.random() * spb, 0.006, 0.02, musicBus, 'highpass', 3000, 1);
+  }
   function playStep(M, s, t, spb) {
+    if (M.lofi) { lofiStep(M, s, t, spb); return; }
     const bar = Math.floor(s / 8), pos = s % 8;
     // phrase structure: 4-bar call & response, rests at phrase ends
     const phrasePos = bar % 4;

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Device preview</title>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    body { background: #2b2238; color: #fff; font: 600 13px system-ui, sans-serif; display: flex; flex-direction: column; }
+    .bar { display: flex; gap: 6px; padding: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .bar button { border: 0; border-radius: 99px; padding: 7px 14px; background: #4a3d5c; color: #fff; font: inherit; cursor: pointer; }
+    .bar button.on { background: #ff6f9f; }
+    .bar span { opacity: .7; margin-left: 8px; }
+    .stage { flex: 1; position: relative; overflow: hidden; }
+    .frame { position: absolute; left: 50%; top: 50%; border: 12px solid #111; border-radius: 40px; box-shadow: 0 20px 60px rgba(0,0,0,.5); background: #000; transform-origin: center; }
+    .frame.tablet { border-radius: 30px; border-width: 16px; }
+    iframe { border: 0; display: block; border-radius: 28px; background: #000; }
+    .frame.tablet iframe { border-radius: 16px; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <button data-d="browser">🖥 Browser</button>
+    <button data-d="phone">📱 iPhone</button>
+    <button data-d="android">🤖 Android</button>
+    <button data-d="ipad">▯ iPad</button>
+    <button data-d="ipadl">▭ iPad landscape</button>
+    <span id="info"></span>
+  </div>
+  <div class="stage"><div class="frame" id="frame"><iframe id="game" title="Game preview"></iframe></div></div>
+  <script>
+    // Previews the game at real device sizes. The game inside reads ?device= to switch on its tablet layout.
+    const DEVICES = { phone: [393, 852, 'iPhone 15'], android: [412, 915, 'Pixel'], ipad: [820, 1180, 'iPad Air'], ipadl: [1180, 820, 'iPad Air, landscape'] };
+    const frame = document.getElementById('frame'), game = document.getElementById('game'), info = document.getElementById('info');
+    let cur = new URLSearchParams(location.search).get('d') || 'phone';
+    function show(d) {
+      if (d === 'browser') { location.href = '../index.html?dev=1'; return; }
+      cur = d;
+      const [w, h, name] = DEVICES[d];
+      game.style.width = w + 'px'; game.style.height = h + 'px';
+      frame.classList.toggle('tablet', d.startsWith('ipad'));
+      const want = '../index.html?dev=1&device=' + (d.startsWith('ipad') ? 'ipad' : 'phone');
+      if (!game.src.endsWith(want.slice(2))) game.src = want;
+      document.querySelectorAll('[data-d]').forEach((b) => b.classList.toggle('on', b.dataset.d === d));
+      history.replaceState(null, '', '?d=' + d);
+      fit(); info.textContent = `${name} · ${w}×${h}`;
+    }
+    function fit() {
+      const [w, h] = DEVICES[cur], stage = document.querySelector('.stage');
+      const s = Math.min(1, (stage.clientWidth - 40) / (w + 32), (stage.clientHeight - 40) / (h + 32));
+      frame.style.transform = `translate(-50%, -50%) scale(${s})`;
+    }
+    document.querySelector('.bar').addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) show(b.dataset.d); });
+    window.addEventListener('resize', fit);
+    show(cur);
+  </script>
+</body>
+</html>
