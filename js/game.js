@@ -93,6 +93,7 @@
     twitchL: 0, twitchR: 0, pose: C.defaultPose(), squash: 0, pawSwipe: 0,
     depth: 1, perch: null, hop: null, inBox: false, goal: null, chase: null, fast: false, batT: 0,
     zoom: 0, sulk: 0, waitAt: 0,
+    flopK: 0, flopDir: 1, bellyRubs: 0, trapAt: 3, zoneT: 0, zone: null, lastBlinkT: -99, tailT: -99, zoomiesT: -999,
   };
 
   function catScale() {
@@ -241,6 +242,48 @@
       if (!b.firsts.wait) { b.firsts.wait = Date.now(); setTimeout(() => toast(`${st.name} learned when you usually feed them 🍚`), 1600); }
     }, false, sp.bowls.y - 4);
     return true;
+  }
+  function playerBlink() {
+    ptr.blinked = true;
+    const b = st.bond, i = bondStage(), swap = T - cat.lastBlinkT < 5;
+    S.emit({ type: 'heart', x: ptr.x, y: ptr.y - 60, vy: -50, life: 1.2, size: 10, color: '#ff9dbf' });
+    noteSet('blink');
+    if (b.blinkDay !== U.dayKey()) { b.blinkDay = U.dayKey(); b.blinks = 0; }
+    b.blinks++;
+    if (!b.firsts.playerBlink) { b.firsts.playerBlink = Date.now(); toast(`You slow-blinked at ${st.name}. In cat language that means “I trust you” 😌`); }
+    if (i === 0 && Math.random() < 0.5) { cat.lookTarget = { x: ptr.x < cat.x ? 1 : -1, y: 0.2 }; cat.lookT = 2; sayText('……', '*looks away shyly*', true); if (b.blinks <= 3) trust(0.3); return; }
+    setTimeout(() => {
+      if (mode !== 'room' || ['eat', 'flop', 'trap'].includes(cat.act)) return;
+      setAct('blink', 2.4); cat.answering = true;
+      if (swap) { sayText('…♡', '*happy squint*', true); noteSet('blinkSwap'); S.burst('heart', cat.x, cat.y - 180 * catScale(), 6, { p: { color: '#ff6f9f', size: 9 } }); }
+    }, 450);
+    if (b.blinks <= 3) trust(swap ? 1.2 : 0.5);
+  }
+  function flop() {
+    getDown(true);
+    cat.flopDir = Math.random() < 0.5 ? -1 : 1; cat.bellyRubs = 0;
+    const i = bondStage();
+    cat.trapAt = i >= 4 ? U.randi(3, 7) : i >= 3 ? U.randi(2, 5) : U.randi(1, 2);
+    setAct('flop', U.rand(8, 12)); sayText('ごろーん', '*flops over and shows belly*', true); A.meow(1.3, 0.4);
+    if (!st.bond.firsts.flop) { st.bond.firsts.flop = Date.now(); setTimeout(() => hint(`${st.name} is showing you their belly… rub it? 👀`), 1200); }
+  }
+  function trap() {
+    setAct('trap', 1.7); cat.flopK = Math.max(cat.flopK, 0.9);
+    A.play('swat'); A.meow(1.6, 0.5); U.vibrate([10, 30, 10, 30, 10]);
+    sayText('つかまえた！', 'Gotcha! It was a trap ♡', true); hint(null);
+    S.burst('star', ptr.x > -900 ? ptr.x : cat.x, (ptr.y > -900 ? ptr.y : cat.y - 60), 8, { p: { color: U.pick(['#ffd34e', '#ff8fb1']), size: 8 } });
+    st.needs.fun = U.clamp(st.needs.fun + 3, 0, 100); noteSet('trap');
+    if (!st.bond.firsts.trap) { st.bond.firsts.trap = Date.now(); setTimeout(() => toast('The belly trap! Cats only show their belly to someone they trust… and then they attack 😼'), 900); }
+  }
+  function zoomies() {
+    cat.zoomiesT = T; noteSet('zoomies');
+    sayText('ダダダッ！', '*night zoomies!*', true); A.play('whoosh');
+    const band = L.catY - L.floorY;
+    const dash = (n) => {
+      if (n <= 0 || mode !== 'room') { setAct('idle', 0.5); sayText('ふぅ…', '*pants proudly*', true); return; }
+      goTo(n % 2 ? L.minX + 10 : L.maxX - 10, () => { cat.jumpV = -360 * catScale(); cat.jumpY = -1; A.play('whoosh'); dash(n - 1); }, 'zoom', L.floorY + band * U.rand(0.45, 1));
+    };
+    dash(U.randi(4, 6));
   }
   function roughPet() {
     st.bond.p.rough++; noteAdd('rough');
@@ -561,6 +604,8 @@
     const bi = bondStage();
     if (bi === 0 && Math.random() < 0.22) { startExploreBox(); return; }
     if (bi >= 3 && Math.random() < 0.12) { setAct('blink', 2.4); return; }
+    if (bi >= 2 && mood() > 60 && !cat.perch && !cat.inBox && Math.random() < 0.08) { flop(); return; }
+    { const h = hourNow(); if ((h >= 22 || h < 4) && st.needs.energy > 45 && T - cat.zoomiesT > 600 && Math.random() < 0.1) { zoomies(); return; } }
     if (bi >= 2 && !st.gift && st.giftLive !== U.dayKey() && mood() > 55 && !cat.perch && !cat.inBox && Math.random() < 0.04) { presentGift(); return; }
     if (bi >= 2 && T - ptr.lastMove < 4 && B.has(st.bond, 'cuddly') && Math.random() < 0.25) { goTo(U.clamp(ptr.x, L.minX, L.maxX), () => { cat.happyT = 1; }, false, L.catY); return; }
     const [need, v] = lowestNeed();
@@ -624,13 +669,13 @@
         if (cat.chase === 'ball' && Math.abs(ball.x - cat.x) < 44 * s && ball.h > -30 && Math.abs(dy) < 24) batBall();
         else if (dist < 4 && cat.chase !== 'bug') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
         else if (dist >= 4) {
-          const step = Math.min(1, ((cat.fast || cat.chase ? 150 : 70) * s * cat.depth * dt) / dist);
+          const step = Math.min(1, ((cat.fast === 'zoom' ? 330 : cat.fast || cat.chase ? 150 : 70) * s * cat.depth * dt) / dist);
           if (Math.abs(dx) > 2) cat.dir = Math.sign(dx);
           cat.x += dx * step; cat.y += dy * step;
           cat.depth = depthAt(cat.y);
         }
         if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
-      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe', 'wait', 'bump', 'blink'].includes(cat.act)) {
+      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe', 'wait', 'bump', 'blink', 'flop', 'trap'].includes(cat.act)) {
         updateActivity(dt);
       } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch'].includes(cat.act)) {
         if (cat.actT > cat.actDur) setAct('idle', 0.5);
@@ -657,6 +702,9 @@
       }
     }
 
+    cat.flopK = U.damp(cat.flopK, cat.act === 'flop' || cat.act === 'trap' ? 1 : 0, 7, dt);
+    cat.zoneT = Math.max(0, cat.zoneT - dt);
+    if (mode === 'room' && st && ptr.down && ptr.target && ptr.target.type === 'cat' && ptr.moved < 10 && !ptr.blinked && ['head', 'nose', 'chin', 'cheek'].includes(ptr.target.part) && T - ptr.t0 > 1.25) playerBlink();
     cat.zoom = cat.act === 'bump' ? 0.16 * Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)) : U.damp(cat.zoom, 0, 10, dt);
     // purring when petting
     cat.petK = Math.max(0, cat.petK - dt * 0.8);
@@ -681,13 +729,16 @@
     p.flip = 1;
     if (st && st.level >= 20) { p.twin = true; p.glow = 1; }
     if (st && m < 22 && mode === 'room') { p.eyes = 'sad'; p.earDroop = 0.4; p.mouth = 'flat'; }
+    if (cat.zoneT > 0 && cat.zone === 'chin') { p.eyes = 'closed'; p.headY -= 5; p.headTilt += 0.04; p.blush = 1; p.mouth = 'w'; }
+    else if (cat.zoneT > 0 && cat.zone === 'cheek') { p.eyes = 'happy'; p.headTilt += cat.zoneSide * 0.2; p.blush = 1; }
     if (cat.sulk > 0 && cat.act === 'idle') { p.eyes = 'closed'; p.mouth = 'flat'; p.earDroop = 0.35; p.headTilt = -0.1; p.flip = cat.dir < 0 ? -1 : 1; }
     else if (cat.happyT > 0 || cat.petK > 0.3) { p.eyes = 'happy'; p.mouthOpen = cat.petK > 0.3 ? 0 : 0.4; }
     else if (st && m > 80 && Math.sin(T * 0.4) > 0.85) p.eyes = 'sparkle';
 
     switch (mode === 'sleep' && cat.act === 'sleep' ? 'sleep' : cat.act) {
       case 'walk': {
-        const k = T * 10;
+        const k = T * (cat.fast === 'zoom' ? 24 : 10);
+        if (cat.fast === 'zoom') { p.eyes = 'sparkle'; p.earDroop = 0.35; p.tailPhase = T * 12; p.mouthOpen = 0.3; }
         p.bob = -Math.abs(Math.sin(k)) * 6; p.lean = Math.sin(k) * 0.03;
         p.pawLx = Math.sin(k) * 5; p.pawRx = -Math.sin(k) * 5; p.flip = cat.dir < 0 ? -1 : 1;
         break;
@@ -714,6 +765,8 @@
       case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
       case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'flop': p.eyes = cat.petK > 0.2 ? 'closed' : 'happy'; p.blush = 0.95; p.mouth = 'w'; p.pawL = 0.5 + Math.sin(T * 1.7) * 0.12; p.pawR = 0.5 - Math.sin(T * 1.7) * 0.12; p.tailPhase = T * 1.4; p.headTilt = Math.sin(T * 0.8) * 0.08; break;
+      case 'trap': p.eyes = 'sparkle'; p.mouthOpen = 0.55; p.pawL = 0.6 + Math.abs(Math.sin(T * 22)) * 0.4; p.pawR = 0.6 + Math.abs(Math.cos(T * 22)) * 0.4; p.bob = Math.sin(T * 30) * 3; p.tailPhase = T * 10; p.earDroop = 0.25; break;
       case 'wait': p.eyes = Math.sin(T * 0.7) > 0.6 ? 'sparkle' : 'open'; p.tailPhase = T * 2.4; p.headTilt = Math.sin(T * 0.9) * 0.08; p.mouthOpen = Math.sin(T * 0.5) > 0.9 ? 0.4 : 0; break;
       case 'bump': { const k = Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)); p.eyes = 'closed'; p.blush = 1; p.mouth = 'w'; p.headTilt = 0.18 * k; p.headY = -6 * k; p.tailPhase = T * 4; break; }
       case 'blink': { const k = Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)); p.blink = U.clamp(1 - k * 1.3, 0, 1); p.blush = 0.6 + k * 0.4; p.mouth = 'w'; p.tailPhase = T * 1.2; break; }
@@ -734,6 +787,7 @@
       p.wet = 1; p.earDroop = 0.7; p.eyes = bath.rinse > 0 ? 'closed' : 'happy'; p.mouthOpen = 0.25; p.tailAmp = 0.2;
       p.blush = 0.6;
     }
+    if (cat.flopK > 0.01) p.noShadow = true;
     cat.pose = p;
   }
 
@@ -773,7 +827,7 @@
   const depthAt = (y) => NB.Habitat.depthAt(L, y);
   const towerS = () => L.scale * depthAt(spots().tower.y) * 0.95;
   function goTo(x, then, fast, y) {
-    cat.tx = U.clamp(x, L.minX, L.maxX); cat.ty = y == null ? L.catY : y; cat.goal = then || null; cat.fast = !!fast;
+    cat.tx = U.clamp(x, L.minX, L.maxX); cat.ty = y == null ? L.catY : y; cat.goal = then || null; cat.fast = fast === 'zoom' ? 'zoom' : !!fast;
     setAct('walk', 12);
   }
   function hopTo(x, y, depth, then) {
@@ -851,6 +905,11 @@
         if (Math.random() < dt * 3) A.meow(1.7, 0.18);
       } else if (cat.perch === 'sill') { cat.lookTarget = { x: Math.sin(T * 0.5) * 0.8, y: -0.5 }; cat.lookT = 1; }
       if (cat.actT > cat.actDur) { cat.chattered = false; getDown(); }
+    } else if (cat.act === 'flop') {
+      if (Math.random() < dt * 0.5) A.meow(1.4, 0.25);
+      if (cat.actT > cat.actDur) setAct('idle', 0.5);
+    } else if (cat.act === 'trap') {
+      if (cat.actT > cat.actDur) { setAct('idle', 0.5); cat.happyT = 1.5; sayText('えへへ', 'Hehe~', true); }
     } else if (cat.act === 'wait') {
       cat.lookTarget = { x: Math.sin(T * 0.6) * 0.3, y: 0.1 }; cat.lookT = 1;
       if (cat.actT > cat.actDur) { setAct('idle', 0.5); if (st.needs.hunger < 70) { say('hungry'); A.meow(1.0); } }
@@ -864,8 +923,9 @@
     } else if (cat.act === 'blink') {
       cat.lookTarget = { x: 0, y: 0.05 }; cat.lookT = 1;
       if (!cat.blinked && cat.actT > cat.actDur * 0.5) {
-        cat.blinked = true; S.emit({ type: 'heart', x: cat.x, y: cat.y - 220 * s, vy: -40, life: 1.4, size: 10, color: '#ff9dbf' });
-        const b = st.bond; if (!b.firsts.blink) { b.firsts.blink = Date.now(); setTimeout(() => toast(`${st.name} slow-blinked at you. In cat language that means “I trust you” 😌`), 400); }
+        cat.blinked = true; cat.lastBlinkT = T; S.emit({ type: 'heart', x: cat.x, y: cat.y - 220 * s, vy: -40, life: 1.4, size: 10, color: '#ff9dbf' });
+        const b = st.bond; if (!b.firsts.blink && !cat.answering) { b.firsts.blink = Date.now(); setTimeout(() => toast(`${st.name} slow-blinked at you. That means “I trust you” 😌 Hold your finger still on their face to blink back.`), 400); }
+        cat.answering = false;
       }
       if (cat.actT > cat.actDur) { cat.blinked = false; setAct('idle', 0.5); }
     } else if (cat.act === 'drink') {
@@ -907,9 +967,22 @@
   const ball = { x: 0, h: 0, vx: 0, vh: 0, rot: 0, init: false };
   const ballY = () => L.catY + 16 * L.scale;
   const ballR = () => 17 * L.scale;
+  const tilt = { on: false, g: 0, bound: false };
+  function setTilt(want) {
+    const bind = () => {
+      if (!tilt.bound) { tilt.bound = true; window.addEventListener('deviceorientation', (e) => { const portrait = !screen.orientation || screen.orientation.type.startsWith('portrait'); tilt.g = (portrait ? e.gamma : (screen.orientation.angle === 90 ? e.beta : -e.beta)) || 0; }); }
+      tilt.on = true;
+    };
+    if (!want) { tilt.on = false; return; }
+    const D0 = window.DeviceOrientationEvent;
+    if (!D0) { toast('This device has no tilt sensor 🙀'); st.settings.tilt = false; return; }
+    if (typeof D0.requestPermission === 'function') D0.requestPermission().then((r) => { if (r === 'granted') bind(); else { st.settings.tilt = false; toast('Motion access was not allowed'); } }).catch(() => { st.settings.tilt = false; });
+    else bind();
+  }
   function kickBall(vx, vh) { ball.vx = vx; ball.vh = vh; A.play('pop'); }
   function updateBall(dt) {
     if (!ball.init) { ball.x = L.sx + L.SW * 0.3; ball.init = true; }
+    if (tilt.on && mode === 'room' && ball.h >= -1 && Math.abs(tilt.g) > 4) ball.vx += U.clamp(tilt.g, -35, 35) * 26 * L.scale * dt;
     ball.vh += 1500 * dt; ball.h += ball.vh * dt;
     if (ball.h > 0) { ball.h = 0; ball.vh = Math.abs(ball.vh) > 90 ? -ball.vh * 0.45 : 0; }
     ball.x += ball.vx * dt; ball.vx *= Math.exp(-(ball.h < 0 ? 0.3 : 1.3) * dt);
@@ -1331,12 +1404,21 @@
   }
 
   /* ================= INPUT ================= */
+  const FLOP_LIFT = 50, FLOP_ANG = 1.35;
   function hitCat(px, py) {
     const s = cs(), p = cat.pose;
-    const lx = (px - cat.x) / s, ly = (py - (cat.y + cat.jumpY)) / s;
+    let dx = px - cat.x, dy = py - (cat.y + cat.jumpY);
+    if (cat.flopK > 0.01) {
+      dy += FLOP_LIFT * cat.flopK * s;
+      const a = cat.flopDir * cat.flopK * FLOP_ANG, c = Math.cos(a), sn = Math.sin(a);
+      [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c];
+    }
+    const lx = dx / s * (p.flip || 1), ly = dy / s;
     const hy = p.headY + p.loaf * 26;
     if (Math.hypot(lx, ly - (-106 + hy)) < 15) return 'nose';
-    if ((lx / 84) ** 2 + ((ly - (-130 + hy)) / 68) ** 2 < 1) return 'head';
+    if (Math.abs(lx) < 30 && ly > -96 + hy && ly < -70 + hy) return 'chin';
+    if ((lx / 84) ** 2 + ((ly - (-130 + hy)) / 68) ** 2 < 1) return Math.abs(lx) > 52 && ly > -150 + hy ? 'cheek' : 'head';
+    if (!p.loaf && [[40, -24], [80, -40], [92, -76], [72, -116]].some(([tx, ty]) => Math.hypot(lx - tx, ly - ty) < 20)) return 'tail';
     if (!p.loaf && (lx / 32) ** 2 + ((ly + 40) / 28) ** 2 < 1) return 'belly';
     if ((lx / 60) ** 2 + ((ly + 46) / 52) ** 2 < 1) return 'body';
     return null;
@@ -1369,7 +1451,7 @@
     if (mode === 'title' || mode === 'game') return;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
     ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
-    ptr.target = null;
+    ptr.target = null; ptr.blinked = false;
     if (mode === 'play') { wand.tx = ptr.x; wand.ty = ptr.y; return; }
     if (mode === 'bath') return;
     if (st.gift) { const gp = propAt(ptr.x, ptr.y); if (gp && gp.type === 'gift') { ptr.target = gp; return; } }
@@ -1398,8 +1480,17 @@
       // stroking = petting
       if (hitCat(x, y)) {
         if (mode === 'room' && spd > 2600) { if (T - (cat.roughT || -9) > 1.2) { cat.roughT = T; roughPet(); } return; }
-        if (cat.act === 'refuse') return;
-        cat.petK = Math.min(1.2, cat.petK + d * 0.006 * (bondStage() === 0 ? 0.6 : 1));
+        if (cat.act === 'refuse' || cat.act === 'trap') return;
+        const part = hitCat(x, y);
+        if (part === 'tail') {
+          if (T - cat.tailT > 2) { cat.tailT = T; noteSet('tail'); setAct('refuse', 0.9); cat.petK = 0; sayText('しっぽはだめ！', 'Not the tail!', true); A.meow(0.9, 0.6); if (bondStage() < 2) trust(-0.2); }
+          return;
+        }
+        if (part === 'chin' || part === 'cheek') {
+          cat.zone = part; cat.zoneT = 0.5; cat.zoneSide = x < cat.x ? -1 : 1;
+          if (!st.bond.firsts[part]) { st.bond.firsts[part] = Date.now(); noteSet(part); toast(part === 'chin' ? `Chin scratches! ${st.name} melts 😽` : `${st.name} rubs their cheek into your hand. They're marking you as theirs 💕`); }
+        }
+        cat.petK = Math.min(1.2, cat.petK + d * 0.006 * (bondStage() === 0 ? 0.6 : 1) * (part === 'chin' || part === 'cheek' ? 1.4 : 1));
         cat.petDist = (cat.petDist || 0) + d;
         if (cat.petDist > 46) {
           cat.petDist = 0;
@@ -1409,7 +1500,8 @@
           if (st.stats.pets % 6 === 0) addXP(1);
           track('pet');
           cared();
-          st.bond.p.gentle++; trust(spd < 900 ? 0.22 : 0.14);
+          st.bond.p.gentle++; trust((spd < 900 ? 0.22 : 0.14) * (cat.zoneT > 0 ? 1.3 : 1));
+          if (cat.act === 'flop' && hitCat(x, y) === 'belly' && ++cat.bellyRubs >= cat.trapAt) trap();
           if (cat.sulk > 0 && --cat.sulk === 0) { noteSet('forgave'); sayText('…もう、しょうがないなぁ', '…Fine. I forgive you.', true); setTimeout(headBump, 600); hint(null); }
           else if (B.has(st.bond, 'tsun') && Math.random() < 0.03) sayText('べ、べつに…', 'I-it’s not like I like this…', true);
           if (st.stats.pets % 15 === 0) say('pet', true);
@@ -1481,6 +1573,9 @@
   }
   function tapCat(part) {
     if (cat.inBox) { popOut(); sayText('みつかった！', 'You found me!', true); return; }
+    if (cat.act === 'flop') { if (part === 'belly' && Math.random() < 0.5) trap(); else { cat.petK = Math.min(1, cat.petK + 0.3); S.emit({ type: 'heart', x: ptr.x, y: ptr.y - 10, vy: -60, life: 1, size: 8, color: '#ff9dbf' }); } return; }
+    if (cat.act === 'trap') return;
+    if (part === 'tail') { if (T - cat.tailT > 2) { cat.tailT = T; setAct('refuse', 0.9); sayText('しっぽはだめ！', 'Not the tail!', true); A.meow(0.9, 0.6); } return; }
     if (mode === 'sleep') { cat.petK = Math.min(1, cat.petK + 0.3); S.emit({ type: 'heart', x: ptr.x, y: ptr.y - 10, vy: -60, life: 1, size: 8, color: '#ff9dbf' }); return; }
     if (cat.act === 'eat') return;
     tapTimes = tapTimes.filter((t) => T - t < 2); tapTimes.push(T);
@@ -1540,6 +1635,25 @@
     ctx2.restore();
   }
 
+  function drawCatAt(lk, x, y) {
+    const s = cs();
+    if (cat.flopK < 0.01) { C.draw(ctx, lk, cat.pose, T, x, y, s); return; }
+    ctx.fillStyle = 'rgba(70,35,50,0.16)'; U.ell(ctx, x - cat.flopDir * 70 * s * cat.flopK, y + 2, (78 + 50 * cat.flopK) * s, 13 * s); ctx.fill();
+    ctx.save(); ctx.translate(x, y - FLOP_LIFT * cat.flopK * s); ctx.rotate(-cat.flopDir * cat.flopK * FLOP_ANG);
+    C.draw(ctx, lk, cat.pose, T, 0, 0, s);
+    ctx.restore();
+  }
+  // holding a finger still on the cat's face = a slow blink from you
+  function drawBlinkRing(c) {
+    if (!ptr.down || !ptr.target || ptr.target.type !== 'cat' || ptr.moved > 10 || ptr.blinked || mode !== 'room') return;
+    const k = (T - ptr.t0 - 0.35) / 0.9; if (k <= 0) return;
+    c.save(); c.lineCap = 'round';
+    c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineWidth = 6; c.beginPath(); c.arc(ptr.x, ptr.y - 46, 22, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = '#ff6f9f'; c.lineWidth = 6; c.beginPath(); c.arc(ptr.x, ptr.y - 46, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, k)); c.stroke();
+    c.strokeStyle = '#5b3a4a'; c.lineWidth = 2.5; const lid = Math.min(1, k);
+    [-8, 8].forEach((ox) => { c.beginPath(); c.arc(ptr.x + ox, ptr.y - 48 - 3 * (1 - lid), 5, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke(); });
+    c.restore();
+  }
   function frame() {
     const now = new Date();
     env.hour = DEV && window.__hour != null ? window.__hour : now.getHours() + now.getMinutes() / 60;
@@ -1588,10 +1702,10 @@
         const b = boxDims();
         drawBox(ctx, false);
         ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, b.y - b.h + 2); ctx.rect(b.x - b.w, b.y - b.h, b.w * 2, b.h); ctx.clip();
-        C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY + 30 * s, cs());
+        drawCatAt(look_, cat.x, cat.y + cat.jumpY + 30 * s);
         ctx.restore();
         drawBox(ctx, true);
-      } else C.draw(ctx, look_, cat.pose, T, cat.x, cat.y + cat.jumpY, cs());
+      } else drawCatAt(look_, cat.x, cat.y + cat.jumpY);
       if (meal.id) S.drawFood(ctx, meal.id, cat.x, cat.y + 22 * cs(), cs() * 1.55, meal.t / meal.dur);
     });
     items.sort((a, b) => a[0] - b[0]).forEach((it) => it[1]());
@@ -1613,6 +1727,7 @@
     NB.Habitat.drawVignette(ctx, L);
     drawThought(ctx);
     drawSpeech(ctx);
+    drawBlinkRing(ctx);
     if (mode === 'bath' && ptr.x > -900 && !RM) drawSponge(ctx);
   }
   function drawSponge(ctx2) {
@@ -2002,6 +2117,7 @@
     const tog = (k, label, jp) => `<label class="row"><span><b>${jp}</b> ${label}</span><input type="checkbox" class="switch" data-set="${k}" ${s[k] !== false ? 'checked' : ''}></label>`;
     const iosHint = U.isIOS() && !U.standalone() ? `<div class="install-hint">📱 <b>iPhone/iPad:</b> tap <b>Share</b> → <b>Add to Home Screen</b> to play full-screen like an app. Turn off silent mode to hear sound.</div>` : '';
     const html = `
+      <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
       ${tog('music', 'Music', 'おんがく')}${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
@@ -2017,7 +2133,7 @@
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
         const k = el.dataset.set;
         if (k === 'name') { const v = cleanName(el.value); if (el.value.trim()) { st.name = v; el.value = v; renderHUD(true); } }
-        else if (el.type === 'checkbox') s[k] = el.checked; else s[k] = el.value;
+        else if (el.type === 'checkbox') { s[k] = el.checked; if (k === 'tilt') { setTilt(el.checked); if (el.checked) toast('Tilt your phone to roll the ball 🎾'); } } else s[k] = el.value;
         applySettings(); save();
       }));
     });
@@ -2148,6 +2264,7 @@
     }
   }
   function enterRoom(fromBoot) {
+    if (st.settings.tilt && !tilt.on) setTilt(true);
     const off = applyOffline();
     $('#hud').hidden = false; $('#actions').hidden = false;
     catchUpRoad(); ensureDaily();
@@ -2317,7 +2434,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

@@ -561,7 +561,7 @@ NB.Cat = (() => {
     ctx.translate(x, y);
     // ground shadow
     ctx.fillStyle = 'rgba(70,35,50,0.16)';
-    U.ell(ctx, 0, 2, 78 * s * (1 + p.loaf * 0.15) * (1 - Math.min(0.5, -p.bob / 300)), 13 * s); ctx.fill();
+    if (!p.noShadow) { U.ell(ctx, 0, 2, 78 * s * (1 + p.loaf * 0.15) * (1 - Math.min(0.5, -p.bob / 300)), 13 * s); ctx.fill(); }
     ctx.translate(0, p.bob * s);
     ctx.scale(s * p.sx * p.flip, s * p.sy);
     ctx.rotate(p.lean);
