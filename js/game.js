@@ -65,7 +65,9 @@
   function save() {
     if (!st) return;
     st.lastSeen = Date.now();
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(st)); } catch (e) { /* storage full / private mode */ }
+    const json = JSON.stringify(st);
+    try { localStorage.setItem(SAVE_KEY, json); } catch (e) { /* storage full / private mode */ }
+    if (NB.Native.isNative) NB.Native.mirror(json);
   }
 
   let st = load();
@@ -2437,7 +2439,7 @@
     const iosHint = U.isIOS() && !U.standalone() ? `<div class="install-hint">📱 <b>iPhone/iPad:</b> tap <b>Share</b> → <b>Add to Home Screen</b> to play full-screen like an app. Turn off silent mode to hear sound.</div>` : '';
     const html = `
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
-      ${tog('music', 'Music', 'おんがく')}${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${tog('english', 'Show English subtitles', 'えいご')}
+      ${tog('music', 'Music', 'おんがく')}${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
@@ -2453,7 +2455,7 @@
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
         const k = el.dataset.set;
         if (k === 'name') { const v = cleanName(el.value); if (el.value.trim()) { st.name = v; el.value = v; renderHUD(true); } }
-        else if (el.type === 'checkbox') { s[k] = el.checked; if (k === 'home') resize(); if (k === 'tilt') { setTilt(el.checked); if (el.checked) toast('Tilt your phone to roll the ball 🎾'); } } else s[k] = el.value;
+        else if (el.type === 'checkbox') { s[k] = el.checked; if (k === 'notify' && el.checked) NB.Native.permission(true); if (k === 'tilt') { setTilt(el.checked); if (el.checked) toast('Tilt your phone to roll the ball 🎾'); } } else { s[k] = el.value; if (k === 'home') resize(); }
         applySettings(); save();
       }));
     });
@@ -2585,6 +2587,7 @@
   }
   function enterRoom(fromBoot) {
     if (st.settings.tilt && !tilt.on) setTilt(true);
+    askNotify();
     const off = applyOffline();
     $('#hud').hidden = false; $('#actions').hidden = false;
     catchUpRoad(); ensureDaily();
@@ -2719,6 +2722,7 @@
       case 'install': if (installEvt) { installEvt.prompt(); installEvt = null; closeSheet(); } break;
       case 'dice': $('#adoptname').value = U.pick(D.NAMES); A.play('pop'); break;
       case 'adopt': adopt(); break;
+      case 'notify-yes': closeModal(); NB.Native.permission(true).then((r) => { st.settings.notify = r === 'granted'; toast(r === 'granted' ? `🔔 ${st.name} will send you little notes` : 'Notifications are off. You can turn them on in your phone settings.'); }); break;
       case 'dev-coins': addCoins(1000); break;
       case 'dev-lv': st.xp = xpNeed(st.level); addXP(0); closeSheet(); break;
       case 'dev-bond': { closeSheet(); const up = B.bump(st.bond, 15); if (up > 0) stageUp(up); renderBond(); break; }
@@ -2736,6 +2740,11 @@
 
   /* ================= BOOT ================= */
   function boot() {
+    if (NB.Native.isNative && !st) {
+      NB.Native.restore().then((ok) => { if (ok) { st = load(); if (st) NB.state = st; } startGame(); });
+    } else startGame();
+  }
+  function startGame() {
     document.querySelectorAll('[data-icon-name]').forEach((el) => { el.innerHTML = ICON[el.dataset.iconName] || ''; });
     const petals = $('#title .petals');
     for (let i = 0; i < (RM ? 0 : 18); i++) {
@@ -2750,13 +2759,61 @@
     resize();
     showTitle();
     start();
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !NB.Native.isNative) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
     // a pre-adoption demo cat lives on the title screen
     cat.happyT = 0;
     if (st) applySettings();
     document.body.classList.add('ready');
+    if (NB.Native.isNative) {
+      document.body.classList.add('native');
+      NB.Native.ready();
+      NB.Native.onLifecycle({
+        pause: () => { save(); planNotes(); },
+        resume: () => { NB.Native.clearNotes(); },
+        back: () => {
+          if (modalShowing) closeModal();
+          else if (!$('#sheet').hidden) closeSheet();
+          else if (mode === 'play' || mode === 'bath' || mode === 'sleep') setMode('room');
+          else NB.Native.minimize();
+        },
+      });
+    }
+  }
+
+  /* ================= NOTIFICATIONS (native app only) ================= */
+  // at most three gentle notes, never between 22:00 and 08:00, cleared the moment you return
+  function quietHours(d) {
+    const h = d.getHours();
+    if (h >= 22) { d.setDate(d.getDate() + 1); d.setHours(8, 30, 0, 0); } else if (h < 8) d.setHours(8, 30, 0, 0);
+    return d;
+  }
+  function nextAt(hour, minAhead) {
+    const d = new Date(); d.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
+    while (d.getTime() < Date.now() + minAhead) d.setDate(d.getDate() + 1);
+    return d;
+  }
+  function planNotes() {
+    if (!NB.Native.isNative || !st || st.settings.notify === false) return;
+    const name = st.name, notes = [], now = Date.now(), b = st.bond;
+    const fh = B.usual(b.feedH);
+    const hungerHrs = (st.needs.hunger - 25) / 11;
+    if (fh != null) notes.push({ at: quietHours(nextAt(fh, 3600000)), title: `${name} is waiting by the bowl 🍚`, body: "It's almost mealtime. They remembered!" });
+    else if (hungerHrs > 1) notes.push({ at: quietHours(new Date(now + hungerHrs * 3600000)), title: `${name}'s tummy is rumbling 🍙`, body: 'A little snack would make them very happy.' });
+    const vh = B.usual(b.visitH);
+    notes.push({ at: quietHours(nextAt(vh != null ? vh + 0.25 : 18, 12 * 3600000)), title: bondStage() >= 2 ? `${name} left you something ✨` : `${name} is curious where you went 🐾`, body: bondStage() >= 2 ? 'There might be a present by the cushion.' : 'Come say hi when you have a minute.' });
+    notes.push({ at: quietHours(new Date(now + 3 * 86400000)), title: `${name} misses you 🤍`, body: 'They have been sitting by the window, watching for you.' });
+    notes.sort((a, z) => a.at - z.at);
+    NB.Native.planNotes(notes);
+  }
+  function askNotify() {
+    if (!NB.Native.isNative || st.notifAsked || st.stats.fed < 1) return;
+    st.notifAsked = Date.now();
+    setTimeout(() => modal(`<div class="letter"><div class="envelope">🔔</div><h2>おしらせ <small>Little notes from ${st.name}</small></h2>
+      <p>Can ${st.name} send you a note when they're hungry or miss you?</p>
+      <p class="sub">A couple a day at most, and never at night.</p>
+      <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   if (DEV) NB.Game.dbg = { hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },

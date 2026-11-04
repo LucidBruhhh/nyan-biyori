@@ -1,0 +1,23 @@
+{
+  "appId": "com.lucidbruhhh.nyanbiyori",
+  "appName": "Nyan Biyori",
+  "webDir": "www",
+  "backgroundColor": "#f6e7cf",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#f6e7cf"
+  },
+  "android": {
+    "backgroundColor": "#f6e7cf"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#fbe3ea",
+      "showSpinner": false
+    },
+    "LocalNotifications": {
+      "iconColor": "#ff6f9f"
+    }
+  }
+}
