@@ -198,6 +198,7 @@
   function stageUp(i) {
     const sg = B.STAGES[i];
     noteSet('stage', i);
+    setTimeout(checkChapters, 3000);
     renderBond();
     A.play('success'); U.vibrate([20, 50, 20]);
     S.burst('heart', cat.x, cat.y - 160 * catScale(), 14, { p: { color: '#ff6f9f', size: 12, life: 1.6 } });
@@ -343,7 +344,7 @@
     if (!p.today) st.diary.pages[i].unread = false;
     const wx = Di.WX[p.wx] || Di.WX.clear;
     modal(`<div class="diary"><div class="d-head"><b>${Di.label(p.day)}</b><span>${wx[0]} ${wx[1]}</span></div>
-      ${p.today ? '<p class="d-today">きょう · Today, still writing…</p>' : ''}
+      ${p.today ? '<p class="d-today">きょう · Today, still writing…</p>' : ''}${p.title ? `<p class="d-mem">📜 ${p.title}</p>` : ''}
       <canvas id="dcat" width="180" height="180"></canvas>
       <div class="d-lines">${p.lines.map((l) => `<p>${l}</p>`).join('')}</div>
       <p class="d-sign">— ${st.name} 🐾</p>
@@ -366,6 +367,7 @@
   function arrive(hrs) {
     diaryRoll();
     const v = B.visit(st.bond, hourNow(), hrs);
+    setTimeout(checkChapters, 2500);
     const e = st.diary.ev; (e.visits || (e.visits = [])).push(Math.floor(hourNow()));
     if (v.first) setTimeout(() => seasonPts(20), 3200);
     if (v.first && !st.gift && bondStage() >= 1 && st.giftDay !== U.dayKey() && Math.random() < 0.4 + 0.1 * bondStage()) {
@@ -1214,6 +1216,7 @@
     });
   }
   function updateWorld(dt) {
+    if (st) updateVisitor(dt);
     if (st && mode === 'room' && !RM && Math.random() < dt * 0.5 && st.health.coat >= 80 && HL.vitality(st) >= 85) {
       const s = catScale();
       S.emit({ type: 'sparkle', x: cat.x + U.rand(-60, 60) * s, y: cat.y - U.rand(20, 160) * s, vy: -12, life: 0.9, size: 5, color: '#fff6c8' });
@@ -1517,6 +1520,90 @@
     if (!known.length || mode !== 'room' || cat.act !== 'idle') return;
     const t = U.pick(known);
     doTrick(t, false); sayText('みてみて！', `*shows off: ${t.en.toLowerCase()}!*`, true);
+  }
+
+  /* ================= WINDOW VISITORS & BACKSTORY ================= */
+  const V = NB.Visitors;
+  const visitor = { id: null, x: 0.5, t: 0, dur: 0, fade: 0, greeted: false, reacted: false };
+  function visitorPos() {
+    if (L.painted) { const { k, ox, oy } = L.painted, g = NB.Painted.ART.glassBox; return { x: ox + (g.x + 40 + visitor.x * (g.w - 80)) * k, y: oy + 600 * k, s: L.scale * 0.5 }; }
+    return { x: L.win.x + L.win.w * (0.15 + visitor.x * 0.7), y: L.win.y + L.win.h - 4, s: L.scale * 0.42 };
+  }
+  function spawnVisitor() {
+    const pool = V.LIST.filter((v) => ((st.friends || {})[v.id] || 0) < V.MAX_HEARTS);
+    const v = U.pick(pool.length ? pool : V.LIST);
+    Object.assign(visitor, { id: v.id, x: U.rand(0.1, 0.9), t: 0, dur: U.rand(150, 300), fade: 0, greeted: false, reacted: false });
+    st.visitDay = U.dayKey();
+    st.friendsMet = st.friendsMet || []; if (!st.friendsMet.includes(v.id)) st.friendsMet.push(v.id);
+    if (!st.bond.firsts.visitor) { st.bond.firsts.visitor = Date.now(); setTimeout(() => hint('A stray cat is at the window! Tap them to say hi 🐈'), 1500); }
+  }
+  function updateVisitor(dt) {
+    if (!visitor.id) {
+      if (mode === 'room' && unlocked('visitors') && st.visitDay !== U.dayKey() && Math.random() < dt / 90) spawnVisitor();
+      return;
+    }
+    visitor.t += dt;
+    visitor.fade = U.damp(visitor.fade, visitor.t < visitor.dur ? 1 : 0, 2, dt);
+    if (visitor.t > visitor.dur && visitor.fade < 0.02) { visitor.id = null; return; }
+    // your cat goes to say hello through the glass
+    if (!visitor.reacted && visitor.t > 3 && mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox && !cat.hop) {
+      visitor.reacted = true;
+      const p = visitorPos(), seatY = L.win.y + L.win.h + 1, s = catScale();
+      const sx = U.clamp(p.x, L.win.x + 40, L.win.x + L.win.w - 40);
+      goTo(sx + (sx > cat.x ? -60 : 60) * s, () => hopTo(sx, seatY, 0.58, () => {
+        cat.perch = 'sill'; setAct('perch', U.rand(8, 12));
+        sayText('にゃっ！', bondStage() >= 2 && ((st.friends || {})[visitor.id] || 0) >= 3 ? '*boops noses through the glass*' : '*chirps at the visitor*', true); A.meow(1.5, 0.4);
+      }));
+    }
+  }
+  function drawVisitor(c) {
+    const v = V.get(visitor.id); if (!v || visitor.fade < 0.02) return;
+    const p = visitorPos(), pose = C.defaultPose();
+    pose.blink = Math.sin(T * 1.3 + 1) > 0.97 ? 0 : 1; pose.tailPhase = T * 1.6; pose.lookX = U.clamp((cat.x - p.x) / 300, -1, 1); pose.lookY = 0.3;
+    if (visitor.greeted) { pose.eyes = 'happy'; pose.blush = 0.8; }
+    c.save(); c.globalAlpha = visitor.fade; C.draw(c, v.look, pose, T, p.x, p.y + (1 - visitor.fade) * 20, p.s); c.restore();
+  }
+  function openVisitor() {
+    const v = V.get(visitor.id); if (!v) return;
+    st.friends = st.friends || {};
+    const f = st.friends[v.id] || 0;
+    modal(`<div class="visitor"><canvas id="vcat" width="200" height="200"></canvas>
+      <h2>${v.jp} <small>${v.en}, ${v.title}</small></h2>
+      <p class="hearts">${'♥'.repeat(f)}${'♡'.repeat(V.MAX_HEARTS - f)}</p>
+      <p>${v.story[Math.min(f, V.MAX_HEARTS - 1)]}</p>
+      <div class="btnrow">${visitor.greeted || f >= V.MAX_HEARTS ? '<button class="btn ghost" data-ui="closemodal">またね！ See you</button>' : `<button class="btn ghost" data-ui="closemodal">Wave 👋</button><button class="btn" data-ui="visitortreat">Share a treat · ${koban(V.TREAT_COST)}</button>`}</div></div>`, 'visitor', {
+      replace: true, onShow: (m) => C.portrait(m.querySelector('#vcat'), v.look, { zoom: 1.05, bg: ['#fff1f6', '#ffe0ec'], pose: visitor.greeted ? { eyes: 'happy', blush: 0.9, mouth: 'w' } : { eyes: 'open' } }),
+    });
+  }
+  function visitorTreat() {
+    const v = V.get(visitor.id); if (!v || visitor.greeted) return;
+    if (st.coins < V.TREAT_COST) { toast('Not enough koban for a treat'); A.play('fail'); return; }
+    st.coins -= V.TREAT_COST; renderHUD(true);
+    visitor.greeted = true;
+    st.friends[v.id] = Math.min(V.MAX_HEARTS, (st.friends[v.id] || 0) + 1);
+    noteSet('visitor', v.id); A.play('success');
+    const p = visitorPos(); S.burst('heart', p.x, p.y - 60 * p.s, 6, { p: { color: '#ff6f9f', size: 8 } });
+    if (st.friends[v.id] >= V.MAX_HEARTS) { addCoins(150, p.x, p.y - 80); setTimeout(() => toast(`<span class="mini-hanko">ともだち</span><span><b>${v.en} is your friend for life!</b><br>+150 koban</span>`, 'ach'), 600); }
+    openVisitor(); checkAch(); save();
+  }
+  // where your cat came from: a new chapter as your bond grows
+  function checkChapters() {
+    if (!st) return;
+    st.chapters = st.chapters || [];
+    let found = 0;
+    V.CHAPTERS.forEach((ch) => {
+      if (st.chapters.includes(ch.id) || !ch.need(st, bondStage())) return;
+      st.chapters.push(ch.id);
+      st.diary.pages.push({ day: U.dayKey(), wx: 'clear', title: `Chapter ${ch.id}: ${ch.title}`, memory: true, lines: ch.lines, mood: 'sleepy', unread: true });
+      found++;
+    });
+    if (found) setTimeout(() => toast(`📜 ${st.name} remembered something from long ago… (Diary)`), 1200);
+  }
+  function friendsHTML() {
+    const met = st.friendsMet || [], fr = st.friends || {};
+    return `<h3>ともだち <small>Window visitors</small></h3><div class="friends">${V.LIST.map((v) => met.includes(v.id)
+      ? `<div class="friend"><b>${v.jp}</b><small>${v.en}</small><span class="hearts">${'♥'.repeat(fr[v.id] || 0)}${'♡'.repeat(V.MAX_HEARTS - (fr[v.id] || 0))}</span></div>`
+      : '<div class="friend unknown"><b>？？？</b><small>Not met yet</small></div>').join('')}</div>`;
   }
 
   /* ================= ROOM TOYS ================= */
@@ -1872,6 +1959,7 @@
     if (shown('daruma') && Math.hypot(x - sp.daruma.x, y - (sp.daruma.y - 26 * L.scale * depthAt(sp.daruma.y))) < 36 * L.scale) return { type: 'daruma' };
     { const ts = towerS(); if (Math.abs(x - sp.tower.x) < 52 * ts && y < sp.tower.y + 4 && y > sp.tower.y - 196 * ts) return { type: 'tower' }; }
     { const bs = L.scale * depthAt(sp.bowls.y); if (Math.abs(x - sp.bowls.x) < 58 * bs && Math.abs(y - sp.bowls.y) < 22 * bs) return { type: 'bowls' }; }
+    if (visitor.id && visitor.fade > 0.5) { const p = visitorPos(); if (Math.hypot(x - p.x, y - (p.y - 60 * p.s)) < 90 * p.s + 10) return { type: 'visitor' }; }
     if (L.painted) { const h = NB.Painted.hit(L, x, y); if (h) return { type: h }; }
     if (shown('maneki') && Math.hypot(x - (L.alcove.x + L.alcove.w * 0.75), y - (L.alcove.y + L.alcove.h - 60 * L.scale)) < 40 * L.scale) return { type: 'maneki' };
     if (L.lamp ? Math.hypot(x - L.lamp.x, y - L.lamp.y) < 44 : shown('chochin') && Math.hypot(x - (L.sx + L.SW * 0.12), y - (L.win.y + 32)) < 36) return { type: 'chochin' };
@@ -1973,6 +2061,7 @@
     if (tg.type === 'cat') tapCat(tg.part);
     else if (tg.type === 'gift') collectGift();
     else if (tg.type === 'radio') tapRadio();
+    else if (tg.type === 'visitor') openVisitor();
     else if (tg.type === 'plant') tapPlant(ptr.x, ptr.y);
     else if (tg.type === 'pillowL' || tg.type === 'pillowR') tapPillow(tg.type);
     else if (tg.type === 'lights') tapLights();
@@ -2118,7 +2207,7 @@
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    env.drawOutsideParticles = (c) => { S.drawOutsideParts(c, T); if (st) drawBirds(c); };
+    env.drawOutsideParticles = (c) => { S.drawOutsideParts(c, T); if (st) { drawBirds(c); if (visitor.id) drawVisitor(c); } };
     env.lampOff = !!(st && st.lampOff);
     env.fairyOff = !!(st && st.fairyOff);
     S.drawRoom(ctx, L, env, T);
@@ -2686,6 +2775,7 @@
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
       ${bondHTML()}
       ${diaryHTML()}
+      ${friendsHTML()}
       <h3>絆の道 <small>Kizuna Road · rewards for growing together</small></h3>
       <div class="road">${D.ROAD.map((r) => { const l = roadLabel(r); const got = st.level >= r.lv; return `<div class="node ${got ? 'got' : ''} ${r.lv === st.level + 1 ? 'next' : ''}"><div class="lv">Lv ${r.lv}</div><div class="gift" data-road-icon="${r.acc || r.decor || ''}">${l.kind === 'coins' ? '<i class="koban"></i>' : ''}</div><b>${l.kind === 'coins' ? l.jp : l.jp}</b><small>${l.kind === 'coins' ? 'koban' : l.en}</small>${r.note ? `<em>${r.note}</em>` : ''}${got ? '<span class="ok">✓</span>' : ''}</div>`; }).join('')}</div>
       <h3>はっけん <small>Discoveries · ${st.found.length}/${Object.keys(DISCOVER).length}</small></h3>
@@ -2766,6 +2856,7 @@
   /* ---------- Level up & achievements ---------- */
   function levelUp(gained = []) {
     noteSet('lv', st.level);
+    setTimeout(checkChapters, 3000);
     const t = titleFor(st.level);
     const bonus = 10 + st.level * 5;
     st.coins += bonus;
@@ -3016,6 +3107,7 @@
       case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'health': openHealth(); break;
       case 'endtrain': endTrain(); break;
+      case 'visitortreat': visitorTreat(); break;
       case 'capsule': spinCapsule(); break;
       case 'arrange': startArrange(); break;
       case 'endarrange': endArrange(); break;
@@ -3151,7 +3243,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

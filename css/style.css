@@ -400,6 +400,17 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 #btn-sound.muted { background: #f1e6ec; }
 .steps { text-align: left; margin: 10px auto; padding-left: 22px; line-height: 1.8; font-size: 14px; max-width: 280px; }
 .share-ic { display: inline-block; padding: 0 5px; border: 1.5px solid #7fb6ff; border-radius: 5px; color: #3d7be0; font-size: 12px; }
+/* visitors and backstory */
+.visitor { text-align: center; }
+.visitor canvas { width: 110px; height: 110px; border-radius: 50%; display: block; margin: 0 auto; box-shadow: 0 4px 0 #f0dde5; }
+.visitor h2 small { display: block; }
+.visitor .hearts, .friend .hearts { color: var(--pink-deep); letter-spacing: 2px; }
+.friends { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.friend { background: #fff; border-radius: 14px; padding: 8px 10px; box-shadow: 0 3px 0 #f0dde5; display: flex; flex-direction: column; }
+.friend b { font-family: "Yusei Magic", var(--font); font-weight: 400; color: var(--pink-deep); }
+.friend small { font-size: 11px; color: var(--ink-soft); }
+.friend.unknown b { color: #c9b3bd; }
+.d-mem { margin: 6px 0 0; font-family: "Yusei Magic", var(--font); color: #8a6fd1; font-size: 15px; }
 /* capsule toys */
 .gacha { display: flex; gap: 14px; align-items: center; background: #fff; border-radius: 20px; padding: 12px; box-shadow: 0 4px 0 #f0dde5; }
 .gacha p { font-size: 13px; color: var(--ink-soft); margin: 0 0 8px; }
