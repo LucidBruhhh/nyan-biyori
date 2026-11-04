@@ -1322,7 +1322,7 @@
     });
   }
   function updateWorld(dt) {
-    updateCozy(dt); updatePhoto(dt);
+    updateCozy(dt); updatePhoto(dt); if (st) updateRadioSleep();
     if (cat.purring && st && st.settings.haptics) { cat.purrHT = (cat.purrHT || 0) - dt; if (cat.purrHT <= 0) { cat.purrHT = 0.45; U.vibrate(4); } }
     const nightK = S.nightness(env.hour);
     env.fog = U.damp(env.fog || 0, (env.weather === 'rain' || env.season === 'winter') && nightK > 0.4 ? 1 : 0, 0.3, dt);
@@ -1975,6 +1975,15 @@
 
   /* ================= COZY MODE: a calm companion for a second screen or an iPad stand ================= */
   const cozy = { on: false, auto: false, peekT: 0, toasts: [], modals: [], wake: null, clockT: 0, shift: 0 };
+  const ambMix = () => { const a = st.settings.amb; if (a && typeof a === 'object') return a; const k = st.settings.ambience; return k && k !== 'off' ? { [k]: 60 } : {}; };
+  // the radio's sleep timer fades the music out and switches it off
+  const radioSleep = { end: 0 };
+  function updateRadioSleep() {
+    if (!radioSleep.end) return;
+    const left = radioSleep.end - Date.now();
+    if (left <= 0) { radioSleep.end = 0; st.radio = 'off'; updateMusic(); A.setRadio(false, radioVol()); if (!cozy.on) toast('📻 Radio off · sleep well'); return; }
+    if (left < 30000) A.setRadio(true, radioVol() * (left / 30000));
+  }
   const cozyNight = () => { const h = hourNow(); return h >= 23 || h < 6; };
   async function keepAwake(on) {
     try {
@@ -1989,7 +1998,7 @@
     closeSheet(); if (modalShowing) closeModal(); hint(null);
     cozy.on = true; cozy.auto = !!auto; cozy.peekT = 0;
     document.body.classList.add('cozy'); document.body.classList.remove('peek');
-    A.setCozy(true); A.setAmbience(st.settings.ambience || 'off');
+    A.setCozy(true); A.setAmbience(ambMix());
     keepAwake(true); renderClock();
     getDown(); cat.chase = null; laser.on = false;
     thinkT = 2;
@@ -2000,7 +2009,7 @@
     cozy.on = false; ptr.lastMove = T;
     stopFocus(); $('#focus-panel').hidden = true; $('#focus-banner').hidden = true; // count leaving as activity so it doesn't slip straight back in
     document.body.classList.remove('cozy', 'peek');
-    A.setCozy(false); A.setAmbience('off'); keepAwake(false);
+    A.setCozy(false); A.setAmbience({}); A.sleepPurr(false); keepAwake(false);
     // anything that happened while you relaxed shows up now
     const held = cozy.modals.splice(0); held.forEach((m) => modal(m[0], m[1], m[2]));
     const ts = cozy.toasts.splice(0, 3); ts.forEach((t, i) => setTimeout(() => toast(t[0], t[1]), 300 + i * 500));
@@ -2037,9 +2046,10 @@
   // calm activities only: long naps, loafing, window-watching, sunbathing, slow blinks, kneading
   function cozyThink() {
     thinkT = U.rand(14, 28);
+    if (!cozyNight()) A.sleepPurr(false);
     if (focus.phase === 'focus') { if (cat.act !== 'nap') goTo(homeX(), () => setAct('nap', 600), false, L.catY); return; }
     if (cozyNight()) {
-      if (cat.act !== 'nap') goTo(homeX(), () => setAct('nap', U.rand(120, 300)), false, L.catY);
+      if (cat.act !== 'nap') goTo(homeX(), () => { setAct('nap', U.rand(120, 300)); if (st.settings.sleepPurr !== false) A.sleepPurr(true); }, false, L.catY);
       return;
     }
     const r = Math.random();
@@ -2054,7 +2064,7 @@
   }
 
   /* ================= ROOM TOYS ================= */
-  const STATIONS = [['snowy', 'Snowy Chillstep · Alien Instinct', 'none', 'audio/snowy-chillstep.mp3'], ['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
+  const STATIONS = [['snowy', 'Snowy Chillstep · Alien Instinct', 'none', 'audio/snowy-chillstep.mp3'], ['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['piano', 'Rainy Piano', 'piano'], ['nature', 'Forest Stream', 'nature'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
   const laser = { on: false, x: 0, y: 0, pounceT: 0 };
   const radioVol = () => (st.settings.radioVol == null ? 0.8 : st.settings.radioVol);
@@ -2066,6 +2076,7 @@
     const cur = st.radio || 'off', v = Math.round(radioVol() * 100);
     const html = `<p class="sub">Pick a station for ${st.name}'s room.</p>
       <div class="stations">${STATIONS.map(([id, label]) => `<button class="station ${cur === id ? 'on' : ''}" data-station="${id}"><span>${id === 'off' ? '⏹' : cur === id ? '🔊' : '▶'}</span><b>${label}</b></button>`).join('')}</div>
+      <div class="sleep-row"><span>💤 Sleep timer</span>${[0, 15, 30, 60].map((m) => `<button class="pill ${(m === 0 && !radioSleep.end) || (radioSleep.mins === m && radioSleep.end) ? 'on' : 'ghost'}" data-sleep="${m}">${m ? m + ' min' : 'Off'}</button>`).join('')}</div>
       <label class="row vol"><span><b>おとのおおきさ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${v}" data-radio-vol aria-label="Radio volume"><output>${v}%</output></label>
       ${st.settings.music ? '' : '<p class="sub center">Music is muted. Turn it on with the sound button or in Settings.</p>'}`;
     openSheet('Radio', 'ラジオ', html, (sh) => {
@@ -3313,7 +3324,7 @@
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
       <h3>まったり <small>Cozy mode</small></h3>
       ${tog('cozyAuto', 'Start cozy mode after 5 quiet minutes', 'じどう')}${tog('clock', 'Show a clock in cozy mode', 'とけい')}
-      <label class="row"><span><b>かんきょうおん</b> Cozy ambience</span><select data-set="ambience">${[['off', 'None'], ['rain', 'Rain on the window'], ['heater', 'Crackling heater'], ['city', 'Quiet city night']].map(([v, l]) => `<option value="${v}" ${(s.ambience || 'off') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <p class="sub">Cozy ambience mixer</p>${[['rain', '🌧 Rain on the window'], ['heater', '🔥 Crackling heater'], ['city', '🌃 Quiet city night'], ['birds', '🐦 Forest birds and stream']].map(([k, l]) => `<label class="row vol"><span>${l}</span><input type="range" min="0" max="100" step="1" value="${ambMix()[k] || 0}" data-amb="${k}" aria-label="${l}"></label>`).join('')}${tog('sleepPurr', 'Purr softly while the cat sleeps', 'ごろごろ')}
       ${tog('music', 'Music', 'おんがく')}<label class="row vol"><span><b>ラジオ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${Math.round(radioVol() * 100)}" data-radio-vol aria-label="Radio volume"><output>${Math.round(radioVol() * 100)}%</output></label>${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
@@ -3328,7 +3339,9 @@
       ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button><button class="btn ghost" data-ui="dev-gift">Gift</button><button class="btn ghost" data-ui="dev-day">Next day</button></div>' : ''}
       <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” by Alien Instinct. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
-      const rv = sh.querySelector('[data-radio-vol]'), ro = sh.querySelector('.vol output');
+      sh.querySelectorAll('[data-amb]').forEach((r) => r.addEventListener('input', () => { const m = Object.assign({}, ambMix()); m[r.dataset.amb] = +r.value; st.settings.amb = m; if (cozy.on) A.setAmbience(m); }));
+      sh.querySelectorAll('[data-amb]').forEach((r) => r.addEventListener('change', save));
+      const rv = sh.querySelector('[data-radio-vol]'), ro = sh.querySelector('[data-radio-vol] + output');
       rv.addEventListener('input', () => { st.settings.radioVol = rv.value / 100; ro.textContent = rv.value + '%'; A.setRadio(!!(st.radio && st.radio !== 'off'), st.settings.radioVol); });
       rv.addEventListener('change', save);
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
@@ -3585,8 +3598,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-sleep],[data-amb],[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.sleep != null) { const m = +el.dataset.sleep; radioSleep.end = m ? Date.now() + m * 60000 : 0; radioSleep.mins = m; if (!m) A.setRadio(!!(st.radio && st.radio !== 'off'), radioVol()); toast(m ? `💤 The radio will fade out in ${m} minutes` : '💤 Sleep timer off'); openRadio(); return; }
     if (el.dataset.unfriend) { st.friendCats = (st.friendCats || []).filter((f) => f.key !== el.dataset.unfriend); save(); openAlbum(); return; }
     if (el.dataset.pose) { A.play('tap'); setPose(el.dataset.pose); return; }
     if (el.dataset.frame) { A.play('tap'); photo.frame = el.dataset.frame; renderPhotoBar(); return; }
@@ -3783,7 +3797,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

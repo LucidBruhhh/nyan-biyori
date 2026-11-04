@@ -25,6 +25,8 @@ NB.Audio = (() => {
     title: { scale: 'yo', root: 64, bpm: 76, density: 0.5, oct: 0, bass: true, perc: 0 },
     none: { scale: 'yo', root: 64, bpm: 120, density: 0, oct: 0, bass: false, perc: 0, silent: true },
     lofi: { scale: 'in', root: 60, bpm: 72, density: 0, oct: 0, bass: false, perc: 0, lofi: true },
+    piano: { scale: 'yo', root: 60, bpm: 56, density: 0, oct: 0, bass: false, perc: 0, piano: true },
+    nature: { scale: 'yo', root: 67, bpm: 60, density: 0, oct: 0, bass: false, perc: 0, nature: true },
   };
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -197,8 +199,29 @@ NB.Audio = (() => {
     if (pos % 2 === 0 && Math.random() < 0.2) keys(mtof(root + 12 + U.pick(ch)), t + sw, spb * 2, 0.04);
     if (Math.random() < 0.5) noise(t + Math.random() * spb, 0.006, 0.02, musicBus, 'highpass', 3000, 1);
   }
+  // rainy piano: soft arpeggiated major-seventh chords with a sparse high melody
+  const PIANO_CHORDS = [[0, [0, 4, 7, 11]], [9, [0, 3, 7, 10]], [5, [0, 4, 7, 11]], [7, [0, 4, 7, 10]]];
+  function pianoNote(f, t, vol, len = 2.4) { osc('triangle', f, t, len, vol, musicBus, { a: 0.006, verb: true }); osc('sine', f * 2, t, len * 0.4, vol * 0.25, musicBus, { a: 0.004 }); osc('sine', f * 1.003, t, len * 0.9, vol * 0.4, musicBus, { a: 0.01, verb: true }); }
+  function pianoStep(M, s, t, spb) {
+    const bar = Math.floor(s / 8), pos = s % 8, [deg, ch] = PIANO_CHORDS[bar % 4], root = M.root + deg - 12;
+    if (pos === 0) pianoNote(mtof(root - 12), t, 0.06, 4);
+    if (pos % 2 === 0) pianoNote(mtof(root + ch[(pos / 2) % 4] + (pos >= 4 ? 12 : 0)), t + Math.random() * 0.02, 0.045);
+    if ((pos === 3 || pos === 6) && Math.random() < 0.45) pianoNote(mtof(root + 24 + U.pick(ch)), t + 0.05, 0.035, 3);
+  }
+  // forest stream: birdsong and the odd wind chime over the water (the water itself is a loop)
+  function natureStep(M, s, t) {
+    if (Math.random() < 0.18) { const f = U.rand(2400, 3600), n = U.pick([1, 2, 3]); for (let i = 0; i < n; i++) osc('sine', f * U.rand(0.95, 1.05), t + i * 0.11, 0.08, 0.035, musicBus, { slide: f * U.rand(1.15, 1.4), slideT: 0.06 }); }
+    if (Math.random() < 0.04) [0, 3, 7].forEach((n, i) => osc('sine', mtof(84 + n), t + i * 0.18, 2.4, 0.02, musicBus, { verb: true }));
+  }
+  let stream = null;
+  function setStream(on) {
+    if (on && !stream && ac) { stream = loopNoise('bandpass', 850, 0.6, 0.05, musicBus); }
+    else if (!on && stream) { const s0 = stream; stream = null; s0.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6); setTimeout(() => { try { s0.s.stop(); } catch (e) { /* stopped */ } }, 3000); }
+  }
   function playStep(M, s, t, spb) {
     if (M.lofi) { lofiStep(M, s, t, spb); return; }
+    if (M.piano) { pianoStep(M, s, t, spb); return; }
+    if (M.nature) { natureStep(M, s, t, spb); return; }
     const bar = Math.floor(s / 8), pos = s % 8;
     // phrase structure: 4-bar call & response, rests at phrase ends
     const phrasePos = bar % 4;
@@ -368,30 +391,54 @@ NB.Audio = (() => {
   let rainNode = null;
   /* ---------- cozy ambience: rain on the window, a crackling heater, or the city at night ---------- */
   let amb = null;
-  function loopNoise(type, freq, q, vol) {
+  function loopNoise(type, freq, q, vol, dest) {
     const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
     const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
     const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(vol, ac.currentTime + 2);
-    s.connect(f); f.connect(g); g.connect(sfxBus); s.start();
+    s.connect(f); f.connect(g); g.connect(dest || sfxBus); s.start();
     return { s, g };
   }
-  function setAmbience(kind) {
-    if (!ac) return;
-    if (amb) {
-      const a = amb; amb = null; clearInterval(a.timer);
-      a.nodes.forEach((n) => { n.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6); setTimeout(() => { try { n.s.stop(); } catch (e) { /* stopped */ } }, 3000); });
-    }
-    if (!kind || kind === 'off') return;
-    const nodes = [], tick = { rain: 0, heater: 140, city: 4000 }[kind];
-    if (kind === 'rain') { nodes.push(loopNoise('bandpass', 1400, 0.5, 0.07)); nodes.push(loopNoise('highpass', 4500, 0.4, 0.025)); }
-    if (kind === 'heater') nodes.push(loopNoise('lowpass', 170, 1.2, 0.06));
-    if (kind === 'city') { nodes.push(loopNoise('lowpass', 260, 0.8, 0.055)); nodes.push(loopNoise('bandpass', 900, 0.3, 0.008)); }
-    amb = { kind, nodes, timer: tick ? setInterval(() => {
-      if (!sfxOn) return;
+  // a mixer of ambience layers: { rain, heater, city, birds } each 0..100
+  const ambLayers = {};
+  function makeLayer(kind) {
+    const bus = ac.createGain(); bus.gain.value = 0.0001; bus.connect(sfxBus);
+    const nodes = [];
+    if (kind === 'rain') { nodes.push(loopNoise('bandpass', 1400, 0.5, 0.07, bus)); nodes.push(loopNoise('highpass', 4500, 0.4, 0.025, bus)); }
+    if (kind === 'heater') nodes.push(loopNoise('lowpass', 170, 1.2, 0.06, bus));
+    if (kind === 'city') { nodes.push(loopNoise('lowpass', 260, 0.8, 0.055, bus)); nodes.push(loopNoise('bandpass', 900, 0.3, 0.008, bus)); }
+    if (kind === 'birds') nodes.push(loopNoise('bandpass', 850, 0.6, 0.03, bus));
+    const tick = { heater: 140, city: 4000, birds: 900 }[kind];
+    const timer = tick ? setInterval(() => {
+      if (!sfxOn || bus.gain.value < 0.01) return;
       const t = ac.currentTime + Math.random() * 0.1;
-      if (kind === 'heater' && Math.random() < 0.55) noise(t, 0.01 + Math.random() * 0.02, 0.02 + Math.random() * 0.05, sfxBus, 'highpass', 2200 + Math.random() * 2500, 0.8);
+      if (kind === 'heater' && Math.random() < 0.55) noise(t, 0.01 + Math.random() * 0.02, 0.02 + Math.random() * 0.05, bus, 'highpass', 2200 + Math.random() * 2500, 0.8);
       if (kind === 'city' && Math.random() < 0.06) SFX.train(t);
-    }, tick) : 0 };
+      if (kind === 'birds' && Math.random() < 0.35) { const f = U.rand(2400, 3600); for (let i = 0; i < U.pick([1, 2, 3]); i++) osc('sine', f, t + i * 0.11, 0.08, 0.03, bus, { slide: f * 1.3, slideT: 0.06 }); }
+    }, tick) : 0;
+    return { bus, nodes, timer };
+  }
+  function setAmbience(mix) {
+    if (!ac) return;
+    if (typeof mix === 'string') mix = mix === 'off' ? {} : { [mix]: 60 };
+    ['rain', 'heater', 'city', 'birds'].forEach((k) => {
+      const v = Math.max(0, Math.min(100, (mix && mix[k]) || 0)) / 100;
+      if (v > 0 && !ambLayers[k]) ambLayers[k] = makeLayer(k);
+      const L = ambLayers[k]; if (!L) return;
+      L.bus.gain.setTargetAtTime(v > 0 ? v * 1.4 : 0.0001, ac.currentTime, 0.5);
+      if (v === 0) { delete ambLayers[k]; clearInterval(L.timer); setTimeout(() => L.nodes.forEach((n) => { try { n.s.stop(); } catch (e) { /* stopped */ } }), 2500); }
+    });
+  }
+  // a gentle purr to fall asleep to, separate from petting
+  let sleepPurrNode = null;
+  function sleepPurr(on) {
+    if (!ac) return;
+    if (on && !sleepPurrNode && smp.purr && sfxOn) {
+      const s = ac.createBufferSource(); s.buffer = smp.purr.buf; s.loop = true; s.loopStart = 0.5; s.loopEnd = Math.max(1, smp.purr.buf.duration - 0.2);
+      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.22, ac.currentTime + 3);
+      s.connect(g); g.connect(sfxBus); s.start(ac.currentTime, Math.random() * 6); sleepPurrNode = { s, g };
+    } else if (!on && sleepPurrNode) {
+      const n = sleepPurrNode; sleepPurrNode = null; n.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.8); setTimeout(() => { try { n.s.stop(); } catch (e) { /* stopped */ } }, 4000);
+    }
   }
 
   function setRain(on) {
@@ -418,11 +465,11 @@ NB.Audio = (() => {
   }
 
   return {
-    onSound(fn) { onPlay = fn; },
+    onSound(fn) { onPlay = fn; }, sleepPurr,
     setVoice(v) { if (v) voice = { pitch: v.pitch || 1, sig: v.sig || 0 }; },
     setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
     unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
-    setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
+    setMode(m) { if (MODES[m] && m !== mode) { mode = m; setStream(m === 'nature'); } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.2); },
     setRadio(on, vol) { radioOn = on; if (vol != null) radioVol = Math.max(0, Math.min(1, vol)); if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.08); },
