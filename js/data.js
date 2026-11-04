@@ -29,6 +29,12 @@ NB.Data = {
     { id: 'goldsuzu', slot: 'neck', jp: 'きんのすず', name: 'Golden Bell', price: 0, road: 7 },
     { id: 'haori', slot: 'body', jp: 'よぞらのはおり', name: 'Night-sky Haori', price: 0, road: 10 },
     { id: 'hoshi', slot: 'head', jp: 'ほしかざり', name: 'Star Hairpin', price: 0, road: 17 },
+    // seasonal event keepsakes: earned on the event track, never sold
+    { id: 'dangopin', slot: 'head', jp: 'だんごピン', name: 'Dango Hairpin', price: 0, season: 'hanami' },
+    { id: 'petalscarf', slot: 'neck', jp: 'はなびらスカーフ', name: 'Petal Scarf', price: 0, season: 'hanami' },
+    { id: 'sakuracrown', slot: 'head', jp: 'さくらのかんむり', name: 'Sakura Crown', price: 0, season: 'hanami' },
+    // thank-you gift in the Supporter Pack
+    { id: 'heartclip', slot: 'head', jp: 'きんのハート', name: 'Golden Heart Clip', price: 0, store: 'supporter' },
   ],
   // 絆の道 Kizuna Road — a reward on (almost) every level
   ROAD: [
@@ -69,6 +75,8 @@ NB.Data = {
     { id: 'shop', jp: 'おかいもの', text: 'Buy something in the shop', ev: 'buy', n: 1, coins: 30, xp: 10 },
     { id: 'explore', jp: 'たんけん', text: 'Watch {name} explore {n} times', ev: 'explore', n: 3, coins: 35, xp: 15 },
     { id: 'fortune', jp: 'おみくじ', text: 'Draw today’s omikuji', ev: 'omikuji', n: 1, coins: 20, xp: 10 },
+    { id: 'stack', jp: 'おにぎり', text: 'Score {n}+ in Onigiri Stack', ev: 'stackScore', n: 10, kind: 'max', coins: 50, xp: 22, game: true },
+    { id: 'hide', jp: 'かくれんぼ', text: 'Find {name} in hide and seek', ev: 'hideWin', n: 1, coins: 40, xp: 18 },
   ],
   DECOR: [
     { id: 'zabuton', jp: 'ざぶとん', name: 'Zabuton Cushion', price: 0, desc: 'Your kitty’s favourite spot.' },
@@ -136,6 +144,8 @@ NB.Data = {
     { id: 'gift1', jp: 'おくりもの', name: 'A Present!', desc: 'Receive a gift from your cat', reward: 30, check: (s) => Object.keys(s.gifts || {}).length >= 1 },
     { id: 'gift10', jp: 'たからばこ', name: 'Treasure Box', desc: 'Collect 10 different gifts', reward: 120, check: (s) => Object.keys(s.gifts || {}).length >= 10 },
     { id: 'diary7', jp: 'にっき', name: 'Dear Diary', desc: 'Collect 7 diary pages', reward: 70, check: (s) => s.diary && s.diary.pages.length >= 7 },
+    { id: 'hanami', jp: 'はなみ', name: 'Hanami Master', desc: 'Finish the Hanami Festival track', reward: 100, check: (s) => (s.season && s.season.id === 'hanami' && s.season.tier >= 30) || (s.seasonsDone || []).some((x) => x.id === 'hanami' && x.tier >= 30) },
+    { id: 'supporter', jp: 'おうえん', name: 'Supporter', desc: 'Support the game with the Supporter Pack', reward: 50, check: (s) => !!s.supporter },
     { id: 'explorer', jp: 'たんけん家', name: 'Explorer', desc: 'Make 12 room discoveries', reward: 150, check: (s) => (s.found || []).length >= 12 },
     { id: 'gourmet', jp: 'グルメ', name: 'Gourmet', desc: 'Try every food', reward: 80, check: (s) => NB.Data.FOODS.every((f) => s.tasted.includes(f.id)) },
   ],

@@ -434,6 +434,34 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 .diary-peek b { display: block; font-family: "Yusei Magic", var(--font); font-weight: 400; color: var(--pink-deep); font-size: 15px; }
 .diary-peek span:not(.new) { display: block; font-family: "Yusei Magic", var(--font); font-size: 14px; line-height: 24px; color: var(--ink-soft); }
 .profile-chip.ready .avatar-wrap::after { content: ""; position: absolute; top: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--pink-deep); border: 2px solid #fff; animation: pulse 1.4s infinite; }
+/* seasonal event */
+.season-banner { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; cursor: pointer; text-align: left; font: inherit; color: var(--ink); margin-bottom: 12px; padding: 10px 14px; border-radius: 18px; background: linear-gradient(120deg, #ffe3ee, #fff6fa 60%, #e9f3ff); box-shadow: 0 4px 0 #f6cfdd; }
+.season-banner .emoji, .season-head .emoji { font-size: 30px; }
+.season-banner .sb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.season-banner b { font-size: 14px; } .season-banner small { font-size: 12px; color: var(--ink-soft); font-weight: 700; }
+.season-banner .go { font-size: 22px; color: var(--pink-deep); font-weight: 900; }
+.season-head { display: flex; align-items: center; gap: 10px; }
+.season-head b { display: block; font-family: "Yusei Magic", var(--font); font-weight: 400; font-size: 22px; color: var(--pink-deep); }
+.season-head small { color: var(--ink-soft); font-weight: 700; }
+.season-prog { background: #fff; border-radius: 18px; padding: 10px 14px; box-shadow: 0 4px 0 #f0dde5; margin: 8px 0 4px; }
+.season-prog small { display: block; color: var(--ink-soft); font-weight: 700; font-size: 12px; margin-top: 4px; }
+.season-road .node small { font-size: 10.5px; color: var(--ink-soft); line-height: 1.2; }
+.season-road .gift { font-size: 24px; }
+.facts.earn li { display: flex; justify-content: space-between; border-top: 1px dashed #f3dbe5; padding: 4px 0; }
+/* support store */
+.store { display: grid; gap: 10px; }
+.store-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; font: inherit; color: var(--ink); background: #fff; border-radius: 20px; padding: 12px 14px; box-shadow: 0 4px 0 #f0dde5; cursor: pointer; }
+.store-item.feat { background: linear-gradient(120deg, #fff6d8, #ffe9f2); box-shadow: 0 4px 0 #f5d77a; }
+.store-item .ic { font-size: 34px; } .store-item .nm { flex: 1; min-width: 0; }
+.store-item .nm small { display: block; color: var(--ink-soft); font-weight: 700; }
+.store-item .desc { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
+.store-item .price.real { font-weight: 900; color: #fff; background: var(--pink-deep); border-radius: 999px; padding: 6px 12px; white-space: nowrap; }
+.store-item:disabled { opacity: .75; cursor: default; } .store-item:disabled .price.real { background: #9ad17f; }
+.sub.center { text-align: center; }
+.g-stack .gart { background: linear-gradient(#bfe3ff, #ffd0e0); }
+.g-stack .gart::after { content: "🍙"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; }
+.g-hide .gart { background: linear-gradient(135deg, #e6dcff, #ffe3ee); }
+.g-hide .gart::after { content: "👀"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 38px; }
 /* photo frames */
 .photo .modal-card { background: transparent; box-shadow: none; }
 .polaroid { background: #fff; padding: 12px 12px 8px; border-radius: 4px; box-shadow: 0 10px 30px rgba(60,30,50,.25); transform: rotate(-3deg); margin: 0 auto 14px; width: max-content; }

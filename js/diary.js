@@ -89,6 +89,8 @@ window.NB = window.NB || {};
     if (ev.sleep) add(28, 'You tucked me in and turned off the lantern. I dreamed about fish.');
     if (ev.laser >= 3) add(57, `I pounced on the red dot ${ev.laser} times. It is very sneaky. I will get it tomorrow.`);
     if (ev.plants) add(31, 'You watered the plants. I supervised.');
+    if (ev.seasonTier) add(63, `The cherry blossom festival is so pretty. We reached tier ${ev.seasonTier} together!`);
+    if ((ev.games || []).includes('hide')) add(47, 'We played hide and seek. I hid very well. You still found me.');
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');
@@ -132,13 +134,14 @@ window.NB = window.NB || {};
     { id: 'goen', jp: 'ごえん', en: 'Lucky 5-yen coin', r: 3, coins: 55, note: 'ご縁: the coin of good connections. +55 koban!' },
     { id: 'clover', jp: 'よつば', en: 'Four-leaf clover', r: 3, note: 'Incredibly lucky. Slightly chewed.' },
     { id: 'hoshizuna', jp: 'ほしずな', en: 'Star sand', r: 4, note: 'Tiny stars from a faraway beach. Legendary!' },
+    { id: 'sakuramochi', jp: 'さくらもち', en: 'Sakura mochi', r: 4, event: 'hanami', note: 'A Hanami Festival keepsake: pink mochi wrapped in a cherry leaf.' },
     { id: 'chibidaruma', jp: 'ちびだるま', en: 'Tiny daruma', r: 4, note: 'A pocket-sized daruma, eyes ready for a wish. Legendary!' },
   ];
   const RARITY = ['', 'ふつう Common', 'めずらしい Uncommon', 'レア Rare', 'でんせつ Legendary'];
 
   function pickGift(season, stage, owned) {
     const w = [0, 60, 28, 9 * (1 + stage * 0.25), 1.6 * (1 + stage * 0.5)];
-    const pool = GIFTS.filter((g) => !g.season || g.season === season).map((g) => [g, w[g.r] / GIFTS.filter((x) => x.r === g.r).length * (owned[g.id] ? 1 : 1.5)]);
+    const pool = GIFTS.filter((g) => !g.event && (!g.season || g.season === season)).map((g) => [g, w[g.r] / GIFTS.filter((x) => x.r === g.r).length * (owned[g.id] ? 1 : 1.5)]);
     let r = Math.random() * pool.reduce((a, p) => a + p[1], 0);
     for (const [g, wt] of pool) { if ((r -= wt) <= 0) return g; }
     return pool[0][0];
@@ -239,6 +242,13 @@ window.NB = window.NB || {};
         ctx.fillStyle = 'rgba(220,240,255,.8)'; U.rr(ctx, -6, -20, 12, 20, 4); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#b8743d'; U.rr(ctx, -4.5, -24, 9, 5, 2); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#ffd34e'; for (let i = 0; i < 6; i++) { U.star(ctx, -2.5 + (i % 3) * 2.5, -4 - Math.floor(i / 3) * 4, 1.8 + 0.4 * Math.sin(t * 3 + i), 5, 0.45); ctx.fill(); }
+        break;
+      case 'sakuramochi':
+        ctx.save(); ctx.rotate(-0.25); ctx.fillStyle = '#7cc46a'; ctx.beginPath(); ctx.ellipse(2, -5, 15, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = '#4f9a48'; ctx.beginPath(); ctx.moveTo(-12, -5); ctx.lineTo(16, -5); ctx.stroke(); ctx.restore();
+        ctx.strokeStyle = O; ctx.fillStyle = '#ffc1d6'; ell(ctx, 0, -10, 11, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.7)'; ell(ctx, -4, -13, 3.5, 2, -0.4); ctx.fill();
+        U.flower(ctx, 4, -17, 5, '#ff8fb1', '#ffe27a', 0.3);
         break;
       case 'chibidaruma': NB.Scene.drawDaruma(ctx, 0, 0, 0.32, t); break;
       default: ctx.fillStyle = '#ffd34e'; U.star(ctx, 0, -8, 9, 5, 0.5); ctx.fill(); ctx.stroke();

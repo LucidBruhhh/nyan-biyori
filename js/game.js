@@ -1,7 +1,7 @@
 /* にゃん日和 — main game: state, cat AI, interaction, UI */
 'use strict';
 (() => {
-  const U = NB.U, D = NB.Data, S = NB.Scene, C = NB.Cat, A = NB.Audio, B = NB.Bond, Di = NB.Diary, G = NB.Gifts;
+  const U = NB.U, D = NB.Data, S = NB.Scene, C = NB.Cat, A = NB.Audio, B = NB.Bond, Di = NB.Diary, G = NB.Gifts, Se = NB.Season;
   const $ = (q) => document.querySelector(q);
   const SAVE_KEY = 'nyanbiyori.save.v1';
   const DEV = /[?&]dev=1/.test(location.search);
@@ -295,7 +295,7 @@
   }
 
   /* ================= DIARY & GIFTS ================= */
-  const GAME_NAMES = { catch: 'Fish Catch', taiko: 'Taiko', memory: 'Memory cards' };
+  const GAME_NAMES = { catch: 'Fish Catch', taiko: 'Taiko', memory: 'Memory cards', stack: 'Onigiri Stack', hide: 'hide and seek' };
   // today's happenings, written up as a diary page once the day is over
   function noteAdd(k, n = 1) { if (!st) return; diaryRoll(); st.diary.ev[k] = (st.diary.ev[k] || 0) + n; }
   function noteSet(k, v = 1) { if (!st) return; diaryRoll(); st.diary.ev[k] = v; }
@@ -358,6 +358,7 @@
     diaryRoll();
     const v = B.visit(st.bond, hourNow(), hrs);
     const e = st.diary.ev; (e.visits || (e.visits = [])).push(Math.floor(hourNow()));
+    if (v.first) setTimeout(() => seasonPts(20), 3200);
     if (v.first && !st.gift && bondStage() >= 1 && st.giftDay !== U.dayKey() && Math.random() < 0.4 + 0.1 * bondStage()) {
       st.giftDay = U.dayKey();
       placeGift(0.5 + U.rand(0.2, 0.3) * U.pick([-1, 1]));
@@ -398,6 +399,7 @@
     const isNew = !st.gifts[g.id];
     st.gifts[g.id] = (st.gifts[g.id] || 0) + 1;
     noteSet('giftTaken', 1);
+    seasonPts(15);
     S.burst('sparkle', p.x, p.y - 14, 14, { p: { color: '#fff3a8', size: 8 } });
     A.play('sparkle'); U.vibrate(14);
     if (g.coins) addCoins(g.coins, p.x, p.y - 40);
@@ -510,6 +512,7 @@
     d.claimed = true;
     addCoins(m.coins, W / 2, H * 0.3);
     addXP(m.xp);
+    seasonPts(30);
     U.vibrate(15);
     save(); openDaily(true);
   }
@@ -531,10 +534,11 @@
       <p class="reward">+${coins} <i class="koban"></i></p><p class="sub">+30 bond XP${st.streak < 10 ? ` · Tomorrow's chest: +${60 + Math.min(st.streak + 1, 10) * 10}` : ' · Max streak bonus!'}</p>
       <button class="btn" data-ui="closemodal">やったー！</button></div>`, 'chestmodal');
     addCoins(coins); addXP(30);
+    seasonPts(50 + Math.min(st.streak, 7) * 5);
     cat.happyT = 2.5; say('happy', true); A.meow(1.25);
     checkAch(); save();
   }
-  const MISSION_GO = { pet: null, feed: 'feed', treat: 'feed', wand: 'play', bath: 'bath', sleep: 'sleep', boop: null, game: 'games', catchScore: 'g:catch', taikoCombo: 'g:taiko', memoryMoves: 'g:memory', allNeeds: null, buy: 'shop', omikuji: 'omikuji' };
+  const MISSION_GO = { pet: null, feed: 'feed', treat: 'feed', wand: 'play', bath: 'bath', sleep: 'sleep', boop: null, game: 'games', catchScore: 'g:catch', taikoCombo: 'g:taiko', memoryMoves: 'g:memory', stackScore: 'g:stack', hideWin: 'g:hide', allNeeds: null, buy: 'shop', omikuji: 'omikuji' };
   function missionGo(ev) {
     const go = MISSION_GO[ev]; closeSheet(); if (!go) return;
     setTimeout(() => {
@@ -563,7 +567,7 @@
           <small>${progTxt} · <span class="price"><i class="koban"></i>${m.coins}</span> +${m.xp} XP</small></div>
         <div class="m-act">${btn}</div></div>`;
     }).join('');
-    const html = `<div class="daily-top"><div class="streak"><span class="flame">${streak ? '🔥' : '🌱'}</span><b>${streak}</b><small>日連続<br>day streak</small></div>
+    const html = `${seasonBanner()}<div class="daily-top"><div class="streak"><span class="flame">${streak ? '🔥' : '🌱'}</span><b>${streak}</b><small>日連続<br>day streak</small></div>
       <div class="reset">New missions in<br><b>${hh}h ${mm}m</b></div></div>
       <p class="sub">Finish all three for a reward chest. Keep your streak going for bigger chests (up to 10 days)!</p>
       <div class="missions">${cards}</div>
@@ -663,8 +667,9 @@
 
     // behaviour by mode
     if (mode === 'room') {
-      if (st) updateLaser(dt);
-      if (cat.hop) updateHop(dt);
+      if (st && !hide.on) updateLaser(dt);
+      if (hide.on) hide.t += dt;
+      else if (cat.hop) updateHop(dt);
       else if (cat.act === 'walk') {
         if (cat.chase === 'ball') { cat.tx = U.clamp(ball.x, L.minX, L.maxX); cat.ty = L.catY; }
         if (cat.chase === 'bug') cat.ty = L.catY;
@@ -689,7 +694,7 @@
         if (meal.t >= meal.dur) finishMeal();
       }
       thinkT -= dt;
-      if (thinkT <= 0 && cat.act === 'idle' && !ptr.down) { thinkT = U.rand(3.5, 7.5); think(); }
+      if (thinkT <= 0 && cat.act === 'idle' && !ptr.down && !hide.on) { thinkT = U.rand(3.5, 7.5); think(); }
       thoughtT -= dt;
     } else if (mode === 'play') {
       updatePlay(dt, s);
@@ -1192,12 +1197,187 @@
     const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
     if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }
     env.scrollSwing = Math.max(0, (env.scrollSwing || 0) - dt * 0.6);
+    if (st && st.petals && (Se.current() || env.season === 'spring') && mode !== 'game' && Math.random() < dt * 1.6) {
+      const w = L.win; S.emit({ type: 'petal', x: w.x + Math.random() * w.w, y: w.y - 6, vx: U.rand(-10, 40), vy: U.rand(30, 60), life: 6, size: U.rand(5, 8), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 30 }, S.outside);
+    }
     if (L.painted && mode === 'room' && st) {
       // now and then a soft sparkle hints at something you can tap
       env.tipT = (env.tipT == null ? 5 : env.tipT) - dt;
       if (env.tipT <= 0) { env.tipT = U.rand(6, 11); const p = NB.Painted.randomSpot(L); if (p.x > 0 && p.x < W) S.emit({ type: 'sparkle', x: p.x + U.rand(-10, 10), y: p.y - U.rand(0, 14), vy: -14, life: 1.1, size: 7, color: '#fff3a8' }); }
       if (radioPlaying()) { env.noteT = (env.noteT || 0) - dt; if (env.noteT <= 0) { env.noteT = U.rand(0.7, 1.2); const r = NB.Painted.spot(L, 'radio'); S.emit({ type: 'note', ch: Math.random() < 0.5 ? '♪' : '♫', x: r.x + U.rand(-24, 24), y: r.y - 26, vx: U.rand(-14, 14), vy: -40, life: 1.8, size: 8, color: '#c591ea' }); } }
     }
+  }
+
+  /* ================= SEASONAL EVENT ================= */
+  function seasonPts(n) {
+    if (!st || !Se.current()) return;
+    const se = Se.current(), r = Se.add(st, n);
+    if (!r.gained) return;
+    const b = $('#btn-daily').getBoundingClientRect();
+    S.emit({ type: 'text', text: `+${r.gained} ${se.emoji}`, x: b.left + b.width / 2, y: b.bottom + 18, vy: -30, life: 1.4, size: 15, color: '#ff6f9f' });
+    if (n >= 20 && !r.tiers.length) toast(`${se.emoji} +${r.gained} sakura points · ${se.en}`);
+    r.tiers.forEach((t, i) => setTimeout(() => grantTier(se, t), 500 + i * 900));
+    renderHUD(true);
+  }
+  function seasonGame() {
+    const s = st && Se.state(st); if (!s) return;
+    if (s.day !== U.dayKey()) { s.day = U.dayKey(); s.dayPts = 0; s.games = 0; }
+    if ((s.games || 0) >= 5) return;
+    s.games = (s.games || 0) + 1; seasonPts(10);
+  }
+  function seasonLabel(r) {
+    if (r.acc) { const a = D.ACCESSORIES.find((x) => x.id === r.acc); return { jp: a.jp, en: a.name, kind: 'acc' }; }
+    if (r.gift) { const g = G.get(r.gift); return { jp: g.jp, en: g.en, kind: 'gift' }; }
+    if (r.petals) return { jp: 'はなびら', en: 'Window petals', kind: 'fx' };
+    if (r.title) return { jp: `+${r.coins}`, en: 'Hanami Master', kind: 'title' };
+    if (r.cosmetic) return { jp: '✦', en: r.cosmetic, kind: 'premium' };
+    return { jp: `+${r.coins}`, en: 'koban', kind: 'coins' };
+  }
+  function grantTier(se, t) {
+    const s = st.season; if (!s || s.claimed.includes(t)) return;
+    s.claimed.push(t);
+    const r = Se.reward(se, t);
+    if (r.coins) st.coins += r.coins;
+    if (r.acc && !st.owned.includes(r.acc)) st.owned.push(r.acc);
+    if (r.gift) st.gifts[r.gift] = (st.gifts[r.gift] || 0) + 1;
+    if (r.petals) st.petals = true;
+    const l = seasonLabel(r);
+    noteSet('seasonTier', t);
+    toast(`<span class="mini-hanko">${se.emoji}</span><span><b>${se.en} · Tier ${t}!</b><br>${l.kind === 'coins' ? `+${r.coins} koban` : `${l.jp} ${l.en}${l.kind === 'acc' ? ' (in Shop › Fashion)' : l.kind === 'gift' ? ' (in your gift collection)' : ''}`}</span>`, 'ach');
+    A.play('success'); U.vibrate([10, 30, 10]);
+    if (r.acc || r.gift || r.petals) S.burst('sparkle', W / 2, H * 0.3, 16, { p: { color: '#ffc1d6', size: 9 } });
+    checkAch(); renderHUD(true); save();
+  }
+  function seasonBanner() {
+    const se = Se.current(); if (!se) return '';
+    const s = Se.state(st);
+    return `<button class="season-banner" data-ui="season"><span class="emoji">${se.emoji}</span><span class="sb-body"><b>${se.jp} ${se.en}</b>
+      <span class="m-bar"><span style="width:${Se.progress(s)}%"></span></span><small>Tier ${s.tier}/${Se.TIERS} · ${Se.daysLeft(se)} days left</small></span><span class="go">›</span></button>`;
+  }
+  function openSeason() {
+    const se = Se.current();
+    if (!se) { toast('No festival is running right now. Check back soon 🌸'); return; }
+    const s = Se.state(st);
+    const lane = (name) => Array.from({ length: Se.TIERS }, (_, i) => {
+      const t = i + 1, r = Se.reward(se, t, name), l = seasonLabel(r), got = s.tier >= t;
+      const icon = r.acc ? `data-season-acc="${r.acc}"` : r.gift ? `data-season-gift="${r.gift}"` : '';
+      return `<div class="node ${got ? 'got' : ''} ${t === s.tier + 1 ? 'next' : ''}"><div class="lv">${t}</div><div class="gift" ${icon}>${l.kind === 'coins' ? '<i class="koban"></i>' : l.kind === 'fx' ? '🌸' : l.kind === 'title' ? '👑' : l.kind === 'premium' ? '✦' : ''}</div><b>${l.jp}</b><small>${l.en}</small>${got ? '<span class="ok">✓</span>' : ''}</div>`;
+    }).join('');
+    const html = `<div class="season-head"><span class="emoji">${se.emoji}</span><div><b>${se.jp}</b><small>${se.en} · ${Se.daysLeft(se)} days left</small></div></div>
+      <p class="sub">${se.blurb}</p>
+      <div class="season-prog"><b>Tier ${s.tier} / ${Se.TIERS}</b><div class="m-bar"><span style="width:${Se.progress(s)}%"></span></div>
+        <small>${s.tier >= Se.TIERS ? 'Track complete! おめでとう' : `${s.pts % Se.TIER_PTS}/${Se.TIER_PTS} to the next tier`} · today ${s.day === U.dayKey() ? s.dayPts : 0}/${Se.DAILY_CAP}</small></div>
+      <h3>ごほうび <small>Free rewards for everyone</small></h3><div class="road season-road">${lane('free')}</div>
+      ${Se.PREMIUM_PASS_ENABLED ? `<h3>✦ Premium <small>Cosmetic extras</small></h3><div class="road season-road premium">${lane('premium')}</div>` : ''}
+      <h3>${se.emoji} <small>How to earn sakura points</small></h3>
+      <ul class="facts earn"><li>First visit of the day <b>+20</b></li><li>Each daily mission claimed <b>+30</b></li><li>Daily reward chest <b>+50</b> plus streak bonus</li><li>Finishing a minigame <b>+10</b> (5 a day)</li><li>Collecting a gift from ${st.name} <b>+15</b></li></ul>`;
+    openSheet(se.en, se.jp, html, (sh) => {
+      sh.querySelectorAll('[data-season-acc]').forEach((el) => {
+        const a = D.ACCESSORIES.find((x) => x.id === el.dataset.seasonAcc);
+        const c = document.createElement('canvas'); c.width = c.height = 104; c.style.width = c.style.height = '52px';
+        C.portrait(c, { fur: st.look.fur, eye: st.look.eye, acc: { [a.slot]: a.id } }, a.slot === 'head' ? { zoom: 1 } : { zoom: 0.75, full: true });
+        el.appendChild(c);
+      });
+      sh.querySelectorAll('[data-season-gift]').forEach((el) => el.appendChild(giftIcon(el.dataset.seasonGift, 46)));
+      const nx = sh.querySelector('.season-road .next'); if (nx) nx.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }, 'season');
+  }
+
+  /* ================= SUPPORT STORE ================= */
+  function buyProduct(id) {
+    NB.Store.purchase(id, grantProduct, () => modal(`<div class="letter"><div class="envelope">🛍</div><h2>もうすぐ！ <small>Coming soon</small></h2>
+      <p>Purchases arrive with the App Store and Google Play versions of にゃん日和. Thank you so much for wanting to support the game! 💕</p>
+      <p class="sub">Everything for ${st.name}'s care stays free, always.</p><button class="btn" data-ui="closemodal">わかった！ Got it</button></div>`, 'letter'));
+  }
+  function grantProduct(p) {
+    st.coins += p.koban || 0;
+    if (p.acc && !st.owned.includes(p.acc)) st.owned.push(p.acc);
+    if (p.once) st.supporter = true;
+    A.play('fanfare'); renderHUD(true); checkAch(); save();
+    if (p.id === 'supporter') {
+      modal(`<div class="letter"><div class="envelope">💝</div><h2>ありがとう！ <small>Thank you</small></h2>
+        <p>Dear friend, thank you for helping our little home grow. I will wear my new golden heart with pride.</p>
+        <p class="reward">+${p.koban} <i class="koban"></i></p><p class="sign">— ${st.name} 🐾</p><button class="btn" data-ui="closemodal">だいすき！</button></div>`, 'letter');
+    } else toast(`+${p.koban} koban · thank you! 💕`);
+    if (document.querySelector('.sheet.open')) openShop();
+  }
+
+  /* ================= HIDE AND SEEK ================= */
+  const hide = { on: false, round: 0, spot: null, last: null, taps: 0, total: 0, t: 0, found: false };
+  function hideSpots() {
+    const s = L.scale, sp = spots(), ts = towerS(), list = [];
+    const add = (id, x, y, r, side) => { if (x > 24 && x < W - 24) list.push({ id, x, y, r: r * s, side }); };
+    add('box', boxX(), L.catY - 40 * s, 70, 0);
+    add('tower', sp.tower.x, sp.tower.y - 90 * ts, 58, 0);
+    if (L.painted) {
+      const { k, ox, oy } = L.painted;
+      add('curtainL', ox + 185 * k, oy + 470 * k, 62, -1); add('curtainR', ox + 805 * k, oy + 470 * k, 62, 1);
+      add('cushion', ox + 705 * k, oy + 605 * k, 55, 1); add('cabinet', ox + 925 * k, oy + 720 * k, 62, 1);
+    } else {
+      add('curtainL', L.win.x + 14, L.win.y + L.win.h * 0.7, 55, -1); add('curtainR', L.win.x + L.win.w - 14, L.win.y + L.win.h * 0.7, 55, 1);
+      add('alcove', L.alcove.x + L.alcove.w * 0.5, L.alcove.y + L.alcove.h - 50, 60, 1);
+    }
+    return list;
+  }
+  function startHide() {
+    closeSheet();
+    if (mode !== 'room') setMode('room');
+    if (st.needs.energy < 10) { toast(`${st.name} is too sleepy for hide and seek 💤`); return; }
+    getDown(true); cat.inBox = false; cat.chase = null; laser.on = false; setAct('idle', 1);
+    Object.assign(hide, { on: true, round: 0, total: 0, last: null });
+    sayText('かくれんぼしよう！', "Let's play hide and seek!", true); A.meow(1.3);
+    setTimeout(nextHide, 1300);
+  }
+  function nextHide() {
+    if (!hide.on) return;
+    const opts = hideSpots().filter((x) => x.id !== hide.last);
+    hide.spot = U.pick(opts); hide.last = hide.spot.id; hide.round++; hide.taps = 0; hide.t = 0; hide.found = false;
+    S.burst('sparkle', cat.x, cat.y - 80 * catScale(), 12, { p: { color: '#fff3a8', size: 8 } }); A.play('whoosh');
+    cat.hidden = true; cat.speech = null;
+    hint(`かくれんぼ ${hide.round}/3 · Where is ${st.name} hiding? 👀`);
+  }
+  function hideTap(x, y) {
+    if (hide.found) return;
+    const hit = hideSpots().find((p) => Math.hypot(x - p.x, y - p.y) < p.r);
+    if (!hit) { S.emit({ type: 'ring', x, y, life: 0.4, size: 8, color: '#ff8fb1' }); return; }
+    hide.taps++; hide.total++;
+    if (hit.id !== hide.spot.id) {
+      S.burst('sparkle', hit.x, hit.y, 6, { p: { color: '#d9d2dc', size: 6 } }); A.play('pop');
+      S.emit({ type: 'text', text: 'ここじゃない…', x: hit.x, y: hit.y - 30, vy: -50, life: 1, size: 15, color: '#8a7a90' });
+      return;
+    }
+    hide.found = true; cat.hidden = false;
+    cat.x = U.clamp(hit.x, L.minX, L.maxX); cat.tx = cat.x; cat.y = L.catY; cat.depth = 1;
+    cat.jumpV = -520 * catScale(); cat.jumpY = -1; setAct('boop', 0.8);
+    sayText('みつかった！', hide.taps === 1 ? 'First try?! How?!' : 'You found me!', true); A.meow(1.4); U.vibrate(14);
+    S.burst('heart', cat.x, cat.y - 120 * catScale(), 8, { p: { color: '#ff6f9f', size: 10 } });
+    if (hide.round >= 3) setTimeout(endHide, 1500); else setTimeout(nextHide, 1900);
+  }
+  function cancelHide() { if (!hide.on) return; hide.on = false; cat.hidden = false; hint(null); }
+  function endHide() {
+    if (!hide.on) return;
+    hide.on = false; hint(null);
+    const total = hide.total, best = st.best.hide, newBest = !best || total < best;
+    if (newBest) st.best.hide = total;
+    const coins = Math.max(12, 60 - (total - 3) * 8), rank = total <= 4 ? 3 : total <= 7 ? 2 : 1;
+    st.stats.games++; track('game'); track('hideWin');
+    B.count(st.bond.toys, 'hide'); st.bond.p.play += 2; trust(0.6); notePush('games', 'hide'); cared(); seasonGame();
+    st.needs.fun = U.clamp(st.needs.fun + 15, 0, 100); st.needs.energy = U.clamp(st.needs.energy - 5, 0, 100);
+    addCoins(coins, cat.x, cat.y - 200 * catScale()); addXP(15);
+    modal(`<div class="res-card"><h2>かくれんぼ <small>Hide and seek</small></h2><div class="rank">${'★'.repeat(rank)}<span>${'★'.repeat(3 - rank)}</span></div>
+      <p class="big">Found ${st.name} in ${total} taps</p>${newBest ? '<p class="newbest">しんきろく！ New best!</p>' : ''}
+      <p class="reward">+${coins} <i class="koban"></i></p><p class="sub">+15 bond XP</p>
+      <div class="btnrow"><button class="btn ghost" data-ui="hide">もういちど Again</button><button class="btn" data-ui="closemodal">やったー！</button></div></div>`, 'hideres');
+    checkAch(); save();
+  }
+  function drawPeek(c) {
+    const p = hide.spot, s = L.scale, F = C.FURS[st.look.fur], side = p.side || (p.x > homeX() ? 1 : -1);
+    const wig = Math.sin(hide.t * 5) * 6 * s;
+    c.save(); c.translate(p.x, p.y); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(side * 22 * s, -10 * s + wig, side * 30 * s, -34 * s + wig);
+    c.strokeStyle = F.line; c.lineWidth = 16 * s; c.stroke(); c.strokeStyle = F.base; c.lineWidth = 11 * s; c.stroke();
+    c.restore();
+    if (Math.random() < 0.02) S.emit({ type: 'sparkle', x: p.x + U.rand(-20, 20), y: p.y - U.rand(0, 30), vy: -12, life: 0.8, size: 6, color: '#fff3a8' });
   }
 
   /* ================= ROOM TOYS ================= */
@@ -1482,6 +1662,7 @@
   /* ================= MODES ================= */
   function setMode(m) {
     const prev = mode;
+    if (m !== 'room') cancelHide();
     if (m !== 'room' && L) { getDown(true); A.stopPurr(); cat.purring = false; }
     mode = m;
     document.body.dataset.mode = m;
@@ -1519,6 +1700,7 @@
   /* ================= INPUT ================= */
   const FLOP_LIFT = 50, FLOP_ANG = 1.35;
   function hitCat(px, py) {
+    if (cat.hidden) return null;
     const s = cs(), p = cat.pose;
     let dx = px - cat.x, dy = py - (cat.y + cat.jumpY);
     if (cat.flopK > 0.01) {
@@ -1636,6 +1818,7 @@
       kickBall(U.clamp((ptr.x - ptr.sx) / dt * 0.6, -900, 900), -U.clamp(Math.abs(ptr.y - ptr.sy) / dt * 0.5 + 200, 200, 700));
       return;
     }
+    if (hide.on && tap) { hideTap(ptr.x, ptr.y); return; }
     if (!tap || !ptr.target) return;
     const tg = ptr.target;
     if (tg.type === 'cat') tapCat(tg.part);
@@ -1819,7 +2002,8 @@
     else if (cat.hop) catKey = Math.max(cat.hop.y0, cat.hop.y1) + 1;
     if (cat.inBox) catKey = L.catY - 3;
     const look_ = look();
-    add(catKey, () => {
+    if (hide.on && !hide.found && hide.t > 3.5) add(hide.spot.y + 1, () => drawPeek(ctx));
+    if (!cat.hidden) add(catKey, () => {
       if (cat.inBox) {
         const b = boxDims();
         drawBox(ctx, false);
@@ -2052,14 +2236,20 @@
   let shopTab = 'fashion';
   function openShop(tab) {
     if (tab) shopTab = tab;
-    const tabs = `<div class="tabs" role="tablist">${[['fashion', 'おしゃれ', 'Fashion'], ['home', 'インテリア', 'Home']].map(([id, jp, en]) => `<button role="tab" aria-selected="${shopTab === id}" class="${shopTab === id ? 'on' : ''}" data-tab="${id}"><b>${jp}</b> ${en}</button>`).join('')}</div>`;
+    const tabs = `<div class="tabs" role="tablist">${[['fashion', 'おしゃれ', 'Fashion'], ['home', 'インテリア', 'Home'], ['support', 'おうえん', '✦ Support']].map(([id, jp, en]) => `<button role="tab" aria-selected="${shopTab === id}" class="${shopTab === id ? 'on' : ''}" data-tab="${id}"><b>${jp}</b> ${en}</button>`).join('')}</div>`;
     let body = '';
     if (shopTab === 'fashion') {
       const slots = [['head', 'あたま', 'Head'], ['neck', 'くび', 'Neck'], ['body', 'ふく', 'Outfit']];
       body = slots.map(([slot, jp, en]) => `<h3>${jp} <small>${en}</small></h3><div class="grid acc">${D.ACCESSORIES.filter((a) => a.slot === slot).map((a) => {
         const owned = st.owned.includes(a.id), worn = st.wear[slot] === a.id;
-        return `<button class="item ${worn ? 'worn' : ''} ${a.road ? 'excl' : ''}" data-acc="${a.id}"><div class="ic" data-acc-icon="${a.id}"></div><div class="nm"><b>${a.jp}</b><small>${a.name}</small></div>${owned ? `<span class="state">${worn ? 'Wearing ✓' : 'Wear'}</span>` : a.road ? `<span class="price lock">🔒 Lv ${a.road}</span>` : koban(a.price)}</button>`;
+        return `<button class="item ${worn ? 'worn' : ''} ${a.road || a.season || a.store ? 'excl' : ''}" data-acc="${a.id}"><div class="ic" data-acc-icon="${a.id}"></div><div class="nm"><b>${a.jp}</b><small>${a.name}</small></div>${owned ? `<span class="state">${worn ? 'Wearing ✓' : 'Wear'}</span>` : a.season ? '<span class="price lock">🌸 Event</span>' : a.store ? '<span class="price lock">💝 Supporter</span>' : a.road ? `<span class="price lock">🔒 Lv ${a.road}</span>` : koban(a.price)}</button>`;
       }).join('')}</div>`).join('');
+    } else if (shopTab === 'support') {
+      body = `<p class="sub">にゃん日和 is free with no ads. These optional packs help the game keep growing. Nothing here ever affects ${st.name}'s care, needs or love.</p>
+        <div class="store">${NB.Store.PRODUCTS.map((p) => { const owned = p.once && st.supporter; return `<button class="store-item ${p.id === 'supporter' ? 'feat' : ''}" data-buy="${p.id}" ${owned ? 'disabled' : ''}>
+          <div class="ic">${p.id === 'supporter' ? '💝' : p.koban > 500 ? '🏺' : '👛'}</div><div class="nm"><b>${p.jp}</b><small>${p.en}</small><p class="desc">${p.desc}</p></div>
+          <span class="price real">${owned ? 'Owned ✓' : p.price}</span></button>`; }).join('')}</div>
+        ${NB.Store.available() ? '' : '<p class="sub center">Purchases open with the App Store and Google Play release.</p>'}`;
     } else {
       body = `<div class="grid decor">${D.DECOR.map((d) => {
         const owned = st.decor.includes(d.id), hid = st.hidden.includes(d.id);
@@ -2079,6 +2269,8 @@
   }
   function accAction(id) {
     const a = D.ACCESSORIES.find((x) => x.id === id);
+    if (!st.owned.includes(id) && a.season) { toast('🌸 A Hanami Festival reward. Earn it on the event track!'); A.play('fail'); return; }
+    if (!st.owned.includes(id) && a.store) { toast('💝 A thank-you gift in the Supporter Pack (Shop › Support)'); A.play('fail'); return; }
     if (!st.owned.includes(id) && a.road) { toast(`🔒 Unlocks at <b>Lv ${a.road}</b> on the Kizuna Road`); A.play('fail'); return; }
     if (!st.owned.includes(id)) {
       if (st.coins < a.price) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
@@ -2113,12 +2305,15 @@
       ['catch', 'さかなキャッチ', 'Sakana Catch', 'Catch falling fish and treats, and dodge the pufferfish!', st.best.catch ? `Best ${st.best.catch}` : 'New!'],
       ['taiko', 'たいこニャン', 'Taiko Nyan', 'Drum to the beat! Don (red) and Ka (blue).', st.best.taiko ? `Best ${st.best.taiko}` : 'New!'],
       ['memory', 'しんけいすいじゃく', 'Shinkei-suijaku', 'A classic Japanese memory card game.', st.best.memory ? `Best ${st.best.memory} moves` : 'New!'],
+      ['stack', 'おにぎりタワー', 'Onigiri Stack', 'Tap to drop each rice ball. Stack them high and keep the tower steady!', st.best.stack ? `Best ${st.best.stack}` : 'New!'],
+      ['hide', 'かくれんぼ', 'Hide and Seek', `${st.name} hides somewhere in the room. Find them in as few taps as you can!`, st.best.hide ? `Best ${st.best.hide} taps` : 'New!'],
     ];
     const low = st.needs.energy < 10;
     openSheet('Minigames', 'ゲーム', `<p class="sub">${low ? `${st.name} is too sleepy to play… let them nap first 💤` : 'Earn koban and bond XP. Each game uses a little energy.'}</p><div class="games">${games.map(([id, jp, en, d, b]) => `
       <button class="game-card g-${id}" data-game="${id}" ${low ? 'disabled' : ''}><div class="gart"></div><div><b>${jp}</b><h4>${en}</h4><p>${d}</p><span class="best">${b}</span></div></button>`).join('')}</div>`);
   }
   function playGame(id) {
+    if (id === 'hide') { startHide(); return; }
     closeSheet();
     mode = 'game'; document.body.dataset.mode = 'game';
     A.stopPurr(); cat.purring = false;
@@ -2133,6 +2328,8 @@
       if (id === 'catch') track('catchScore', res.best.catch);
       if (id === 'taiko') track('taikoCombo', res.best.taikoCombo);
       if (id === 'memory') track('memoryMoves', res.best.memory);
+      if (id === 'stack') track('stackScore', res.best.stack);
+      seasonGame();
       st.needs.fun = U.clamp(st.needs.fun + res.fun, 0, 100);
       st.needs.energy = U.clamp(st.needs.energy - 8, 0, 100);
       Object.keys(res.best || {}).forEach((k) => {
@@ -2197,7 +2394,7 @@
       <button class="diary-peek" data-ui="diary">${unread ? `<span class="new">${unread} NEW</span>` : ''}<b>📖 ${last ? Di.label(last.day) + (last.today ? ' · today' : '') : 'Nothing yet'}</b>
       <span>${last ? last.lines[1] || last.lines[0] : `${st.name} writes a page at the end of each day you spend together.`}</span></button>
       <h3>おくりもの <small>Gifts from ${st.name} · ${owned}/${G.LIST.length}</small></h3>
-      <div class="giftgrid">${G.LIST.map((g) => { const n = st.gifts[g.id]; return `<div class="gitem r${g.r} ${n ? 'got' : ''}" data-gift-icon="${g.id}"><b>${n ? g.jp : '？？？'}</b><small>${n ? g.en + (n > 1 ? ` ×${n}` : '') : g.season ? `Only in ${g.season}` : G.RARITY[g.r].split(' ')[1]}</small></div>`; }).join('')}</div>`;
+      <div class="giftgrid">${G.LIST.map((g) => { const n = st.gifts[g.id]; return `<div class="gitem r${g.r} ${n ? 'got' : ''}" data-gift-icon="${g.id}"><b>${n ? g.jp : '？？？'}</b><small>${n ? g.en + (n > 1 ? ` ×${n}` : '') : g.event ? 'Festival reward' : g.season ? `Only in ${g.season}` : G.RARITY[g.r].split(' ')[1]}</small></div>`; }).join('')}</div>`;
   }
   function openAlbum() {
     const days = Math.max(1, Math.floor((Date.now() - st.created) / 86400000) + 1);
@@ -2472,13 +2669,15 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
     if (el.dataset.diary != null) { openDiary(+el.dataset.diary); return; }
+    if (el.dataset.buy) { A.play('tap'); buyProduct(el.dataset.buy); return; }
     if (el.dataset.act) {
       const a = el.dataset.act;
       A.play('tap'); U.vibrate(6);
       if (mode === 'game') return;
+      cancelHide();
       if (a === 'feed') openFeed();
       else if (a === 'play') { if (mode === 'play') setMode('room'); else if (st.needs.energy < 5) { say('sleepy', true); toast(`${st.name} is too sleepy to play 💤`); } else setMode('play'); }
       else if (a === 'bath') { if (mode === 'bath') setMode('room'); else setMode('bath'); }
@@ -2504,6 +2703,8 @@
       case 'endmode': if (mode === 'sleep') wakeUp(); else { if (mode === 'bath' && !bath.done && st.needs.clean > 60) { st.stats.baths += 0; } setMode('room'); } break;
       case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'diary': openDiary(); break;
+      case 'season': openSeason(); break;
+      case 'hide': if (modalShowing) closeModal(); startHide(); break;
       case 'settings': openSettings(); break;
       case 'omikuji': openOmikuji(); break;
       case 'daily': openDaily(); break;
@@ -2558,7 +2759,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

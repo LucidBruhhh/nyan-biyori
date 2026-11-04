@@ -9,6 +9,7 @@ NB.Mini = (() => {
     catch: { jp: 'さかなキャッチ', en: 'Sakana Catch' },
     taiko: { jp: 'たいこニャン', en: 'Taiko Nyan' },
     memory: { jp: 'しんけいすいじゃく', en: 'Shinkei-suijaku' },
+    stack: { jp: 'おにぎりタワー', en: 'Onigiri Stack' },
   };
 
   function shell(id) {
@@ -412,6 +413,129 @@ NB.Mini = (() => {
     },
   };
 
-  const GAMES = { catch: catchGame, taiko, memory };
+  /* ======================= ONIGIRI STACK ======================= */
+  const stack = {
+    init() {
+      const g = this;
+      g.t = 0; g.score = 0; g.perfects = 0; g.combo = 0; g.lives = 3; g.over = false; g.lean = 0; g.cam = 0; g.happy = 0; g.hurt = 0;
+      g.pile = [{ x: W / 2, rot: 0 }];
+      g.drops = [];
+      g.newPiece();
+      g.down = () => { if (!g.over && !g.cur.falling) { g.cur.falling = true; g.cur.vy = 0; A.play('whoosh'); } };
+      cv.addEventListener('pointerdown', g.down);
+      g.key = (e) => { if (e.key === ' ' || e.key === 'Enter') g.down(); };
+      setScore(0);
+    },
+    destroy() { cv.removeEventListener('pointerdown', this.down); },
+    size() { return Math.min(W / 420, H / 760) * 1.05 + 0.15; },
+    newPiece() {
+      const g = this, n = g.pile.length;
+      g.cur = { x: U.rand(W * 0.2, W * 0.8), dir: Math.random() < 0.5 ? -1 : 1, speed: Math.min(520, 150 + n * 14), falling: false, y: 0, vy: 0 };
+    },
+    topY(i) { const s = this.size(); return H - 150 * s - i * 46 * s; },
+    update(dt) {
+      const g = this, s = g.size(), w = 74 * s;
+      g.t += dt; g.happy = Math.max(0, g.happy - dt); g.hurt = Math.max(0, g.hurt - dt);
+      const top = g.pile[g.pile.length - 1];
+      const camTarget = Math.max(0, (g.pile.length - 5) * 46 * s);
+      g.cam = U.damp(g.cam, camTarget, 4, dt);
+      const hoverY = g.topY(g.pile.length) - 170 * s + g.cam;
+      if (!g.over) {
+        const c = g.cur;
+        if (!c.falling) {
+          c.x += c.dir * c.speed * dt;
+          if (c.x < w * 0.7) { c.x = w * 0.7; c.dir = 1; }
+          if (c.x > W - w * 0.7) { c.x = W - w * 0.7; c.dir = -1; }
+          c.y = hoverY;
+        } else {
+          c.vy += 2600 * dt; c.y += c.vy * dt;
+          const land = g.topY(g.pile.length) + g.cam;
+          if (c.y >= land) {
+            const dx = c.x - top.x;
+            if (Math.abs(dx) < w * 0.62) {
+              const perfect = Math.abs(dx) < w * 0.09;
+              const x = perfect ? top.x : c.x;
+              g.pile.push({ x, rot: perfect ? 0 : U.clamp(dx / w, -0.5, 0.5) * 0.25 });
+              g.lean += perfect ? -g.lean * 0.35 : dx / w;
+              g.score += 1 + (perfect ? 1 : 0);
+              if (perfect) { g.perfects++; g.combo++; A.play('sparkle'); S.burst('sparkle', x, land - 10, 10, { p: { color: '#fff3a8', size: 8 } }); S.emit({ type: 'text', text: g.combo > 1 ? `ぴったり ×${g.combo}` : 'ぴったり！', x, y: land - 40, vy: -70, life: 1, size: 20, color: '#ff5c8d' }); }
+              else { g.combo = 0; A.play('pop'); }
+              g.happy = 0.5; U.vibrate(perfect ? 14 : 6);
+              if (Math.abs(g.lean) > 2.6) { g.topple(); return; }
+              g.newPiece();
+            } else {
+              g.lives--; g.combo = 0; g.hurt = 0.7; A.play('fail'); U.vibrate([30, 30, 30]);
+              g.drops.push({ x: c.x, y: c.y, vx: Math.sign(dx) * 160, vy: -200, rot: 0 });
+              if (g.lives <= 0) g.end(); else g.newPiece();
+            }
+          }
+        }
+        setScore(g.score, `<span class="lives">${'♥'.repeat(Math.max(0, g.lives))}<i>${'♥'.repeat(3 - Math.max(0, g.lives))}</i></span><span class="time">${g.pile.length - 1} tall</span>`);
+      }
+      g.drops.forEach((d) => { d.vy += 1600 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.rot += d.vx * 0.01 * dt; });
+      g.drops = g.drops.filter((d) => d.y < H + 120);
+      S.update(dt);
+      g.draw(s, w);
+    },
+    topple() {
+      const g = this;
+      A.play('boing');
+      const lean = Math.sign(g.lean) || 1;
+      g.pile.slice(1).forEach((p, i) => g.drops.push({ x: p.x, y: g.topY(i + 1) + g.cam, vx: lean * (80 + i * 18), vy: -120 - i * 10, rot: 0 }));
+      g.pile.length = 1;
+      g.end();
+    },
+    end() {
+      const g = this; if (g.over) return; g.over = true;
+      const best = NB.state.best.stack || 0;
+      setTimeout(() => finish({
+        coins: Math.round(g.score * 3), xp: 8 + g.score, fun: 18,
+        rank: g.score >= 30 ? 3 : g.score >= 14 ? 2 : 1, label: `${g.score} pts · ${g.perfects} perfect`, best: { stack: g.score }, newBest: g.score > best,
+      }), 900);
+    },
+    draw(s, w) {
+      const g = this;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      // a hanami picnic under the cherry trees
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#bfe3ff'); bg.addColorStop(0.65, '#ffe1ec'); bg.addColorStop(1, '#ffd0e0');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < 26; i++) {
+        const px = ((i * 151 + g.t * 22) % (W + 60)) - 30, py = ((i * 89 + g.t * (30 + i % 5 * 8)) % (H + 60)) - 30;
+        ctx.fillStyle = 'rgba(255,170,200,0.7)'; ctx.beginPath(); ctx.ellipse(px, py, 5, 3, g.t + i, 0, Math.PI * 2); ctx.fill();
+      }
+      [[-0.05, 0.12], [1.05, 0.08]].forEach(([fx, fy]) => { ctx.fillStyle = '#ffc1d6'; [[0, 0, 90], [50, 30, 70], [-40, 40, 60]].forEach(([dx, dy, r]) => { U.ell(ctx, W * fx + dx, H * fy + dy, r, r * 0.8); ctx.fill(); }); });
+      // picnic blanket
+      const gy = H - 110 * s + g.cam;
+      ctx.fillStyle = '#ff8fa0'; ctx.fillRect(0, gy, W, H - gy + 10);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      for (let x = 0; x < W; x += 36) for (let y = gy; y < H + 10; y += 36) if (((x + y) / 36) % 2 < 1) ctx.fillRect(x, y, 36, 36);
+      // plate and the stack
+      const base = g.pile[0];
+      ctx.fillStyle = '#ffffff'; U.ell(ctx, base.x, g.topY(0) + g.cam + 30 * s, 70 * s, 14 * s); ctx.fill();
+      ctx.strokeStyle = '#ffc1d6'; ctx.lineWidth = 3; U.ell(ctx, base.x, g.topY(0) + g.cam + 30 * s, 58 * s, 10 * s); ctx.stroke();
+      const sway = Math.sin(g.t * 2.2) * g.lean * 0.012;
+      g.pile.slice(1).forEach((p, i) => {
+        const y = g.topY(i + 1) + g.cam;
+        ctx.save(); ctx.translate(p.x + sway * (i + 1) * 20 * s, y); ctx.rotate(p.rot + sway * (i + 1));
+        S.drawFood(ctx, 'onigiri', 0, 0, s * 1.3); ctx.restore();
+      });
+      // the falling / hovering piece
+      if (!g.over) {
+        const c = g.cur;
+        if (!c.falling) { ctx.strokeStyle = 'rgba(255,111,159,0.35)'; ctx.setLineDash([6, 8]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(c.x, c.y + 20 * s); ctx.lineTo(c.x, g.topY(g.pile.length) + g.cam); ctx.stroke(); ctx.setLineDash([]); }
+        ctx.save(); ctx.translate(c.x, c.y); S.drawFood(ctx, 'onigiri', 0, 0, s * 1.3); ctx.restore();
+      }
+      g.drops.forEach((d) => { ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot); S.drawFood(ctx, 'onigiri', 0, 0, s * 1.3); ctx.restore(); });
+      // the cat cheers (or worries) from the side
+      const cx = W * 0.15 + 30, lean = Math.abs(g.lean);
+      const p = catPose({ eyes: g.hurt > 0 ? 'x' : lean > 1.6 ? 'surprised' : g.happy > 0 ? 'happy' : 'sparkle', mouthOpen: g.happy > 0 ? 0.7 : 0.2, pawR: g.happy > 0 ? 0.9 : 0.3, pawL: lean > 1.6 ? 0.8 : 0, tailPhase: g.t * 5, blush: 0.8, lookX: 0.6, lookY: -0.8 });
+      C.draw(ctx, opts.look, p, g.t, cx, H - 20, Math.min(0.75, s * 0.6));
+      S.drawParts(ctx, g.t);
+      if (g.t < 2.4) banner(W < 520 ? 'Tap to drop! おにぎり' : 'Tap to drop! Stack the onigiri おにぎりタワー', g.t);
+    },
+  };
+
+  const GAMES = { catch: catchGame, taiko, memory, stack };
   return { start };
 })();

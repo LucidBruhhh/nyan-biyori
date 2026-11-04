@@ -515,6 +515,14 @@ NB.Cat = (() => {
         ctx.fillText('守', 0, 15);
       }
       ctx.restore();
+    } else if (id === 'petalscarf') {
+      ctx.fillStyle = '#ffb3cb'; ctx.strokeStyle = '#d9728f'; ctx.lineWidth = 2.5;
+      U.rr(ctx, -46, y - 10, 92, 18, 9); ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.translate(-26, y + 4); ctx.rotate(-0.22 + Math.sin(t * 2) * 0.06);
+      U.rr(ctx, -9, 0, 18, 40, 6); ctx.fill(); ctx.stroke();
+      U.flower(ctx, 0, 28, 6, '#ffffff', '#ffd25e', 0.4);
+      ctx.restore();
+      [-30, -6, 18, 38].forEach((x, i) => U.flower(ctx, x, y - 1, 5, '#ffffff', '#ff8fb1', i));
     } else if (id === 'scarf') {
       ctx.fillStyle = '#7ad3c0'; ctx.strokeStyle = '#3e9584'; ctx.lineWidth = 2.5;
       U.rr(ctx, -46, y - 10, 92, 18, 9); ctx.fill(); ctx.stroke();
@@ -594,6 +602,24 @@ NB.Cat = (() => {
         U.star(ctx, x, y, r, 5, 0.48, Math.sin(t * 2 + i) * 0.15); ctx.fill(); ctx.stroke();
       });
       ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * Math.sin(t * 5)) + ')'; U.star(ctx, -6, -14, 5, 4, 0.3); ctx.fill();
+      ctx.restore();
+    } else if (id === 'sakuracrown') {
+      for (let i = 0; i < 7; i++) {
+        const x = -48 + i * 16, y = -178 - (1 - (x / 58) ** 2) * 13;
+        if (i < 6) { ctx.fillStyle = '#7cc46a'; U.ell(ctx, x + 8, y + 3, 5, 2.6, 0.5); ctx.fill(); }
+        U.flower(ctx, x, y, i % 2 ? 8 : 10, ['#ffc1d6', '#ff9dbf', '#ffe3ee'][i % 3], '#ffe27a', i + Math.sin(t * 1.5 + i) * 0.1);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.4 + 0.4 * Math.sin(t * 3)) + ')'; U.star(ctx, 30, -200, 4, 4, 0.3); ctx.fill();
+    } else if (id === 'dangopin') {
+      ctx.save(); ctx.translate(48, -178); ctx.rotate(0.55 + Math.sin(t * 2) * 0.03);
+      ctx.strokeStyle = '#a8744a'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 26); ctx.lineTo(0, -34); ctx.stroke();
+      [['#a8d98a', 10], ['#fff8f0', -4], ['#ffb3cb', -18]].forEach(([c, yy]) => { ctx.fillStyle = c; ctx.strokeStyle = '#8a5a5a'; ctx.lineWidth = 2; U.ell(ctx, 0, yy, 8, 7.5); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.7)'; U.ell(ctx, -3, yy - 3, 2.4, 1.6); ctx.fill(); });
+      ctx.restore();
+    } else if (id === 'heartclip') {
+      ctx.save(); ctx.translate(48, -180); ctx.rotate(0.3);
+      const g = ctx.createLinearGradient(0, -16, 0, 10); g.addColorStop(0, '#fff3a8'); g.addColorStop(1, '#e8a91c');
+      ctx.fillStyle = g; ctx.strokeStyle = '#a86e00'; ctx.lineWidth = 2.2; U.heart(ctx, 0, 0, 15); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * Math.sin(t * 4)) + ')'; U.star(ctx, -6, -8, 4.5, 4, 0.3); ctx.fill();
       ctx.restore();
     } else if (id === 'crown') {
       ctx.save(); ctx.translate(0, -196);

@@ -13,7 +13,7 @@ window.NB = window.NB || {};
   ];
   const DAILY_CAP = 8;    // trust from care per day, so the bond grows with time, not grinding
   const VISIT_GAIN = 3;   // first visit of the day
-  const TOYS = { wand: ['ねこじゃらし', 'the feather wand'], ball: ['てまり', 'the temari ball'], daruma: ['だるま', 'bopping the daruma'], catch: ['おさかなキャッチ', 'Fish Catch'], taiko: ['たいこ', 'Taiko'], memory: ['しんけいすいじゃく', 'Memory cards'] };
+  const TOYS = { stack: ['おにぎりタワー', 'Onigiri Stack'], hide: ['かくれんぼ', 'hide and seek'], wand: ['ねこじゃらし', 'the feather wand'], ball: ['てまり', 'the temari ball'], daruma: ['だるま', 'bopping the daruma'], catch: ['おさかなキャッチ', 'Fish Catch'], taiko: ['たいこ', 'Taiko'], memory: ['しんけいすいじゃく', 'Memory cards'] };
 
   function fresh() {
     return {
