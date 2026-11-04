@@ -400,6 +400,14 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 #btn-sound.muted { background: #f1e6ec; }
 .steps { text-align: left; margin: 10px auto; padding-left: 22px; line-height: 1.8; font-size: 14px; max-width: 280px; }
 .share-ic { display: inline-block; padding: 0 5px; border: 1.5px solid #7fb6ff; border-radius: 5px; color: #3d7be0; font-size: 12px; }
+/* tricks */
+.tricks { display: grid; gap: 8px; }
+.trick { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; background: #fff; border-radius: 16px; padding: 10px 12px; box-shadow: 0 3px 0 #f0dde5; }
+.trick b { font-family: "Yusei Magic", var(--font); font-weight: 400; color: var(--pink-deep); font-size: 16px; }
+.trick small { display: block; font-size: 12px; color: var(--ink-soft); }
+.trick .stars { color: #ffbf2e; font-size: 14px; letter-spacing: 1px; white-space: nowrap; } .trick .stars i { color: #eadde3; font-style: normal; }
+.trick.locked { opacity: .55; }
+.g-tricks .gart::after { content: "🎓"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; }
 /* morning summary */
 .morning { text-align: center; }
 .morning canvas { width: 96px; height: 96px; border-radius: 50%; margin: -4px auto 2px; display: block; box-shadow: 0 4px 0 #f0dde5; }

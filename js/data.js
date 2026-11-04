@@ -146,6 +146,8 @@ NB.Data = {
     { id: 'diary7', jp: 'にっき', name: 'Dear Diary', desc: 'Collect 7 diary pages', reward: 70, check: (s) => s.diary && s.diary.pages.length >= 7 },
     { id: 'hanami', jp: 'はなみ', name: 'Hanami Master', desc: 'Finish the Hanami Festival track', reward: 100, check: (s) => (s.season && s.season.id === 'hanami' && s.season.tier >= 30) || (s.seasonsDone || []).some((x) => x.id === 'hanami' && x.tier >= 30) },
     { id: 'supporter', jp: 'おうえん', name: 'Supporter', desc: 'Support the game with the Supporter Pack', reward: 50, check: (s) => !!s.supporter },
+    { id: 'trick1', jp: 'おけいこ', name: 'Clever Kitty', desc: 'Teach your cat a trick', reward: 40, check: (s) => Object.values(s.tricks || {}).some((x) => x >= 1) },
+    { id: 'trickmaster', jp: '名人', name: 'Trick Master', desc: 'Get every trick to 3 stars', reward: 200, check: (s) => ['paw', 'spin', 'beg', 'roll', 'hifive'].every((k) => ((s.tricks || {})[k] || 0) >= 6) },
     { id: 'explorer', jp: 'たんけん家', name: 'Explorer', desc: 'Make 12 room discoveries', reward: 150, check: (s) => (s.found || []).length >= 12 },
     { id: 'gourmet', jp: 'グルメ', name: 'Gourmet', desc: 'Try every food', reward: 80, check: (s) => NB.Data.FOODS.every((f) => s.tasted.includes(f.id)) },
   ],

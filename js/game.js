@@ -231,7 +231,7 @@
     const line = v && v.onTime ? ['いつもの時間だね！', 'Right on time, like always!'] : v && v.late ? ['こんな時間に？', 'You’re up so late?'] : i >= 4 ? ['おかえり！ずっとまってた！', 'You’re home! I waited all day!'] : ['おかえり！', 'Welcome back!'];
     if (i === 1) { sayText(line[0], line[1], true); A.meow(1.15); return; }
     getDown(true); cat.inBox = false; cat.chase = null;
-    goTo(U.clamp(cat.x, L.sx + L.SW * 0.3, L.sx + L.SW * 0.7), () => { headBump(); sayText(line[0], line[1], true); }, true, L.catY);
+    goTo(U.clamp(cat.x, L.sx + L.SW * 0.3, L.sx + L.SW * 0.7), () => { headBump(); sayText(line[0], line[1], true); if (Math.random() < 0.5) setTimeout(showOff, 1900); }, true, L.catY);
     A.meow(1.3, 0.8);
     if (i >= 4) S.burst('heart', cat.x, cat.y - 120 * s, 6, { p: { color: '#ff9dbf', size: 9 } });
   }
@@ -694,7 +694,7 @@
         if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
       } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe', 'wait', 'bump', 'blink', 'flop', 'trap', 'dance'].includes(cat.act)) {
         updateActivity(dt);
-      } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch'].includes(cat.act)) {
+      } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch', 'trick', 'confused'].includes(cat.act)) {
         if (cat.actT > cat.actDur) setAct('idle', 0.5);
       } else if (cat.act === 'eat') {
         meal.t += dt;
@@ -702,7 +702,7 @@
         if (meal.t >= meal.dur) finishMeal();
       }
       thinkT -= dt;
-      if (thinkT <= 0 && cat.act === 'idle' && !ptr.down && !hide.on) { thinkT = U.rand(3.5, 7.5); think(); }
+      if (thinkT <= 0 && cat.act === 'idle' && !ptr.down && !hide.on && !train.on) { thinkT = U.rand(3.5, 7.5); think(); }
       thoughtT -= dt;
     } else if (mode === 'play') {
       updatePlay(dt, s);
@@ -719,10 +719,11 @@
       }
     }
 
-    cat.flopK = U.damp(cat.flopK, cat.act === 'flop' || cat.act === 'trap' ? 1 : 0, 7, dt);
+    if (cat.act === 'trick' && cat.trick === 'roll') { const k = Math.min(1, cat.actT / cat.actDur); cat.flopDir = k < 0.5 ? 1 : -1; cat.flopK = Math.sin(Math.PI * ((k * 2) % 1)); }
+    else cat.flopK = U.damp(cat.flopK, cat.act === 'flop' || cat.act === 'trap' ? 1 : 0, 7, dt);
     cat.zoneT = Math.max(0, cat.zoneT - dt);
     if (mode === 'room' && st && ptr.down && ptr.target && ptr.target.type === 'cat' && ptr.moved < 10 && !ptr.blinked && ['head', 'nose', 'chin', 'cheek'].includes(ptr.target.part) && T - ptr.t0 > 1.25) playerBlink();
-    cat.zoom = cat.act === 'bump' ? 0.16 * Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)) : U.damp(cat.zoom, 0, 10, dt);
+    cat.zoom = cat.act === 'bump' || (cat.act === 'trick' && (cat.trick === 'hifive' || cat.trick === 'paw')) ? 0.16 * Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)) : U.damp(cat.zoom, 0, 10, dt);
     // purring when petting
     cat.petK = Math.max(0, cat.petK - dt * 0.8);
     if (cat.petK > 0.15 && !cat.purring) { A.startPurr(); cat.purring = true; }
@@ -783,6 +784,16 @@
       case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
       case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'confused': p.headTilt = 0.22 * Math.sin(Math.min(1, cat.actT / 0.3) * Math.PI / 2); p.eyes = 'open'; p.earTwitchL = 0.4; p.mouth = 'flat'; break;
+      case 'trick': {
+        const k = Math.min(1, cat.actT / cat.actDur), sk = Math.sin(Math.PI * k);
+        if (cat.trick === 'paw') { p.pawR = 0.25 + sk * 0.75; p.pawRx = 8; p.eyes = 'happy'; p.mouthOpen = 0.3; }
+        else if (cat.trick === 'spin') { const a = k * Math.PI * 2; p.sx *= Math.max(0.12, Math.abs(Math.cos(a))); p.flip = Math.cos(a) < 0 ? -1 : 1; p.eyes = 'happy'; p.bob = -sk * 10; }
+        else if (cat.trick === 'beg') { p.sy *= 1 + sk * 0.1; p.pawL = p.pawR = 0.55 + Math.abs(Math.sin(T * 8)) * 0.25 * sk; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.headTilt = Math.sin(T * 4) * 0.08; }
+        else if (cat.trick === 'roll') { p.eyes = 'happy'; p.pawL = p.pawR = 0.5; p.mouth = 'w'; }
+        else if (cat.trick === 'hifive') { p.pawL = sk; p.pawR = sk; p.eyes = k > 0.4 && k < 0.7 ? 'closed' : 'sparkle'; p.mouthOpen = 0.5; }
+        break;
+      }
       case 'dance': { const k = T * 6; p.headTilt = Math.sin(k) * 0.18; p.bob = -Math.abs(Math.sin(k)) * 7; p.eyes = 'happy'; p.mouthOpen = 0.35; p.pawL = Math.max(0, Math.sin(k)) * 0.75; p.pawR = Math.max(0, -Math.sin(k)) * 0.75; p.tailPhase = T * 6; p.lean = Math.sin(T * 3) * 0.05; break; }
       case 'flop': p.eyes = cat.petK > 0.2 ? 'closed' : 'happy'; p.blush = 0.95; p.mouth = 'w'; p.pawL = 0.5 + Math.sin(T * 1.7) * 0.12; p.pawR = 0.5 - Math.sin(T * 1.7) * 0.12; p.tailPhase = T * 1.4; p.headTilt = Math.sin(T * 0.8) * 0.08; break;
       case 'trap': p.eyes = 'sparkle'; p.mouthOpen = 0.55; p.pawL = 0.6 + Math.abs(Math.sin(T * 22)) * 0.4; p.pawR = 0.6 + Math.abs(Math.cos(T * 22)) * 0.4; p.bob = Math.sin(T * 30) * 3; p.tailPhase = T * 10; p.earDroop = 0.25; break;
@@ -1415,6 +1426,98 @@
     return out;
   }
 
+  /* ================= TRICKS: taught with gestures ================= */
+  const TRICKS = [
+    { id: 'paw', jp: 'おて', en: 'Paw', gesture: 'tap2', how: 'Double-tap the screen', stage: 0 },
+    { id: 'spin', jp: 'くるりん', en: 'Spin', gesture: 'circle', how: 'Draw a circle', stage: 1 },
+    { id: 'beg', jp: 'ちょうだい', en: 'Beg', gesture: 'up', how: 'Swipe up', stage: 1 },
+    { id: 'roll', jp: 'ごろん', en: 'Roll over', gesture: 'side', how: 'Swipe sideways', stage: 2 },
+    { id: 'hifive', jp: 'ハイタッチ', en: 'High five', gesture: 'hold', how: 'Press and hold', stage: 3 },
+  ];
+  const STAR_XP = [1, 3, 6, 10, 15];
+  const trickXP = (id) => (st.tricks && st.tricks[id]) || 0;
+  const trickStars = (id) => STAR_XP.filter((x) => trickXP(id) >= x).length;
+  const train = { on: false, id: null, tries: 0, pts: [], lastTap: -9 };
+  function openTricks() {
+    if (!unlocked('tricks')) { toast('🎓 Tricks unlock on your third day together'); return; }
+    const bi = bondStage();
+    const html = `<p class="sub">Pick a trick, then use its gesture anywhere on the screen. Practice makes perfect, and every try uses a little energy.</p>
+      <div class="tricks">${TRICKS.map((t) => { const lock = bi < t.stage; const s = trickStars(t.id);
+        return `<div class="trick ${lock ? 'locked' : ''}"><div><b>${t.jp}</b> ${t.en}<small>${lock ? `Needs a closer bond (${'♥'.repeat(t.stage + 1)})` : t.how}</small></div>
+          <span class="stars">${'★'.repeat(s)}<i>${'★'.repeat(5 - s)}</i></span>${lock ? '' : `<button class="btn mini" data-trick="${t.id}">Practice</button>`}</div>`; }).join('')}</div>`;
+    openSheet('Tricks', 'おけいこ', html);
+  }
+  function startTrain(id) {
+    closeSheet();
+    if (mode !== 'room') setMode('room');
+    if (st.needs.energy < 10) { toast(`${st.name} is too sleepy to practice 💤`); return; }
+    getDown(true); cat.inBox = false; cat.chase = null;
+    goTo(homeX(), () => { cat.dir = 1; setAct('idle', 99); });
+    const t = TRICKS.find((x) => x.id === id);
+    Object.assign(train, { on: true, id, tries: 0, pts: [], lastTap: -9 });
+    const mb = $('#modebar'); mb.hidden = false;
+    mb.innerHTML = `<span><b>おけいこ</b> ${t.en}: ${t.how.toLowerCase()}</span><button class="pill" data-ui="endtrain">Done ✓</button>`;
+    sayText('にゃ？', 'Ready to learn!', true);
+  }
+  function endTrain() {
+    train.on = false; $('#modebar').hidden = true;
+    if (cat.act === 'idle') setAct('idle', 0.5);
+  }
+  // classify a finished gesture from its points
+  function readGesture(pts, dur) {
+    if (pts.length < 2) return dur > 0.8 ? 'hold' : 'tap';
+    const a = pts[0], z = pts[pts.length - 1], dx = z.x - a.x, dy = z.y - a.y;
+    let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    if (len < 14) return dur > 0.8 ? 'hold' : 'tap';
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    let turn = 0;
+    for (let i = 1; i < pts.length; i++) { let d = Math.atan2(pts[i].y - cy, pts[i].x - cx) - Math.atan2(pts[i - 1].y - cy, pts[i - 1].x - cx); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; turn += d; }
+    if (Math.abs(turn) > Math.PI * 1.5 && len > 160) return 'circle';
+    if (dy < -70 && Math.abs(dx) < Math.abs(dy) * 0.7) return 'up';
+    if (Math.abs(dx) > 100 && Math.abs(dy) < Math.abs(dx) * 0.6) return 'side';
+    return 'scribble';
+  }
+  function trainGesture(g) {
+    if (!train.on || ['trick', 'confused'].includes(cat.act) || cat.act === 'walk') return;
+    if (g === 'tap') { if (T - train.lastTap < 0.45) { g = 'tap2'; train.lastTap = -9; } else { train.lastTap = T; return; } }
+    const want = TRICKS.find((t) => t.id === train.id);
+    const asked = TRICKS.find((t) => t.gesture === g && bondStage() >= t.stage);
+    if (!asked) { setAct('confused', 1.2); sayText('？', '*tilts head*', true); return; }
+    st.needs.energy = U.clamp(st.needs.energy - 2, 0, 100);
+    train.tries++;
+    // a cat who already knows another trick may do that one instead
+    if (asked.id !== want.id && trickStars(asked.id) < 1) { setAct('confused', 1.2); sayText('？', `That's the sign for ${asked.en}…`, true); return; }
+    const t = asked, h = st.health;
+    const chance = Math.min(0.95, 0.35 + trickStars(t.id) * 0.12 + bondStage() * 0.04 + (h.fitness / 100) * 0.15);
+    if (Math.random() < chance) doTrick(t, true);
+    else { setAct('confused', 1.4); sayText(U.pick([['にゃ…？', 'Hmm?'], ['ふわぁ', '*yawns instead*'], ['…', '*sniffs your finger*']])[0], U.pick(['*not quite*', '*almost had it*', '*thinking…*']), true); }
+    if (train.tries >= 8 || st.needs.energy < 8) setTimeout(() => { if (train.on) { endTrain(); toast(`That's enough practice for now. ${st.name} did great!`); } }, 2200);
+  }
+  function doTrick(t, practice) {
+    cat.trick = t.id; setAct('trick', t.id === 'roll' ? 2 : t.id === 'spin' ? 1.2 : 1.6);
+    A.meow(1.3, 0.6);
+    if (!practice) return;
+    const before = trickStars(t.id);
+    st.tricks = st.tricks || {}; st.tricks[t.id] = trickXP(t.id) + 1;
+    const after = trickStars(t.id);
+    cat.happyT = 1.5; addXP(3); trust(0.15); st.needs.fun = U.clamp(st.needs.fun + 2, 0, 100);
+    if (t.id === 'spin' || t.id === 'roll') HL.exercise(st.health, 0.8);
+    notePush('tricks', t.id);
+    S.burst('heart', cat.x, cat.y - 180 * catScale(), 5, { p: { color: '#ff6f9f', size: 9 } });
+    if (after > before) {
+      noteSet('trickStar', t.id); A.play('success');
+      setTimeout(() => toast(`<span class="mini-hanko">${t.jp}</span><span><b>${t.en} ${'★'.repeat(after)}</b><br>${after === 1 ? `${st.name} learned a new trick!` : 'Getting better every time!'}</span>`, 'ach'), 700);
+      checkAch();
+    }
+  }
+  // a cat that knows its tricks shows them off when you come home
+  function showOff() {
+    const known = TRICKS.filter((t) => trickStars(t.id) >= 2);
+    if (!known.length || mode !== 'room' || cat.act !== 'idle') return;
+    const t = U.pick(known);
+    doTrick(t, false); sayText('みてみて！', `*shows off: ${t.en.toLowerCase()}!*`, true);
+  }
+
   /* ================= ROOM TOYS ================= */
   const STATIONS = [['lofi', 'Lo-fi Neko Radio', 'night'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
@@ -1698,6 +1801,7 @@
 
   /* ================= MODES ================= */
   function setMode(m) {
+    if (train.on && m !== 'room') endTrain();
     const prev = mode;
     if (m !== 'room') cancelHide();
     if (m !== 'room' && L) { getDown(true); A.stopPurr(); cat.purring = false; }
@@ -1785,6 +1889,7 @@
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
     ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
     ptr.target = null; ptr.blinked = false;
+    if (train.on && mode === 'room') { train.pts = [{ x: ptr.x, y: ptr.y }]; return; }
     if (mode === 'play') { wand.tx = ptr.x; wand.ty = ptr.y; return; }
     if (mode === 'bath') return;
     if (st.gift) { const gp = propAt(ptr.x, ptr.y); if (gp && gp.type === 'gift') { ptr.target = gp; return; } }
@@ -1805,6 +1910,7 @@
     const nowMs = performance.now(), spd = d / Math.max(8, nowMs - (ptr.lastMs || 0)) * 1000;
     ptr.lastMs = nowMs;
     ptr.x = x; ptr.y = y; ptr.lastMove = T;
+    if (train.on && ptr.down) { train.pts.push({ x, y }); return; }
     if (mode === 'play') { if (ptr.down || e.pointerType === 'mouse') { wand.tx = x; wand.ty = y; } return; }
     if (!ptr.down) return;
     ptr.moved += d;
@@ -1848,6 +1954,7 @@
     if (!ptr.down) return;
     ptr.down = false;
     const tap = ptr.moved < 12 && T - ptr.t0 < 0.45;
+    if (train.on && mode === 'room') { trainGesture(readGesture(train.pts, T - ptr.t0)); return; }
     if (mode === 'play' || mode === 'bath') return;
     if (ptr.target && ptr.target.type === 'ball' && !tap) {
       const dt = Math.max(0.05, T - ptr.t0);
@@ -2341,6 +2448,7 @@
   function openGames() {
     if (mode !== 'room') setMode('room');
     const games = [
+      ['tricks', 'おけいこ', 'Tricks', `Teach ${st.name} tricks with simple gestures. ${TRICKS.filter((t) => trickStars(t.id) > 0).length}/${TRICKS.length} learned`, unlocked('tricks') ? `${TRICKS.reduce((a, t) => a + trickStars(t.id), 0)}★` : 'Day 3'],
       ['catch', 'さかなキャッチ', 'Sakana Catch', 'Catch falling fish and treats, and dodge the pufferfish!', st.best.catch ? `Best ${st.best.catch}` : 'New!'],
       ['taiko', 'たいこニャン', 'Taiko Nyan', 'Drum to the beat! Don (red) and Ka (blue).', st.best.taiko ? `Best ${st.best.taiko}` : 'New!'],
       ['memory', 'しんけいすいじゃく', 'Shinkei-suijaku', 'A classic Japanese memory card game.', st.best.memory ? `Best ${st.best.memory} moves` : 'New!'],
@@ -2353,6 +2461,7 @@
   }
   function playGame(id) {
     if (id === 'hide') { startHide(); return; }
+    if (id === 'tricks') { openTricks(); return; }
     closeSheet();
     mode = 'game'; document.body.dataset.mode = 'game';
     A.stopPurr(); cat.purring = false;
@@ -2765,8 +2874,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.trick) { startTrain(el.dataset.trick); return; }
     if (el.dataset.diary != null) { openDiary(+el.dataset.diary); return; }
     if (el.dataset.buy) { A.play('tap'); buyProduct(el.dataset.buy); return; }
     if (el.dataset.act) {
@@ -2799,6 +2909,7 @@
       case 'endmode': if (mode === 'sleep') wakeUp(); else { if (mode === 'bath' && !bath.done && st.needs.clean > 60) { st.stats.baths += 0; } setMode('room'); } break;
       case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'health': openHealth(); break;
+      case 'endtrain': endTrain(); break;
       case 'diary': openDiary(); break;
       case 'season': openSeason(); break;
       case 'hide': if (modalShowing) closeModal(); startHide(); break;
@@ -2931,7 +3042,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
