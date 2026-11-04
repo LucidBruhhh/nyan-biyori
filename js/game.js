@@ -112,13 +112,14 @@
     DPR = Math.min(window.devicePixelRatio || 1, 2.5);
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-    L = S.layout(W, H);
+    L = homeId() === 'painted' ? NB.Painted.layout(W, H) : S.layout(W, H);
     cat.y = L.catY; cat.depth = 1; cat.perch = null; cat.hop = null; cat.inBox = false; cat.goal = null; cat.chase = null;
     if (cat.act !== 'eat' && cat.act !== 'sleep') setAct('idle', 0.5);
     if (!cat.x) { cat.x = homeX(); cat.tx = cat.x; }
     cat.x = U.clamp(cat.x, L.minX, L.maxX); cat.tx = U.clamp(cat.tx, L.minX, L.maxX);
   }
   const homeX = () => L.sx + L.SW * 0.5;
+  const homeId = () => (st && st.settings.home) || 'painted';
 
   /* ================= NEEDS / TIME ================= */
   const RATE = { hunger: 11, fun: 9, clean: 5, energy: 7 }; // per hour
@@ -854,7 +855,7 @@
     hopTo(U.clamp(cat.x + (from === 'tower' ? 50 * towerS() : U.rand(-50, 50)), L.minX, L.maxX), ly, depthAt(ly));
   }
   function startExplore(force) {
-    const opts = [['sill', 3], ['toko', 2], ['box', 3], ['ball', 3], ['tower', 3], ['scratch', 2], ['drink', 2]];
+    const opts = [['sill', 3], ...(tokoSpot().x < L.sx + L.SW - 10 ? [['toko', 2]] : []), ['box', 3], ['ball', 3], ['tower', 3], ['scratch', 2], ['drink', 2]];
     if (shown('zabuton')) opts.push(['knead', 2]);
     if (shown('daruma')) opts.push(['daruma', 2]);
     if (env.sun && S.nightness(env.hour) < 0.5) opts.push(['sun', 4]);
@@ -1437,7 +1438,7 @@
     { const ts = towerS(); if (Math.abs(x - sp.tower.x) < 52 * ts && y < sp.tower.y + 4 && y > sp.tower.y - 196 * ts) return { type: 'tower' }; }
     { const bs = L.scale * depthAt(sp.bowls.y); if (Math.abs(x - sp.bowls.x) < 58 * bs && Math.abs(y - sp.bowls.y) < 22 * bs) return { type: 'bowls' }; }
     if (shown('maneki') && Math.hypot(x - (L.alcove.x + L.alcove.w * 0.75), y - (L.alcove.y + L.alcove.h - 60 * L.scale)) < 40 * L.scale) return { type: 'maneki' };
-    if (shown('chochin') && Math.hypot(x - (L.sx + L.SW * 0.12), y - (L.win.y + 32)) < 36) return { type: 'chochin' };
+    if (L.lamp ? Math.hypot(x - L.lamp.x, y - L.lamp.y) < 44 : shown('chochin') && Math.hypot(x - (L.sx + L.SW * 0.12), y - (L.win.y + 32)) < 36) return { type: 'chochin' };
     const a = L.alcove;
     if (x > a.x + a.w * 0.25 && x < a.x + a.w * 0.75 && y > a.y + 14 && y < a.y + a.h * 0.62) return { type: 'scroll' };
     if (x > a.x && x < a.x + a.w * 0.45 && y > a.y + a.h * 0.62 && y < a.y + a.h) return { type: 'flowers' };
@@ -1660,7 +1661,7 @@
     const now = new Date();
     env.hour = DEV && window.__hour != null ? window.__hour : now.getHours() + now.getMinutes() / 60;
     env.season = st && st.settings.season !== 'auto' ? st.settings.season : S.seasonOf(now.getMonth());
-    env.home = st ? st.settings.home || 'tokyo' : 'tokyo';
+    env.home = homeId();
     env.decor = {}; if (st) st.decor.forEach((d) => { if (!st.hidden.includes(d)) env.decor[d] = true; });
     if (!st) env.decor = { zabuton: true, chochin: true, furin: true };
     const wk = U.dayKey() + env.season;
@@ -1676,7 +1677,7 @@
     // light pouring in from the window, lantern glow on the floor
     env.sun = NB.Habitat.sunInfo(L, env);
     NB.Habitat.drawLight(ctx, L, env, env.sun, T);
-    if (env.decor.chochin) NB.Habitat.drawLampPool(ctx, L, env, L.sx + L.SW * 0.12);
+    if (env.decor.chochin && !L.painted) NB.Habitat.drawLampPool(ctx, L, env, L.sx + L.SW * 0.12);
 
     // everything standing on the floor is drawn back-to-front
     const sp = spots(), items = [];
@@ -1721,12 +1722,12 @@
       g.addColorStop(0, 'rgba(255,230,180,0.18)'); g.addColorStop(1, 'rgba(255,230,180,0)');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (night > 0) {
-      ctx.fillStyle = `rgba(30,24,80,${(env.lampOff || !shown('chochin') ? 0.26 : 0.16) * night})`; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = `rgba(30,24,80,${(L.painted ? 0.07 : env.lampOff || !shown('chochin') ? 0.26 : 0.16) * night})`; ctx.fillRect(0, 0, W, H);
     }
     drawBugs(ctx);
     if (mode === 'play') drawWand(ctx);
     S.drawParts(ctx, T);
-    NB.Habitat.drawForeground(ctx, L, T);
+    if (!L.painted) NB.Habitat.drawForeground(ctx, L, T);
     NB.Habitat.drawVignette(ctx, L);
     drawThought(ctx);
     drawSpeech(ctx);
@@ -2122,7 +2123,7 @@
     const html = `
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
       ${tog('music', 'Music', 'おんがく')}${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${tog('english', 'Show English subtitles', 'えいご')}
-      <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['tokyo', 'とうきょう Tokyo apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${(s.home || 'tokyo') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
       ${iosHint}
@@ -2137,7 +2138,7 @@
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
         const k = el.dataset.set;
         if (k === 'name') { const v = cleanName(el.value); if (el.value.trim()) { st.name = v; el.value = v; renderHUD(true); } }
-        else if (el.type === 'checkbox') { s[k] = el.checked; if (k === 'tilt') { setTilt(el.checked); if (el.checked) toast('Tilt your phone to roll the ball 🎾'); } } else s[k] = el.value;
+        else if (el.type === 'checkbox') { s[k] = el.checked; if (k === 'home') resize(); if (k === 'tilt') { setTilt(el.checked); if (el.checked) toast('Tilt your phone to roll the ball 🎾'); } } else s[k] = el.value;
         applySettings(); save();
       }));
     });

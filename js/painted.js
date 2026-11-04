@@ -1,0 +1,122 @@
+/* にゃん日和 — the painted apartment: hand-painted room art with a live window */
+'use strict';
+window.NB = window.NB || {};
+
+NB.Painted = (function () {
+  const U = NB.U;
+  const SRC = 'art/apartment-night.webp', SIZE = 1024;
+  const img = new Image();
+  let ready = false;
+  img.onload = () => { ready = true; backdrop = null; };
+  img.src = SRC;
+
+  // landmarks in the 1024px art
+  const ART = {
+    glass: [[252, 190], [733, 190], [745, 300], [765, 400], [797, 470], [800, 603], [757, 603], [757, 566], [648, 566], [648, 603], [252, 603], [252, 572], [197, 572], [197, 480], [222, 400], [240, 300]],
+    glassBox: { x: 197, y: 187, w: 603, h: 416 },
+    mullion: { x: 508, w: 22 }, rail: { y: 442, h: 11 },
+    seatTop: 650, floorTop: 783, rug: { x: 592, y: 867 },
+    floorL: 160, floorR: 840, cabinet: { x: 842, w: 171, top: 595 }, lamp: { x: 878, y: 292 },
+  };
+
+  function layout(W, H) {
+    const k = H / 1000, iw = SIZE * k, ox = (W - iw) / 2;
+    // tall phones: slide the painting up so the floor has room above the action bar
+    const oy = H / W > 1.4 ? -110 * k : 0;
+    const X = (x) => ox + x * k, Y = (y) => oy + y * k;
+    const left = Math.max(X(ART.floorL), 0), right = Math.min(X(ART.floorR), W);
+    const SW = right - left, sx = left;
+    const scale = Math.min(SW / 390, H / 780) * 0.74;
+    const g = ART.glassBox, c = ART.cabinet;
+    return {
+      W, H, SW, sx, scale,
+      floorY: Y(ART.floorTop), catY: Math.round(Math.min(Y(ART.rug.y), H - 118)),
+      win: { x: X(g.x), y: Y(g.y), w: g.w * k, h: Y(ART.seatTop) - Y(g.y) },
+      alcove: { x: X(c.x), y: Y(150), w: c.w * k, h: Y(c.top) - Y(150) + 26 },
+      lamp: { x: X(ART.lamp.x), y: Y(ART.lamp.y) },
+      minX: sx + 60 * scale, maxX: sx + SW - 60 * scale,
+      painted: { k, ox, oy, iw },
+    };
+  }
+
+  // a soft, blurred extension of the art for screens wider than the painting
+  let backdrop = null;
+  function getBackdrop(L) {
+    if (backdrop && backdrop.W === L.W && backdrop.H === L.H) return backdrop.c;
+    const c = document.createElement('canvas'), q = 0.25;
+    c.width = Math.max(1, Math.round(L.W * q)); c.height = Math.max(1, Math.round(L.H * q));
+    const x = c.getContext('2d');
+    const s = Math.max(c.width, c.height) / SIZE;
+    try { x.filter = 'blur(6px) brightness(0.8) saturate(0.9)'; } catch (e) { /* no filters */ }
+    x.drawImage(img, (c.width - SIZE * s) / 2, (c.height - SIZE * s) / 2, SIZE * s, SIZE * s);
+    x.filter = 'none';
+    backdrop = { W: L.W, H: L.H, c };
+    return c;
+  }
+
+  function glassPath(ctx, L) {
+    const { k, ox, oy } = L.painted;
+    ctx.beginPath();
+    ART.glass.forEach(([x, y], i) => (i ? ctx.lineTo(ox + x * k, oy + y * k) : ctx.moveTo(ox + x * k, oy + y * k)));
+    ctx.closePath();
+  }
+
+  function drawRoom(ctx, L, env, t) {
+    const { W, H } = L, { k, ox, oy, iw } = L.painted;
+    if (!ready) { ctx.fillStyle = '#3a2a40'; ctx.fillRect(0, 0, W, H); return; }
+    if (iw < W) ctx.drawImage(getBackdrop(L), 0, 0, W, H);
+    ctx.drawImage(img, ox, oy, iw, SIZE * k);
+    // continue the floor below the painting when it has slid up
+    if (oy + SIZE * k < H) ctx.drawImage(img, 0, SIZE - 40, SIZE, 40, ox, oy + SIZE * k - 1, iw, H - (oy + SIZE * k) + 1);
+    if (iw < W) {
+      // feather the painting's edges into the backdrop
+      [[ox, 1], [ox + iw, -1]].forEach(([ex, d]) => {
+        const g = ctx.createLinearGradient(ex, 0, ex + d * 60, 0);
+        g.addColorStop(0, 'rgba(40,28,48,0.55)'); g.addColorStop(1, 'rgba(40,28,48,0)');
+        ctx.fillStyle = g; ctx.fillRect(d > 0 ? ex : ex - 60, 0, 60, H);
+      });
+    }
+    const night = env.lightsOff ? 1 : NB.Scene.nightness(env.hour), day = 1 - night;
+
+    // the window is live: daylight fades in the drawn city over the painted night view
+    ctx.save(); glassPath(ctx, L); ctx.clip();
+    const gb = ART.glassBox;
+    const glassL = Object.assign({}, L, { win: { x: ox + gb.x * k, y: oy + gb.y * k, w: gb.w * k, h: gb.h * k } });
+    if (day > 0.02) {
+      ctx.globalAlpha = Math.min(1, day * 1.15);
+      NB.Apartment.drawOutside(ctx, glassL, env, t);
+      ctx.fillStyle = '#4e3f4f';
+      ctx.fillRect(ox + ART.mullion.x * k, oy + gb.y * k, ART.mullion.w * k, gb.h * k);
+      ctx.fillRect(ox + gb.x * k, oy + ART.rail.y * k, gb.w * k, ART.rail.h * k);
+      ctx.globalAlpha = 1;
+    } else if (env.weather === 'rain') {
+      ctx.strokeStyle = 'rgba(210,220,255,0.35)'; ctx.lineWidth = 1.2;
+      const g2 = glassL.win;
+      for (let i = 0; i < 50; i++) { const q = (i * 0.618) % 1, px = g2.x + ((q * g2.w + t * 40) % g2.w), py = g2.y + (((i * 0.37) % 1) * g2.h + t * 420 * (0.8 + q * 0.4)) % g2.h; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3, py + 12); ctx.stroke(); }
+    }
+    env.drawOutsideParticles && env.drawOutsideParticles(ctx);
+    ctx.restore();
+
+    // daylight lifts the whole room a little
+    if (day > 0) { ctx.fillStyle = `rgba(255,246,236,${0.14 * day})`; ctx.fillRect(ox, 0, iw, H); }
+    // the wall lamp can be switched off
+    if (env.lampOff) {
+      const lx = ox + ART.lamp.x * k, ly = oy + ART.lamp.y * k;
+      const g = ctx.createRadialGradient(lx, ly + 60 * k, 20 * k, lx, ly + 60 * k, 320 * k);
+      g.addColorStop(0, 'rgba(30,20,55,0.45)'); g.addColorStop(1, 'rgba(30,20,55,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    // a gentle twinkle on the painted fairy lights
+    if (night > 0.3 && !env.lightsOff) {
+      for (let i = 0; i < 9; i++) {
+        const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k, a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
+        const g = ctx.createRadialGradient(px, py, 1, px, py, 22 * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
+        ctx.fillStyle = g; U.ell(ctx, px, py, 22 * k, 22 * k); ctx.fill();
+      }
+    }
+    if (env.decor.furin) NB.Scene.drawFurin(ctx, L.win.x + L.win.w * 0.3, L.win.y + 8, t, env.windT || 0);
+    if (env.decor.maneki) NB.Scene.drawManeki(ctx, L.alcove.x + L.alcove.w * 0.75, L.alcove.y + L.alcove.h - 26, L.scale * 0.8, t);
+  }
+
+  return { layout, drawRoom, ready: () => ready, ART };
+})();

@@ -182,6 +182,7 @@ NB.Scene = (() => {
 
   /* ---------- room ---------- */
   function drawRoom(ctx, L, env, t) {
+    if (L.painted) { NB.Painted.drawRoom(ctx, L, env, t); return; }
     if (env.home === 'tokyo') { NB.Apartment.drawRoom(ctx, L, env, t); return; }
     const { W, H, floorY, win, alcove, sx, SW } = L;
     const night = env.lightsOff ? 1 : nightness(env.hour);
