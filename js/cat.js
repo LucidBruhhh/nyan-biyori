@@ -445,7 +445,7 @@ NB.Cat = (() => {
     const twitch = Math.max(0, Math.sin(t * 0.9)) ** 12 * Math.sin(t * 40) * 3;
     [-1, 1].forEach((s) => {
       [[-14, -3], [0, 0], [12, 3]].forEach(([dy, curve]) => {
-        const wob = Math.sin(t * 1.6 + dy * 0.2 + s) * 1.2 + twitch;
+        const wob = Math.sin(t * 1.6 + dy * 0.2 + s) * 1.2 + twitch + (p.whisk || 0) * Math.sin(t * 34 + dy) * 2.6;
         ctx.beginPath(); ctx.moveTo(s * 60, -106 + dy * 0.3); ctx.quadraticCurveTo(s * 80, -110 + dy * 0.6 + curve + wob * 0.5, s * 98, -110 + dy + wob); ctx.stroke();
       });
     });

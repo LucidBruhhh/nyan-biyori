@@ -361,6 +361,7 @@ NB.Audio = (() => {
       if (out !== sfxBus) { out.pan.setValueAtTime(-0.8, t); out.pan.linearRampToValueAtTime(0.8, t + 3.2); out.connect(sfxBus); }
       noise(t, 3.2, 0.07, out, 'lowpass', 260, 1, { a: 1.2 }); for (let i = 0; i < 8; i++) noise(t + 0.6 + i * 0.28, 0.08, 0.05, out, 'bandpass', 900, 3);
     },
+    fur: (t) => { noise(t, 0.09, 0.03, sfxBus, 'highpass', 3200, 0.6, { a: 0.03 }); },
     thunder: (t) => { noise(t, 3, 0.11, sfxBus, 'lowpass', 140, 0.9, { a: 0.25 }); noise(t + 0.15, 1.6, 0.05, sfxBus, 'lowpass', 400, 0.7, { a: 0.05, sweep: 120 }); },
     page: (t) => { noise(t, 0.22, 0.12, sfxBus, 'bandpass', 2600, 1.2, { sweep: 1400, a: 0.04 }); noise(t + 0.12, 0.12, 0.07, sfxBus, 'highpass', 4000, 0.7); },
   };
@@ -408,13 +409,16 @@ NB.Audio = (() => {
       setTimeout(() => { try { r.s.stop(); } catch (e) { /* already stopped */ } }, 2500);
     }
   }
+  let onPlay = null;
   function play(name, v) {
     if (!ac || !sfxOn || !SFX[name]) return;
     if (cozyOn && COZY_SKIP.has(name)) return;
+    if (onPlay) onPlay(name);
     SFX[name](ac.currentTime + 0.005, v);
   }
 
   return {
+    onSound(fn) { onPlay = fn; },
     setVoice(v) { if (v) voice = { pitch: v.pitch || 1, sig: v.sig || 0 }; },
     setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
     unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),

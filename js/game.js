@@ -868,6 +868,16 @@
     if (cat.flopK > 0.01) p.noShadow = true;
     // in the painted room the cat picks up the warm lamplight
     if (L && L.painted) { const n = S.nightness(env.hour); if (n > 0.05 && !env.lightsOff) p.tint = `rgba(255,170,125,${0.15 * n})`; }
+    // ease every pose into the next one, so the cat never snaps between positions
+    const prev = cat.pose;
+    if (prev && dt > 0 && cat.act !== 'trick' && cat.act !== 'trap') {
+      ['headY', 'headTilt', 'lean', 'pawL', 'pawR', 'pawLx', 'pawRx', 'loaf', 'earDroop', 'mouthOpen', 'blush', 'sx', 'sy', 'tongue'].forEach((k) => {
+        if (typeof p[k] === 'number' && typeof prev[k] === 'number') p[k] = U.damp(prev[k], p[k], k === 'pawL' || k === 'pawR' ? 22 : 12, dt);
+      });
+    }
+    // tail sways to the radio; whiskers twitch when your finger comes near
+    if (st && radioPlaying() && cat.act === 'idle') p.tailPhase = T * 4.2;
+    { const near = Math.hypot(ptr.x - cat.x, ptr.y - (cat.y - 110 * cs())); p.whisk = T - ptr.lastMove < 1 && near < 160 * cs() ? 1 - near / (160 * cs()) : 0; }
     cat.pose = p;
   }
 
@@ -1313,6 +1323,7 @@
   }
   function updateWorld(dt) {
     updateCozy(dt); updatePhoto(dt);
+    if (cat.purring && st && st.settings.haptics) { cat.purrHT = (cat.purrHT || 0) - dt; if (cat.purrHT <= 0) { cat.purrHT = 0.45; U.vibrate(4); } }
     const nightK = S.nightness(env.hour);
     env.fog = U.damp(env.fog || 0, (env.weather === 'rain' || env.season === 'winter') && nightK > 0.4 ? 1 : 0, 0.3, dt);
     env.radioOn = !!radioPlaying();
@@ -2443,7 +2454,7 @@
     if (mode === 'title' || mode === 'game') return;
     if (cozy.on) peekCozy();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
-    ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
+    ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = worldX(e.clientX); ptr.y = ptr.sy = worldY(e.clientY); ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
     ptr.target = null; ptr.blinked = false;
     ptr.hist = [{ x: ptr.x, y: ptr.y, t: performance.now() }];
     if (train.on && mode === 'room') { train.pts = [{ x: ptr.x, y: ptr.y }]; return; }
@@ -2464,7 +2475,7 @@
   }
   function onMove(e) {
     if (cozy.on && e.pointerType === 'mouse' && !cozy.peekT) peekCozy(3);
-    const x = e.clientX, y = e.clientY;
+    const x = worldX(e.clientX), y = worldY(e.clientY);
     const d = ptr.x > -900 ? Math.hypot(x - ptr.x, y - ptr.y) : 0;
     const nowMs = performance.now(), spd = d / Math.max(8, nowMs - (ptr.lastMs || 0)) * 1000;
     if (ptr.down && ptr.hist) { ptr.hist.push({ x, y, t: nowMs }); if (ptr.hist.length > 8) ptr.hist.shift(); }
@@ -2500,6 +2511,7 @@
           if (st.stats.pets % 6 === 0) addXP(1);
           track('pet');
           cared();
+          { const F = C.FURS[st.look.fur] || {}; for (let i = 0; i < 3; i++) S.emit({ type: 'fur', x: x + U.rand(-14, 14), y: y + U.rand(-6, 10), vy: -12, life: 0.6, size: U.rand(5, 9), color: U.rgba(F.shade || '#e8d6dc', 0.9) }); A.play('fur'); }
           st.bond.p.gentle++; HL.groom(st.health, 0.12); trust((spd < 900 ? 0.22 : 0.14) * (cat.zoneT > 0 ? 1.3 : 1));
           if (cat.act === 'flop' && hitCat(x, y) === 'belly' && ++cat.bellyRubs >= cat.trapAt) trap();
           if (cat.sulk > 0 && --cat.sulk === 0) { noteSet('forgave'); sayText('…もう、しょうがないなぁ', '…Fine. I forgive you.', true); setTimeout(headBump, 600); hint(null); }
@@ -2651,6 +2663,10 @@
     ctx2.restore();
   }
 
+  const cam = { z: 1, x: 0, y: 0 };
+  // pointer positions mapped back through the camera zoom
+  const worldX = (x) => (cam.z > 1.001 ? cam.x + (x - cam.x) / cam.z : x);
+  const worldY = (y) => (cam.z > 1.001 ? cam.y + (y - cam.y) / cam.z : y);
   function drawCatAt(lk, x, y) {
     const s = cs();
     if (cat.flopK < 0.01) { C.draw(ctx, lk, cat.pose, T, x, y, s); return; }
@@ -2682,6 +2698,10 @@
     if (DEV && window.__weather) env.weather = window.__weather;
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    { const tender = ['blink', 'bump', 'knead'].includes(cat.act) || (cat.trick === 'hifive' && cat.act === 'trick') || cat.petK > 0.5;
+      cam.z = U.damp(cam.z, tender && !photo.on && mode === 'room' && !RM ? 1.12 : 1, 1.6, 1 / 60);
+      cam.x = U.damp(cam.x, cat.x, 3, 1 / 60); cam.y = U.damp(cam.y, cat.y - 110 * cs(), 3, 1 / 60);
+      if (cam.z > 1.001) { ctx.translate(cam.x, cam.y); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y); } }
     ctx.clearRect(0, 0, W, H);
     env.drawOutsideParticles = (c) => { S.drawOutsideParts(c, T); if (st) { drawBirds(c); if (visitor.id) drawVisitor(c); } };
     env.lampOff = !!(st && st.lampOff);
@@ -3762,7 +3782,8 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
+  if (DEV) NB.Game.dbg = { cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

@@ -554,6 +554,7 @@ NB.Scene = (() => {
       ctx.save(); ctx.globalAlpha = a; ctx.translate(q.x, q.y); ctx.rotate(q.rot);
       const s = q.size;
       switch (q.type) {
+        case 'fur': ctx.strokeStyle = q.color; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, s, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); break;
         case 'heart': ctx.fillStyle = q.color; U.heart(ctx, 0, 0, s); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.7)'; U.ell(ctx, -s * 0.35, -s * 0.35, s * 0.18, s * 0.12, -0.6); ctx.fill(); break;
         case 'sparkle': ctx.fillStyle = q.color; U.star(ctx, 0, 0, s, 4, 0.3); ctx.fill(); break;
         case 'star': ctx.fillStyle = q.color; U.star(ctx, 0, 0, s, 5, 0.5); ctx.fill(); break;
