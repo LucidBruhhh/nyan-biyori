@@ -447,6 +447,16 @@ body.photo #hud, body.photo #actions, body.photo #modebar, body.photo #hint, bod
 .photo-preview.card img { max-height: 64dvh; }
 .persona .ptitle { margin: 0 0 6px; font-size: 14px; } .persona .ptitle b { color: var(--pink-deep); font-family: "Yusei Magic", var(--font); font-weight: 400; font-size: 17px; }
 .persona .btnrow { margin-top: 10px; }
+/* moments */
+.keepsakes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.keepsakes button { border: 0; padding: 6px 6px 4px; background: #fff; border-radius: 8px; box-shadow: 0 3px 0 #f0dde5; cursor: pointer; transform: rotate(-1.5deg); }
+.keepsakes button:nth-child(2n) { transform: rotate(1.5deg); }
+.keepsakes img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 3px; }
+.keepsakes small { font-size: 11px; color: var(--ink-soft); font-family: "Yusei Magic", var(--font); }
+.phrases { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 10px 0 14px; }
+.phrases button { border: 0; background: #fff; border-radius: 99px; padding: 7px 12px; font: 700 13px var(--font); color: var(--ink); box-shadow: 0 2px 0 #f0dde5; cursor: pointer; }
+.phrases button.on { background: var(--pink-deep); color: #fff; }
+.m-memory { display: block; width: 100%; border: 0; text-align: left; background: #f4efff; border-radius: 12px; padding: 7px 10px; margin: 6px 0; font: 700 13px "Yusei Magic", var(--font); color: #6a58b0; cursor: pointer; }
 /* wellbeing */
 #breathe { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 9; display: grid; place-items: center; text-align: center; pointer-events: none; --b: .55; }
 #breathe[hidden] { display: none; }

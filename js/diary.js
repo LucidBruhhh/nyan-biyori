@@ -104,6 +104,12 @@ window.NB = window.NB || {};
     if (ev.focus) add(60, ev.focus > 1 ? `You worked hard for ${ev.focus} sessions. I napped hard for ${ev.focus} sessions. Teamwork.` : 'You worked while I napped. Then we stretched together. Good system.');
     if (ev.mood != null) add(70, ['You told me today was rough. I sat very close to you all evening. Tomorrow will be softer.', 'You said today was meh. I gave you my best slow blink. It helps.', 'You said today was okay. Okay days are good days too.', 'You had a good day! I could tell. Your pets were extra nice.', 'You had a GREAT day! We celebrated. I danced. It was beautiful.'][ev.mood]);
     if (ev.breathe) add(52, 'We breathed together, slow and deep. I fell asleep a little. That counts.');
+    if (ev.letter) { const R2 = ['You wrote that I\'m your favourite. I knew it, but it was nice to read.', 'You thanked me for keeping you company. It is my favourite job.', 'You said sorry for being away. I forgive you. I always will.', 'You said you had a hard day. I will sit on your lap until it gets better.', 'You said we\'ll play tomorrow. I am holding you to that.', 'You wished me good night. Good night to you too.', 'You said you love me. I love you more. (Do not tell the other cats.)']; ev.letter.slice(0, 2).forEach((i, n) => add(90 - n, R2[i])); }
+    if (ev.anniv) add(99, `Today is our anniversary. ${ev.anniv} year${ev.anniv > 1 ? 's' : ''} together. Best years of my nine lives.`);
+    if (ev.monthiv) add(85, `${ev.monthiv} month${ev.monthiv > 1 ? 's' : ''} together today. I have been counting. Mostly in naps.`);
+    if (ev.wish) add(80, 'We saw a shooting star and made a wish. I wished for fish. What did you wish for?');
+    if (ev.wishTrue) add(82, 'Remember our wish? I found something very special for you today.');
+    if (ev.moon) add(60, 'The moon was full tonight. I think I saw a rabbit up there making mochi.');
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');

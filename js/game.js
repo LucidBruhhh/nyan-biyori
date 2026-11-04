@@ -396,6 +396,8 @@
     const e = st.diary.ev; (e.visits || (e.visits = [])).push(Math.floor(hourNow()));
     if (v.first) setTimeout(() => seasonPts(20), 3200);
     if (v.first && st.gift && st.gift.at && Date.now() - st.gift.at > 6 * 3600000 && bondStage() >= 1) { cat.sulk = 2; noteSet('ignoredGift'); setTimeout(() => sayText('…', '*glances at the present you never picked up*', true), 2200); }
+    if (v.first) setTimeout(celebrate, 800);
+    if (v.first && st.wish && st.wish !== U.dayKey()) { st.wish = null; st.gift = null; st.giftDay = U.dayKey(); const g = G.LIST.filter((x) => x.r >= 3); st.gift = { id: U.pick(g).id, x: 0.5 + U.rand(0.2, 0.3) * U.pick([-1, 1]), at: Date.now() }; noteSet('wishTrue'); }
     if (v.first && !st.gift && bondStage() >= 1 && st.giftDay !== U.dayKey() && Math.random() < 0.4 + 0.1 * bondStage()) {
       st.giftDay = U.dayKey();
       placeGift(0.5 + U.rand(0.2, 0.3) * U.pick([-1, 1]));
@@ -1323,7 +1325,7 @@
     });
   }
   function updateWorld(dt) {
-    updateCozy(dt); updatePhoto(dt); if (st) { updateWellbeing(dt); updateBreathing(); } if (st) updateRadioSleep();
+    updateCozy(dt); updatePhoto(dt); if (st) updateMagic(dt); if (st) { updateWellbeing(dt); updateBreathing(); } if (st) updateRadioSleep();
     if (cat.purring && st && st.settings.haptics) { cat.purrHT = (cat.purrHT || 0) - dt; if (cat.purrHT <= 0) { cat.purrHT = 0.45; U.vibrate(4); } }
     const nightK = S.nightness(env.hour);
     env.fog = U.damp(env.fog || 0, (env.weather === 'rain' || env.season === 'winter') && nightK > 0.4 ? 1 : 0, 0.3, dt);
@@ -1876,7 +1878,7 @@
     const crop = document.createElement('canvas'); crop.width = crop.height = Math.round(size * k);
     crop.getContext('2d').drawImage(canvas, (cx - size / 2) * DPR, (cy - size / 2) * DPR, size * DPR, size * DPR, 0, 0, crop.width, crop.height);
     const pic = NB.Share.frame(crop, photo.frame, st.name, `day ${daysTogether()} · ${catTitle()}`);
-    noteSet('photo'); P.bump(pers(), 'photo');
+    noteSet('photo'); P.bump(pers(), 'photo'); keepPhoto(pic);
     modal(`<div class="photo-preview"><img alt="Your photo" src="${pic.toDataURL('image/png')}"></div>
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Retake</button><button class="btn" data-ui="sharepic">シェア Share</button></div>`, 'photo', { replace: true });
     cozy.lastPic = pic;
@@ -1998,6 +2000,79 @@
     const hours = w.total >= 60 ? `${Math.floor(w.total / 60)}h ${w.total % 60}m` : `${w.total} min`;
     const pic = NB.Share.focusCard({ name: st.name, portrait: port, hours, sessions: w.sessions, days: w.days });
     sharePic(pic, `${st.name}-focus-week.png`, `I focused for ${hours} this week with ${st.name} · にゃん日和`);
+  }
+
+  /* ================= MOMENTS: birthdays, a photo album, letters, wishes on stars, the full moon ================= */
+  // celebrated on the first visit of the day
+  function celebrate() {
+    const days = daysTogether(), c = new Date(st.created), now = new Date();
+    if (st.celebrated === U.dayKey()) return;
+    if (days > 300 && c.getMonth() === now.getMonth() && c.getDate() === now.getDate()) {
+      st.celebrated = U.dayKey(); const years = now.getFullYear() - c.getFullYear();
+      setTimeout(() => {
+        for (let i = 0; i < 80; i++) S.emit({ type: 'confetti', x: U.rand(0, W), y: -10, vx: U.rand(-40, 40), vy: U.rand(80, 240), life: 5, size: U.rand(8, 12), rot: U.rand(0, 6), vr: U.rand(-8, 8), color: U.pick(['#ff6f9f', '#ffd34e', '#7fb6ff', '#9ad17f', '#c591ea']), sway: 50 });
+        A.play('fanfare'); sayText('たんじょうび！', `${years} year${years > 1 ? 's' : ''} together! Happy anniversary!`, true);
+        addCoins(200, cat.x, cat.y - 200 * catScale()); noteSet('anniv', years);
+      }, 3200);
+    } else if (days > 1 && (days - 1) % 30 === 0) {
+      st.celebrated = U.dayKey(); const months = Math.round((days - 1) / 30);
+      setTimeout(() => { S.burst('heart', cat.x, cat.y - 180 * catScale(), 12, { p: { color: '#ff6f9f', size: 10 } }); A.play('success'); sayText('いっしょに！', `${months} month${months > 1 ? 's' : ''} together!`, true); addCoins(50, cat.x, cat.y - 200 * catScale()); noteSet('monthiv', months); }, 3200);
+    }
+  }
+  // "on this day": a diary page from a week, a month or a year ago
+  function onThisDay() {
+    for (const back of [365, 30, 7]) {
+      const k = U.dayKey(new Date(Date.now() - back * 86400000)), i = st.diary.pages.findIndex((p) => p.day === k && !p.title);
+      if (i >= 0) return { back, i, line: st.diary.pages[i].lines[1] || st.diary.pages[i].lines[0] };
+    }
+    return null;
+  }
+  // photos you take are kept as small keepsakes in the album
+  function keepPhoto(pic) {
+    const c = document.createElement('canvas'), s = 260 / Math.max(pic.width, pic.height);
+    c.width = Math.round(pic.width * s); c.height = Math.round(pic.height * s);
+    c.getContext('2d').drawImage(pic, 0, 0, c.width, c.height);
+    st.album = (st.album || []).concat({ d: U.dayKey(), img: c.toDataURL('image/jpeg', 0.72) }).slice(-12);
+    save();
+  }
+  function albumPhotosHTML() {
+    const a = st.album || [];
+    return `<h3>しゃしん <small>Photos · ${a.length}/12 keepsakes</small></h3>${a.length ? `<div class="keepsakes">${a.slice().reverse().map((p, i) => `<button data-keep="${a.length - 1 - i}"><img alt="Photo from ${p.d}" src="${p.img}"><small>${p.d.split('-').slice(1).join('/')}</small></button>`).join('')}</div>` : '<p class="sub">Photos you take in photo mode are kept here.</p>'}`;
+  }
+  // letters you write; the cat answers in tomorrow's diary
+  const LETTER_LINES = ["You're my favourite", 'Thank you for keeping me company', 'Sorry I was away', 'I had a hard day', "Let's play tomorrow", 'Good night', 'I love you'];
+  function openLetter() {
+    modal(`<div class="letter"><div class="envelope">✉</div><h2>てがみ <small>Write to ${st.name}</small></h2>
+      <p class="sub">Pick up to three lines.</p><div class="phrases">${LETTER_LINES.map((l, i) => `<button data-phrase="${i}">${l}</button>`).join('')}</div>
+      <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Cancel</button><button class="btn" data-ui="sendletter">Send ✉</button></div></div>`, 'letter', { replace: true });
+  }
+  function sendLetter() {
+    const picked = [...document.querySelectorAll('.phrases .on')].map((b) => +b.dataset.phrase);
+    if (!picked.length) { toast('Pick at least one line'); return; }
+    noteSet('letter', picked); closeModal(); A.play('page');
+    setTimeout(() => { sayText('…♡', `*${st.name} reads your letter very carefully*`, true); S.burst('heart', cat.x, cat.y - 180 * catScale(), 8, { p: { color: '#ff6f9f', size: 9 } }); trust(0.4); }, 500);
+  }
+  // a shooting star now and then on clear nights: tap it to make a wish
+  const star = { t: -1, x: 0 };
+  function updateMagic(dt) {
+    const night = S.nightness(env.hour);
+    if (star.t >= 0) { star.t += dt; if (star.t > 5) star.t = -1; }
+    if (mode === 'room' && night > 0.6 && env.weather === 'clear' && st.starDay !== U.dayKey() && Math.random() < dt / 300) {
+      st.starDay = U.dayKey(); star.t = 0; star.x = U.rand(0.5, 0.9);
+      const w = L.win; for (let i = 0; i < 14; i++) S.emit({ type: 'sparkle', x: w.x + w.w * star.x - i * 10, y: w.y + 26 + i * 6, vx: -240, vy: 120, life: 0.7 + i * 0.03, size: 7 - i * 0.4, color: '#fffbe0' }, S.outside);
+      A.play('sparkle'); if (!cozy.on) hint('🌠 A shooting star! Tap the window quickly to make a wish');
+      if (cat.act === 'idle' && !cat.perch) { cat.lookTarget = { x: 0.6, y: -0.8 }; cat.lookT = 3; }
+    }
+    // full moon nights: the cat gazes at the moon
+    if (mode === 'room' && night > 0.6 && fullMoon() && st.moonDay !== U.dayKey() && Math.random() < dt / 120) {
+      st.moonDay = U.dayKey(); startExplore('sill'); setTimeout(() => sayText('おつきさま…', '*gazes at the full moon*', true), 4000); noteSet('moon');
+    }
+  }
+  function fullMoon() { const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14); const age = (((Date.now() - ref) / 86400000) % syn + syn) % syn; return Math.abs(age - syn / 2) < 1.2; }
+  function makeWish() {
+    star.t = -1; st.wish = U.dayKey(); hint(null); A.play('chime');
+    sayText('…', `*${st.name} closes its eyes and wishes too*`, true); noteSet('wish');
+    toast('🌠 You made a wish. Something nice might be waiting tomorrow…');
   }
 
   /* ================= FOCUS TIMER: work beside a napping cat, stretch together on breaks ================= */
@@ -2656,6 +2731,7 @@
     else if (tg.type === 'tower') { A.play('boing'); if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) startExplore('tower'); }
     else if (tg.type === 'bowls') { A.play('bubble'); S.burst('sparkle', ptr.x, ptr.y - 10, 6, { p: { color: '#bfe3ff', size: 6 } }); if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) startExplore('drink'); }
     else if (tg.type === 'flowers') { S.burst('petal', ptr.x, ptr.y, 8, { p: { color: env.season === 'autumn' ? '#ff8a4c' : '#ffb3cb', size: 8, g: 120, life: 1.6 } }); A.play('chime'); }
+    else if (tg.type === 'window' && star.t >= 0) makeWish();
     else if (tg.type === 'window' && env.fog > 0.3) { (env.wipes = env.wipes || []).push({ x: ptr.x, y: ptr.y, t: T }); A.play('sweep'); if (!st.bond.firsts.fog) { st.bond.firsts.fog = Date.now(); toast('🐾 You drew a paw print on the foggy glass'); } }
     else if (tg.type === 'window') {
       if (S.nightness(env.hour) < 0.5) { if (birds.length < 3) spawnBird(); A.play('tap'); }
@@ -3369,6 +3445,8 @@
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
       ${bondHTML()}
       ${personaHTML()}
+      ${albumPhotosHTML()}
+      <div class="btnrow"><button class="btn ghost" data-ui="letter">✉ Write to ${st.name}</button></div>
       ${diaryHTML()}
       ${friendsHTML()}
       <h3>絆の道 <small>Kizuna Road · rewards for growing together</small></h3>
@@ -3530,6 +3608,7 @@
       </div>
       ${st.gift ? '<p class="m-note">✨ A little present is waiting on the floor</p>' : ''}
       ${fresh.map((u) => `<p class="m-new"><span>NEW</span> ${u.icon} ${u.text}</p>`).join('')}
+      ${(() => { const o = onThisDay(); return o ? `<button class="m-memory" data-diary="${o.i}">📖 ${o.back === 365 ? 'A year' : o.back === 30 ? 'A month' : 'A week'} ago today: “${o.line}”</button>` : ''; })()}
       <div class="btnrow">${diaryUnread() ? '<button class="btn ghost" data-ui="diary">📖 Diary</button>' : ''}<button class="btn ghost" data-ui="daily">おつとめ Tasks</button><button class="btn" data-ui="closemodal">ただいま！</button></div></div>`, 'morning', {
       onShow: (m) => C.portrait(m.querySelector('#mcat'), look(), { zoom: 1.05, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'happy', blush: 0.9, mouth: 'w', pawR: 0.8 } }),
     });
@@ -3677,8 +3756,10 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-mood],[data-sleep],[data-amb],[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-keep],[data-phrase],[data-mood],[data-sleep],[data-amb],[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.phrase != null) { const on = document.querySelectorAll('.phrases .on').length; if (el.classList.contains('on') || on < 3) el.classList.toggle('on'); return; }
+    if (el.dataset.keep != null) { const p = (st.album || [])[+el.dataset.keep]; if (p) modal(`<div class="photo-preview"><img alt="Keepsake photo" src="${p.img}"></div><p class="sub">${p.d}</p><div class="btnrow"><button class="btn" data-ui="closemodal">とじる Close</button></div>`, 'photo'); return; }
     if (el.dataset.mood != null) { setMood(+el.dataset.mood); return; }
     if (el.dataset.sleep != null) { const m = +el.dataset.sleep; radioSleep.end = m ? Date.now() + m * 60000 : 0; radioSleep.mins = m; if (!m) A.setRadio(!!(st.radio && st.radio !== 'off'), radioVol()); toast(m ? `💤 The radio will fade out in ${m} minutes` : '💤 Sleep timer off'); openRadio(); return; }
     if (el.dataset.unfriend) { st.friendCats = (st.friendCats || []).filter((f) => f.key !== el.dataset.unfriend); save(); openAlbum(); return; }
@@ -3726,6 +3807,8 @@
       case 'focus': openFocusPanel(); break;
       case 'cozyphoto': startPhoto(); break;
       case 'focusstop': stopFocus(); break;
+      case 'letter': closeSheet(); openLetter(); break;
+      case 'sendletter': sendLetter(); break;
       case 'breathe': $('#focus-panel').hidden = true; startBreathing(); break;
       case 'focusweek': $('#focus-panel').hidden = true; shareFocusWeek(); break;
       case 'mood': askMood(true); break;
@@ -3880,7 +3963,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
