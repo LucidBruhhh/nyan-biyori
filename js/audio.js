@@ -209,6 +209,7 @@ NB.Audio = (() => {
     clack: (t) => { osc('square', 900, t, 0.04, 0.1, sfxBus); osc('sine', 320, t, 0.14, 0.22, sfxBus, { slide: 170, verb: true }); noise(t, 0.03, 0.18, sfxBus, 'bandpass', 2000, 3); },
     scratch: (t) => { noise(t, 0.09, 0.14, sfxBus, 'bandpass', U.rand(3000, 4200), 2, { a: 0.01 }); },
     sweep: (t) => { noise(t, 0.25, 0.2, sfxBus, 'bandpass', 1500, 1, { sweep: 4000, a: 0.05 }); },
+    page: (t) => { noise(t, 0.22, 0.12, sfxBus, 'bandpass', 2600, 1.2, { sweep: 1400, a: 0.04 }); noise(t + 0.12, 0.12, 0.07, sfxBus, 'highpass', 4000, 0.7); },
   };
   let rainNode = null;
   function setRain(on) {

@@ -1,7 +1,7 @@
 /* にゃん日和 — main game: state, cat AI, interaction, UI */
 'use strict';
 (() => {
-  const U = NB.U, D = NB.Data, S = NB.Scene, C = NB.Cat, A = NB.Audio, B = NB.Bond;
+  const U = NB.U, D = NB.Data, S = NB.Scene, C = NB.Cat, A = NB.Audio, B = NB.Bond, Di = NB.Diary, G = NB.Gifts;
   const $ = (q) => document.querySelector(q);
   const SAVE_KEY = 'nyanbiyori.save.v1';
   const DEV = /[?&]dev=1/.test(location.search);
@@ -43,6 +43,7 @@
       daily: null, streak: 0, bestStreak: 0, lastDailyDone: '', roadClaimed: [], found: [], lampOff: false,
       settings: { music: true, sfx: true, haptics: true, season: 'auto', english: true },
       bond: B.fresh(),
+      diary: Di.fresh(), gifts: {}, gift: null,
     };
   }
   function load() {
@@ -55,6 +56,7 @@
       if (!s.found) s.found = [];
       if (s.streak == null) { s.streak = 0; s.bestStreak = 0; s.lastDailyDone = ''; s.daily = null; }
       if (!s.bond) s.bond = B.migrate(s);
+      if (!s.diary) { s.diary = Di.fresh(); s.gifts = {}; s.gift = null; }
       s.name = cleanName(s.name);
       return s;
     } catch (e) { return null; }
@@ -184,6 +186,7 @@
   }
   function stageUp(i) {
     const sg = B.STAGES[i];
+    noteSet('stage', i);
     renderBond();
     A.play('success'); U.vibrate([20, 50, 20]);
     S.burst('heart', cat.x, cat.y - 160 * catScale(), 14, { p: { color: '#ff6f9f', size: 12, life: 1.6 } });
@@ -204,7 +207,7 @@
     if (v && v.stage > 0) stageUp(v.stage);
     if (mode !== 'room') { say('greet', true); return; }
     if (v && v.absentDays >= 3 && i >= 1) {
-      cat.sulk = 3 + Math.min(4, Math.floor(v.absentDays / 2)); setAct('refuse', 1.4); cat.dir = -1;
+      noteSet('sulk'); cat.sulk = 3 + Math.min(4, Math.floor(v.absentDays / 2)); setAct('refuse', 1.4); cat.dir = -1;
       sayText('ぷいっ', `*hmph* ${Math.floor(v.absentDays)} days is a long time…`, true); A.meow(0.85, 0.7);
       setTimeout(() => hint(`${st.name} missed you. Pet them gently to make up 🤍`), 2400);
       return;
@@ -232,7 +235,7 @@
     b.waited = key;
     const sp = spots(), bs = L.scale * depthAt(sp.bowls.y);
     goTo(sp.bowls.x - 34 * bs, () => {
-      cat.dir = 1; cat.waitAt = Date.now(); setAct('wait', 14);
+      cat.dir = 1; cat.waitAt = Date.now(); setAct('wait', 14); noteSet('waited', B.fmtH(fh));
       sayText('そろそろごはん？', `It's almost ${B.fmtH(fh)}… ${B.mealWord(fh)} time?`, true); A.meow(1.1);
       cat.thought = { need: 'hunger', t: 0, dur: 4 };
       if (!b.firsts.wait) { b.firsts.wait = Date.now(); setTimeout(() => toast(`${st.name} learned when you usually feed them 🍚`), 1600); }
@@ -240,11 +243,133 @@
     return true;
   }
   function roughPet() {
-    st.bond.p.rough++;
+    st.bond.p.rough++; noteAdd('rough');
     if (bondStage() <= 1) {
       cat.petK = 0; setAct('refuse', 1); sayText('にゃっ！', 'Too fast! Gently…', true); A.meow(0.85, 0.6); trust(-0.6);
       if (!st.bond.firsts.roughHint) { st.bond.firsts.roughHint = Date.now(); hint('Slow, gentle strokes build trust ♡'); }
     } else if (Math.random() < 0.4) sayText('ゆっくり〜', 'Gently~', true);
+  }
+
+  /* ================= DIARY & GIFTS ================= */
+  const GAME_NAMES = { catch: 'Fish Catch', taiko: 'Taiko', memory: 'Memory cards' };
+  // today's happenings, written up as a diary page once the day is over
+  function noteAdd(k, n = 1) { if (!st) return; diaryRoll(); st.diary.ev[k] = (st.diary.ev[k] || 0) + n; }
+  function noteSet(k, v = 1) { if (!st) return; diaryRoll(); st.diary.ev[k] = v; }
+  function notePush(k, v) { if (!st) return; diaryRoll(); const a = st.diary.ev[k] || (st.diary.ev[k] = []); if (!a.includes(v)) a.push(v); }
+  function writePage(day, ev) {
+    const sn = st.settings.season !== 'auto' ? st.settings.season : S.seasonOf(Di.parseDay(day).getMonth());
+    return Di.write(day, ev, { name: st.name, stage: bondStage(), season: sn, weather: NB.Habitat.weatherFor(day + sn, sn), foods: D.FOODS, gifts: G.LIST, games: GAME_NAMES });
+  }
+  function diaryRoll() {
+    const d = st.diary, today = U.dayKey();
+    if (d.day === today) return;
+    if (d.day) {
+      if (!Di.empty(d.ev)) d.pages.push(writePage(d.day, d.ev));
+      if (Di.daysBetween(d.day, today) >= 2 && bondStage() >= 1) d.pages.push(writePage(U.dayKey(new Date(Date.now() - 86400000)), { missed: true }));
+      if (d.pages.length > 60) d.pages.splice(0, d.pages.length - 60);
+    }
+    d.day = today; d.ev = {};
+  }
+  const diaryUnread = () => st && st.diary.pages.some((p) => p.unread);
+  function diaryPages() {
+    diaryRoll();
+    const list = st.diary.pages.slice();
+    if (!Di.empty(st.diary.ev)) list.push(Object.assign(writePage(st.diary.day, st.diary.ev), { today: true, unread: false }));
+    return list;
+  }
+  const MOOD_POSE = {
+    happy: { eyes: 'happy', blush: 0.8, mouth: 'w' }, proud: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.5, pawR: 0.8 },
+    lonely: { eyes: 'sad', earDroop: 0.45, mouth: 'flat' }, cross: { eyes: 'closed', mouth: 'flat', earDroop: 0.3 }, sleepy: { eyes: 'closed', blush: 0.6, mouth: 'w' },
+  };
+  function openDiary(i) {
+    const list = diaryPages();
+    if (!list.length) { toast(`${st.name} hasn't written anything yet. Check back tomorrow 📖`); return; }
+    if (i == null || isNaN(i)) { i = list.findIndex((p) => p.unread); if (i < 0) i = list.length - 1; }
+    i = U.clamp(i, 0, list.length - 1);
+    const p = list[i];
+    if (!p.today) st.diary.pages[i].unread = false;
+    const wx = Di.WX[p.wx] || Di.WX.clear;
+    modal(`<div class="diary"><div class="d-head"><b>${Di.label(p.day)}</b><span>${wx[0]} ${wx[1]}</span></div>
+      ${p.today ? '<p class="d-today">きょう · Today, still writing…</p>' : ''}
+      <canvas id="dcat" width="180" height="180"></canvas>
+      <div class="d-lines">${p.lines.map((l) => `<p>${l}</p>`).join('')}</div>
+      <p class="d-sign">— ${st.name} 🐾</p>
+      <div class="d-nav"><button data-diary="${i - 1}" ${i <= 0 ? 'disabled' : ''} aria-label="Older page">‹</button><span>${i + 1} / ${list.length}</span><button data-diary="${i + 1}" ${i >= list.length - 1 ? 'disabled' : ''} aria-label="Newer page">›</button></div>
+      <button class="btn" data-ui="closemodal">とじる Close</button></div>`, 'diarymodal', {
+      replace: true,
+      onShow: (m) => C.portrait(m.querySelector('#dcat'), look(), { zoom: 1.1, pose: MOOD_POSE[p.mood] || MOOD_POSE.happy }),
+    });
+    A.play('page'); renderHUD(true); checkAch();
+  }
+
+  const giftPos = () => ({ x: L.sx + st.gift.x * L.SW, y: L.catY + 12 });
+  function placeGift(fx) {
+    const g = G.pick(env.season, bondStage(), st.gifts);
+    st.gift = { id: g.id, x: U.clamp(fx, 0.1, 0.9) };
+    noteSet('gift', g.id);
+    if (!st.bond.firsts.giftHint) { st.bond.firsts.giftHint = Date.now(); setTimeout(() => hint(`${st.name} left you a present! Tap it ✨`), 3200); }
+  }
+  // arriving for the first time today: sometimes there's a present waiting by the zabuton
+  function arrive(hrs) {
+    diaryRoll();
+    const v = B.visit(st.bond, hourNow(), hrs);
+    const e = st.diary.ev; (e.visits || (e.visits = [])).push(Math.floor(hourNow()));
+    if (v.first && !st.gift && bondStage() >= 1 && st.giftDay !== U.dayKey() && Math.random() < 0.4 + 0.1 * bondStage()) {
+      st.giftDay = U.dayKey();
+      placeGift(0.5 + U.rand(0.2, 0.3) * U.pick([-1, 1]));
+    }
+    return v;
+  }
+  // once a day a close friend goes off exploring and comes back with something
+  function presentGift() {
+    st.giftLive = U.dayKey();
+    const s = catScale(), edge = cat.x < homeX() ? L.minX : L.maxX;
+    goTo(edge, () => {
+      setAct('groom', 1.2);
+      setTimeout(() => {
+        if (mode !== 'room' || st.gift) return;
+        goTo(U.clamp(homeX() + U.rand(-90, 90) * s, L.minX, L.maxX), () => {
+          cat.dir = cat.x < homeX() ? 1 : -1;
+          placeGift((cat.x + 52 * s * cat.dir - L.sx) / L.SW);
+          setAct('nod', 1.2); cat.happyT = 2; A.play('pop'); A.meow(1.3);
+          sayText('これ、あげる！', 'I found this for you!', true);
+          const p = giftPos(); S.burst('sparkle', p.x, p.y - 10, 10, { p: { color: '#fff3a8', size: 8 } });
+        }, false, L.catY);
+      }, 1300);
+    }, false, L.catY);
+  }
+  function drawFloorGift(c) {
+    const p = giftPos(), k = L.scale;
+    const pulse = 0.5 + 0.5 * Math.sin(T * 3);
+    c.fillStyle = `rgba(255,236,150,${0.35 + pulse * 0.3})`; U.ell(c, p.x, p.y, 36 * k, 11 * k); c.fill();
+    c.fillStyle = 'rgba(60,30,40,0.16)'; U.ell(c, p.x, p.y, 16 * k, 4.5 * k); c.fill();
+    G.draw(c, st.gift.id, p.x, p.y, k * 1.6, T);
+    if (Math.random() < 0.04 && !RM) S.emit({ type: 'sparkle', x: p.x + U.rand(-22, 22) * k, y: p.y - U.rand(8, 36) * k, vy: -18, life: 0.9, size: 6, color: '#fff3a8' });
+  }
+  function giftIcon(id, size = 56) { return iconCanvas((x, s) => G.draw(x, id, s / 2, s * 0.8, s / 34, 0), size); }
+  function collectGift() {
+    const g = G.get(st.gift.id), p = giftPos();
+    st.gift = null;
+    if (!g) return;
+    const isNew = !st.gifts[g.id];
+    st.gifts[g.id] = (st.gifts[g.id] || 0) + 1;
+    noteSet('giftTaken', 1);
+    S.burst('sparkle', p.x, p.y - 14, 14, { p: { color: '#fff3a8', size: 8 } });
+    A.play('sparkle'); U.vibrate(14);
+    if (g.coins) addCoins(g.coins, p.x, p.y - 40);
+    trust(0.3); addXP(5);
+    if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) { cat.dir = p.x > cat.x ? 1 : -1; setAct('nod', 1); }
+    sayText('えへん！', isNew ? 'Do you like it?' : 'Another one for you!', true); A.meow(1.25);
+    const owned = Object.keys(st.gifts).length;
+    modal(`<div class="giftcard r${g.r}"><div class="burst"></div><canvas id="giftic"></canvas>
+      <p class="rar">${G.RARITY[g.r]}</p><h2>${g.jp} <small>${g.en}</small></h2>
+      <p>${st.name} brought you a present!</p><p class="sub">${g.note}</p>
+      ${isNew ? '<p><span class="newbest">NEW in your collection!</span></p>' : `<p class="sub">You now have ${st.gifts[g.id]} of these.</p>`}
+      <p class="sub">Gift collection · ${owned}/${G.LIST.length}</p>
+      <button class="btn" data-ui="closemodal">ありがとう！ Thank you!</button></div>`, 'gift', {
+      onShow: (m) => { const c = m.querySelector('#giftic'); c.replaceWith(Object.assign(giftIcon(g.id, 110), { id: 'giftic' })); },
+    });
+    checkAch();
   }
 
   /* ================= XP / LEVEL ================= */
@@ -310,8 +435,10 @@
     renderHUD(true);
   }
   function cared() { const n = st.needs; track('allNeeds', Math.min(n.hunger, n.fun, n.clean, n.energy)); }
+  const NOTE_EV = { pet: 'pets', feed: 'meals', wand: 'wand', bath: 'bath', sleep: 'sleep', boop: 'boop' };
   function track(ev, val = 1) {
     if (!st) return;
+    if (NOTE_EV[ev]) noteAdd(NOTE_EV[ev]);
     ensureDaily();
     let changed = false;
     st.daily.list.forEach((d) => {
@@ -434,6 +561,7 @@
     const bi = bondStage();
     if (bi === 0 && Math.random() < 0.22) { startExploreBox(); return; }
     if (bi >= 3 && Math.random() < 0.12) { setAct('blink', 2.4); return; }
+    if (bi >= 2 && !st.gift && st.giftLive !== U.dayKey() && mood() > 55 && !cat.perch && !cat.inBox && Math.random() < 0.04) { presentGift(); return; }
     if (bi >= 2 && T - ptr.lastMove < 4 && B.has(st.bond, 'cuddly') && Math.random() < 0.25) { goTo(U.clamp(ptr.x, L.minX, L.maxX), () => { cat.happyT = 1; }, false, L.catY); return; }
     const [need, v] = lowestNeed();
     const r = Math.random();
@@ -620,15 +748,17 @@
     bird: ['すずめ', 'Bird watching', 'chattered at a sparrow'],
     bug: ['ちょうちょ', 'Bug chase', 'chased a butterfly'],
     tower: ['キャットタワー', 'Cat tower', 'climbed to the top of the cat tower'],
-    scratch: ['つめとぎ', 'Scratching post', 'sharpened her claws on the post'],
+    scratch: ['つめとぎ', 'Scratching post', 'sharpened their claws on the post'],
     drink: ['みず', 'Water bowl', 'had a refreshing drink'],
     sun: ['ひなたぼっこ', 'Sunbathing', 'sunbathed in a patch of light'],
   };
   function discover(id) {
     if (!st) return;
     track('explore');
+    notePush('did', id);
     if (st.found.includes(id)) return;
     st.found.push(id);
+    notePush('found', id);
     const d = DISCOVER[id];
     addXP(10);
     setTimeout(() => toast(`<span class="mini-hanko">${d[0]}</span><span><b>New discovery!</b><br>${st.name} ${d[2]} · +10 XP</span>`, 'ach'), 200);
@@ -997,7 +1127,7 @@
     n.fun = U.clamp(n.fun + f.fun, 0, 100);
     n.energy = U.clamp(n.energy + f.energy, 0, 100);
     st.stats.fed++;
-    if (!st.tasted.includes(f.id)) st.tasted.push(f.id);
+    if (!st.tasted.includes(f.id)) { st.tasted.push(f.id); notePush('newFoods', f.id); }
     const b = st.bond;
     B.count(b.foods, f.id); b.p[f.price > 0 ? 'treat' : 'plain']++;
     if (Date.now() - b.lastMealAt > 2 * 3600000) B.addHour(b.feedH, hourNow());
@@ -1005,7 +1135,8 @@
     const isFav = B.fav(b.foods) === f.id && b.foods[f.id] >= 4, waited = Date.now() - cat.waitAt < 15 * 60000;
     cat.waitAt = 0;
     trust(0.6 + (isFav ? 0.4 : 0) + (waited ? 0.6 : 0));
-    if (isFav) n.fun = U.clamp(n.fun + 4, 0, 100);
+    if (isFav) { n.fun = U.clamp(n.fun + 4, 0, 100); noteSet('favMeal', f.id); }
+    if (waited) noteSet('waitedFed');
     track('feed'); if (f.price > 0) track('treat');
     cared();
     if (!st.pendingPoop && Math.random() < 0.45) st.pendingPoop = U.rand(50, 140);
@@ -1212,6 +1343,7 @@
   }
   function propAt(x, y) {
     if (Math.hypot(x - ball.x, y - (ballY() + ball.h - ballR())) < ballR() * 1.8) return { type: 'ball' };
+    if (st.gift) { const p = giftPos(); if (Math.hypot(x - p.x, y - (p.y - 12 * L.scale)) < 30 * L.scale + 12) return { type: 'gift' }; }
     if (Math.abs(x - boxX()) < 70 * L.scale && y > L.catY - 80 * L.scale && y < L.catY + 10) return { type: 'box' };
     for (const b of bugs) if (Math.hypot(x - b.x, y - b.y) < 34) return { type: 'bug', b };
     for (let i = 0; i < st.poops.length; i++) { const px = L.sx + st.poops[i].x * L.SW; if (Math.hypot(x - px, y - (L.catY + 6) + 18) < 36) return { type: 'poop', i }; }
@@ -1235,11 +1367,12 @@
 
   function onDown(e) {
     if (mode === 'title' || mode === 'game') return;
-    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
     ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
     ptr.target = null;
     if (mode === 'play') { wand.tx = ptr.x; wand.ty = ptr.y; return; }
     if (mode === 'bath') return;
+    if (st.gift) { const gp = propAt(ptr.x, ptr.y); if (gp && gp.type === 'gift') { ptr.target = gp; return; } }
     const hit = hitCat(ptr.x, ptr.y);
     if (hit && mode === 'room' && bondStage() === 0 && st.bond.trust < 12 && !cat.inBox && cat.act !== 'eat' && Math.random() < 0.35) {
       setAct('boop', 0.6); sayText('…！', '*flinches*', true); A.meow(1.5, 0.35);
@@ -1277,7 +1410,7 @@
           track('pet');
           cared();
           st.bond.p.gentle++; trust(spd < 900 ? 0.22 : 0.14);
-          if (cat.sulk > 0 && --cat.sulk === 0) { sayText('…もう、しょうがないなぁ', '…Fine. I forgive you.', true); setTimeout(headBump, 600); hint(null); }
+          if (cat.sulk > 0 && --cat.sulk === 0) { noteSet('forgave'); sayText('…もう、しょうがないなぁ', '…Fine. I forgive you.', true); setTimeout(headBump, 600); hint(null); }
           else if (B.has(st.bond, 'tsun') && Math.random() < 0.03) sayText('べ、べつに…', 'I-it’s not like I like this…', true);
           if (st.stats.pets % 15 === 0) say('pet', true);
           U.vibrate(4);
@@ -1300,6 +1433,7 @@
     if (!tap || !ptr.target) return;
     const tg = ptr.target;
     if (tg.type === 'cat') tapCat(tg.part);
+    else if (tg.type === 'gift') collectGift();
     else if (tg.type === 'poop') {
       const p = st.poops.splice(tg.i, 1)[0];
       const px = L.sx + p.x * L.SW;
@@ -1350,7 +1484,7 @@
     if (mode === 'sleep') { cat.petK = Math.min(1, cat.petK + 0.3); S.emit({ type: 'heart', x: ptr.x, y: ptr.y - 10, vy: -60, life: 1, size: 8, color: '#ff9dbf' }); return; }
     if (cat.act === 'eat') return;
     tapTimes = tapTimes.filter((t) => T - t < 2); tapTimes.push(T);
-    if (tapTimes.length >= 6) { tapTimes = []; st.bond.p.rough++; trust(-1); setAct('dizzy', 2.2); say('dizzy', true); A.play('boing'); return; }
+    if (tapTimes.length >= 6) { tapTimes = []; st.bond.p.rough++; trust(-1); noteSet('dizzy'); setAct('dizzy', 2.2); say('dizzy', true); A.play('boing'); return; }
     const s = catScale();
     if (part === 'nose') { track('boop'); setAct('boop', 0.7); say('boop', true); A.meow(1.45, 0.5); S.emit({ type: 'ring', x: ptr.x, y: ptr.y, life: 0.4, size: 10, color: '#ff8fb1' }); U.vibrate(12); }
     else if (part === 'belly') { setAct('swat', 0.6); say('belly', true); A.play('swat'); U.vibrate([6, 30, 6]); }
@@ -1438,6 +1572,7 @@
       add(sp.daruma.y, () => S.drawDaruma(ctx, sp.daruma.x, sp.daruma.y, L.scale * 0.95 * depthAt(sp.daruma.y), T + Math.sin(T * 14) * wobbleDaruma * 0.8));
     }
     if (env.decor.zabuton) add(L.catY - 2, () => S.drawZabuton(ctx, homeX(), L.catY + 4, L.scale * 0.92));
+    if (st && st.gift) add(L.catY + 8, () => drawFloorGift(ctx));
     if (st) st.poops.forEach((p, i) => add(L.catY + 6, () => S.drawPoop(ctx, L.sx + p.x * L.SW, L.catY + 6, L.scale * 0.9, T, i)));
     if (st && !cat.inBox) add(L.catY - 3, () => { drawBox(ctx, false); drawBox(ctx, true); });
     if (st) add(ballY(), () => drawBall(ctx));
@@ -1561,6 +1696,7 @@
     const omi = $('#btn-omikuji');
     omi.classList.toggle('ready', st.lastOmikuji !== U.dayKey());
     $('#btn-daily').classList.toggle('ready', !!dailyClaimable());
+    $('.profile-chip').classList.toggle('ready', !!diaryUnread());
   }
   function renderAvatar() {
     if (!st) return;
@@ -1755,7 +1891,7 @@
       if (!res) return;
       st.stats.games++;
       track('game');
-      B.count(st.bond.toys, id); st.bond.p.play += 2; trust(1);
+      B.count(st.bond.toys, id); st.bond.p.play += 2; trust(1); notePush('games', id);
       cared();
       if (id === 'catch') track('catchScore', res.best.catch);
       if (id === 'taiko') track('taikoCombo', res.best.taikoCombo);
@@ -1795,7 +1931,7 @@
       let r = Math.random() * total, res = D.OMIKUJI[0];
       for (const o of D.OMIKUJI) { if ((r -= o.w) <= 0) { res = o; break; } }
       st.lastOmikuji = U.dayKey(); st.lastFortune = res.jp; st.stats.omikuji++; track('omikuji');
-      if (res.jp === '大吉') { st.stats.daikichi++; A.play('fanfare'); } else A.play('success');
+      if (res.jp === '大吉') { st.stats.daikichi++; noteSet('daikichi'); A.play('fanfare'); } else A.play('success');
       const num = U.randi(1, 99);
       modal(`<div class="omi result"><div class="slip"><div class="no">第${num}番</div><div class="fortune-jp">${res.jp}</div><div class="ro">${res.ro}</div><p class="en">${res.en}</p><p class="msg">“${res.msg}”</p></div>
         <p class="reward">+${res.coins} <i class="koban"></i></p><button class="btn" data-ui="closemodal">ありがとう！</button></div>`, 'omikuji', { replace: true });
@@ -1817,6 +1953,15 @@
       ${tr.length ? `<div class="traits">${tr.map((t) => `<span class="trait"><b>${t[0]}</b>${t[1]}</span>`).join('')}</div>` : '<p class="sub">Their personality takes shape from how you care for them…</p>'}
       <ul class="mem">${mem.length ? mem.map((m) => `<li><i>${m[0]}</i><span>${m[1]}</span></li>`).join('') : `<li><i>💭</i><span>${st.name} is still getting to know you.</span></li>`}</ul></div>`;
   }
+  function diaryHTML() {
+    const pages = diaryPages(), last = pages[pages.length - 1], unread = st.diary.pages.filter((p) => p.unread).length;
+    const owned = Object.keys(st.gifts).length;
+    return `<h3>にっき <small>${st.name}'s diary · ${st.diary.pages.length} page${st.diary.pages.length === 1 ? '' : 's'}</small></h3>
+      <button class="diary-peek" data-ui="diary">${unread ? `<span class="new">${unread} NEW</span>` : ''}<b>📖 ${last ? Di.label(last.day) + (last.today ? ' · today' : '') : 'Nothing yet'}</b>
+      <span>${last ? last.lines[1] || last.lines[0] : `${st.name} writes a page at the end of each day you spend together.`}</span></button>
+      <h3>おくりもの <small>Gifts from ${st.name} · ${owned}/${G.LIST.length}</small></h3>
+      <div class="giftgrid">${G.LIST.map((g) => { const n = st.gifts[g.id]; return `<div class="gitem r${g.r} ${n ? 'got' : ''}" data-gift-icon="${g.id}"><b>${n ? g.jp : '？？？'}</b><small>${n ? g.en + (n > 1 ? ` ×${n}` : '') : g.season ? `Only in ${g.season}` : G.RARITY[g.r].split(' ')[1]}</small></div>`; }).join('')}</div>`;
+  }
   function openAlbum() {
     const days = Math.max(1, Math.floor((Date.now() - st.created) / 86400000) + 1);
     const t = titleFor(st.level);
@@ -1828,6 +1973,7 @@
       <li>Pets <b>${st.stats.pets}</b> · Meals <b>${st.stats.fed}</b> · Baths <b>${st.stats.baths}</b></li>
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
       ${bondHTML()}
+      ${diaryHTML()}
       <h3>絆の道 <small>Kizuna Road · rewards for growing together</small></h3>
       <div class="road">${D.ROAD.map((r) => { const l = roadLabel(r); const got = st.level >= r.lv; return `<div class="node ${got ? 'got' : ''} ${r.lv === st.level + 1 ? 'next' : ''}"><div class="lv">Lv ${r.lv}</div><div class="gift" data-road-icon="${r.acc || r.decor || ''}">${l.kind === 'coins' ? '<i class="koban"></i>' : ''}</div><b>${l.kind === 'coins' ? l.jp : l.jp}</b><small>${l.kind === 'coins' ? 'koban' : l.en}</small>${r.note ? `<em>${r.note}</em>` : ''}${got ? '<span class="ok">✓</span>' : ''}</div>`; }).join('')}</div>
       <h3>はっけん <small>Discoveries · ${st.found.length}/${Object.keys(DISCOVER).length}</small></h3>
@@ -1841,6 +1987,7 @@
         if (a) { const c = document.createElement('canvas'); c.width = c.height = 104; c.style.width = c.style.height = '52px'; C.portrait(c, { fur: st.look.fur, eye: st.look.eye, acc: { [a.slot]: a.id } }, a.slot === 'head' ? { zoom: 1 } : { zoom: 0.75, full: true }); el.appendChild(c); }
         else el.appendChild(decorIcon(id, 52));
       });
+      sh.querySelectorAll('[data-gift-icon]').forEach((el) => el.prepend(giftIcon(el.dataset.giftIcon, 46)));
       const road = sh.querySelector('.road .next'); if (road) road.scrollIntoView({ inline: 'center', block: 'nearest' });
       const c = sh.querySelector('#albumcat');
       C.portrait(c, look(), { zoom: 0.92, full: true, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'sparkle', blush: 0.8, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0, pawR: 0.8 } });
@@ -1864,7 +2011,7 @@
       <p class="sub">Your progress saves automatically on this device. Copy the backup code to move it to another device or keep it safe.</p>
       <div class="btnrow"><button class="btn ghost" data-ui="export">Copy backup code</button><button class="btn ghost" data-ui="import">Restore from code</button></div>
       <button class="btn danger" data-ui="reset">Start over…</button>
-      ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button></div>' : ''}
+      ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button><button class="btn ghost" data-ui="dev-gift">Gift</button><button class="btn ghost" data-ui="dev-day">Next day</button></div>' : ''}
       <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>All art, music and sound are generated live in code. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
@@ -1904,6 +2051,7 @@
 
   /* ---------- Level up & achievements ---------- */
   function levelUp(gained = []) {
+    noteSet('lv', st.level);
     const t = titleFor(st.level);
     const bonus = 10 + st.level * 5;
     st.coins += bonus;
@@ -1969,7 +2117,8 @@
     modal(`<div class="letter"><div class="envelope">✉</div><h2>おかえり！ <small>Welcome back</small></h2>
       <p>While you were away for ${away}, <b>${st.name}</b> ${did.join(' and ')}.</p>
       <p>They found something shiny for you:</p><p class="reward">+${gift} <i class="koban"></i></p>
-      <p class="sign">— ${st.name} 🐾</p><button class="btn" data-ui="closemodal">ただいま！ I'm home</button></div>`, 'letter');
+      ${st.gift ? '<p>And they left a little present for you on the floor ✨</p>' : ''}
+      <p class="sign">— ${st.name} 🐾</p>${diaryUnread() ? `<button class="btn ghost" data-ui="diary">📖 ${st.name} wrote in their diary</button>` : ''}<button class="btn" data-ui="closemodal">ただいま！ I'm home</button></div>`, 'letter');
     setTimeout(() => greet(v), 400);
   }
 
@@ -2006,7 +2155,7 @@
     renderAvatar(); renderHUD(true);
     setMode(st.asleep ? 'sleep' : 'room');
     renderBond();
-    const v = B.visit(st.bond, hourNow(), off ? off.hrs : 0);
+    const v = arrive(off ? off.hrs : 0);
     if (fromBoot) setTimeout(() => welcomeBack(off, v), 700);
     if (st.tut < TUT.length) setTimeout(() => hint(TUT[st.tut][1]()), 2600);
     checkAch();
@@ -2072,7 +2221,7 @@
       A.resume();
       if (st && mode !== 'title') {
         const off = applyOffline();
-        if (off && off.hrs > 0.5) welcomeBack(off, B.visit(st.bond, hourNow(), off.hrs));
+        if (off && off.hrs > 0.5) welcomeBack(off, arrive(off.hrs));
         renderHUD(true);
       }
     }
@@ -2082,8 +2231,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.diary != null) { openDiary(+el.dataset.diary); return; }
     if (el.dataset.act) {
       const a = el.dataset.act;
       A.play('tap'); U.vibrate(6);
@@ -2112,6 +2262,7 @@
       case 'closemodal': closeModal(); renderHUD(true); break;
       case 'endmode': if (mode === 'sleep') wakeUp(); else { if (mode === 'bath' && !bath.done && st.needs.clean > 60) { st.stats.baths += 0; } setMode('room'); } break;
       case 'album': openAlbum(); break;
+      case 'diary': openDiary(); break;
       case 'settings': openSettings(); break;
       case 'omikuji': openOmikuji(); break;
       case 'daily': openDaily(); break;
@@ -2129,6 +2280,8 @@
       case 'dev-coins': addCoins(1000); break;
       case 'dev-lv': st.xp = xpNeed(st.level); addXP(0); closeSheet(); break;
       case 'dev-bond': { closeSheet(); const up = B.bump(st.bond, 15); if (up > 0) stageUp(up); renderBond(); break; }
+      case 'dev-gift': closeSheet(); st.gift = null; placeGift(U.rand(0.25, 0.75)); break;
+      case 'dev-day': closeSheet(); st.diary.day = U.dayKey(new Date(Date.now() - 86400000)); st.bond.lastVisit = ''; st.giftDay = ''; arrive(20); renderHUD(true); openDiary(); break;
       case 'dev-low': Object.keys(st.needs).forEach((k) => (st.needs[k] = 15)); renderHUD(true); break;
       default: break;
     }
@@ -2164,7 +2317,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

@@ -415,6 +415,35 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 .mem li:first-child { border-top: 0; }
 .mem b { color: var(--ink); }
 .item .fav { position: absolute; top: 6px; left: 6px; background: var(--pink-deep); color: #fff; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 7px; }
+/* diary */
+.diarymodal .modal-card { background: #fffdf6 repeating-linear-gradient(180deg, transparent 0 29px, #f6dfe7 29px 30px); text-align: left; }
+.diary { position: relative; }
+.d-head { display: flex; justify-content: space-between; align-items: baseline; font-family: "Yusei Magic", var(--font); color: var(--pink-deep); font-size: 19px; padding-bottom: 6px; border-bottom: 2px dashed #ffc7da; }
+.d-head span { color: var(--ink-soft); font-size: 15px; }
+.d-today { margin: 6px 0 0; font-size: 12px; font-weight: 800; color: #3d7be0; }
+.diary #dcat { float: right; width: 84px; height: 84px; margin: 8px 0 4px 8px; border-radius: 50%; background: #fff1f6; box-shadow: 0 3px 0 #f0dde5; }
+.d-lines { border-left: 2px solid #ffb3c8; padding-left: 12px; margin-top: 8px; }
+.d-lines p { font-family: "Yusei Magic", var(--font); font-size: 16px; line-height: 30px; margin: 0; color: #5b3a4a; }
+.d-lines p + p { text-indent: 1em; }
+.d-sign { clear: both; text-align: right; font-family: "Yusei Magic", var(--font); color: var(--pink-deep); margin: 6px 0; }
+.d-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 10px; font-weight: 800; color: var(--ink-soft); font-size: 13px; }
+.d-nav button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; box-shadow: 0 3px 0 #f0dde5; font-size: 22px; font-weight: 900; color: var(--pink-deep); cursor: pointer; }
+.d-nav button:disabled { opacity: .3; cursor: default; }
+.diarymodal .btn { display: block; margin: 0 auto; }
+.diary-peek { position: relative; display: block; width: 100%; text-align: left; border: 0; cursor: pointer; background: #fffdf6 repeating-linear-gradient(180deg, transparent 0 23px, #f6dfe7 23px 24px); border-radius: 18px; padding: 10px 14px; box-shadow: 0 4px 0 #f0dde5; font: inherit; color: var(--ink); }
+.diary-peek b { display: block; font-family: "Yusei Magic", var(--font); font-weight: 400; color: var(--pink-deep); font-size: 15px; }
+.diary-peek span:not(.new) { display: block; font-family: "Yusei Magic", var(--font); font-size: 14px; line-height: 24px; color: var(--ink-soft); }
+.profile-chip.ready .avatar-wrap::after { content: ""; position: absolute; top: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--pink-deep); border: 2px solid #fff; animation: pulse 1.4s infinite; }
+/* gifts */
+.giftcard canvas { display: block; margin: 0 auto -4px; }
+.giftcard .rar { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: 1px; color: var(--ink-soft); }
+.giftcard.r2 .rar { color: #3d7be0; } .giftcard.r3 .rar { color: #9b5de5; } .giftcard.r4 .rar { color: #d99a00; }
+.giftgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.gitem { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 8px; background: #fff; border-radius: 16px; box-shadow: 0 3px 0 #f0dde5; text-align: center; }
+.gitem b { font-size: 11.5px; line-height: 1.2; } .gitem small { font-size: 10.5px; color: var(--ink-soft); line-height: 1.2; }
+.gitem:not(.got) canvas { filter: brightness(0) opacity(.14); }
+.gitem:not(.got) b { color: #c9b3bd; }
+.gitem.got.r3 { box-shadow: 0 3px 0 #d9c2f5; } .gitem.got.r4 { box-shadow: 0 3px 0 #f5d77a; background: #fffbea; }
 /* discoveries */
 .finds { display: flex; flex-wrap: wrap; gap: 8px; }
 .find { display: flex; flex-direction: column; align-items: center; min-width: 78px; padding: 8px 10px; border-radius: 16px; background: #fff; box-shadow: 0 3px 0 #f0dde5; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); opacity: .6; }
