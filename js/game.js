@@ -24,6 +24,7 @@
     fun: `<svg viewBox="0 0 48 48"><path d="M24 41C8 30 4 22 4 16 4 10 9 6 14 6c4 0 8 2 10 6 2-4 6-6 10-6 5 0 10 4 10 10 0 6-4 14-20 25z" fill="#ff7aa8" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><ellipse cx="14" cy="15" rx="4" ry="2.5" fill="#fff" opacity=".8"/></svg>`,
     clean: `<svg viewBox="0 0 48 48"><circle cx="20" cy="26" r="13" fill="#dff1ff" stroke="#5a9fe0" stroke-width="3"/><circle cx="35" cy="14" r="7" fill="#dff1ff" stroke="#5a9fe0" stroke-width="2.5"/><ellipse cx="15" cy="21" rx="4" ry="2.5" fill="#fff"/><path d="M38 34l1.5 3 3 1.5-3 1.5L38 43l-1.5-3-3-1.5 3-1.5z" fill="#ffe27a"/></svg>`,
     energy: `<svg viewBox="0 0 48 48"><path d="M24 4l5.5 12.5L43 18l-10 9 3 14-12-7-12 7 3-14-10-9 13.5-1.5z" fill="#ffd34e" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="22" r="1.8" fill="${O}"/><circle cx="28" cy="22" r="1.8" fill="${O}"/><path d="M21 27q3 2 6 0" stroke="${O}" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+    cozy: `<svg viewBox="0 0 48 48"><path d="M31 7a17 17 0 1 0 11 25A15 15 0 0 1 31 7z" fill="#c9b6ff" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><path d="M16 27q2.5 2.5 5 0M24 27q2.5 2.5 5 0" stroke="${O}" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="38" cy="9" r="2" fill="#ffe27a"/><circle cx="43" cy="18" r="1.4" fill="#ffe27a"/></svg>`,
     sound: `<svg viewBox="0 0 48 48"><path d="M8 18h8l10-8v28l-10-8H8z" fill="#ffe27a" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><path d="M32 17q5 7 0 14M37 12q9 12 0 24" stroke="${O}" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`,
     mute: `<svg viewBox="0 0 48 48"><path d="M8 18h8l10-8v28l-10-8H8z" fill="#ddd" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><path d="M33 19l10 10M43 19L33 29" stroke="${O}" stroke-width="3" stroke-linecap="round"/></svg>`,
   };
@@ -166,6 +167,7 @@
     return { hrs, before };
   }
   function tickNeeds(dt) {
+    if (cozy.on) return; // the cat never gets hungry or sad while keeping you company
     const n = st.needs, h = dt / 3600;
     HL.drift(st.health, h);
     n.hunger = U.clamp(n.hunger - RATE.hunger * h, 0, 100);
@@ -631,13 +633,14 @@
   function setAct(a, dur = 1.5) { cat.act = a; cat.actT = 0; cat.actDur = dur; }
   function think() {
     if (mode !== 'room') return;
+    if (cozy.on) { cozyThink(); return; }
     if (cat.sulk > 0) { if (Math.random() < 0.3) sayText('ぷいっ', '*looks away*'); cat.dir = Math.random() < 0.5 ? -1 : 1; return; }
     if (waitForMeal()) return;
-    if (radioPlaying() && Math.random() < 0.07) { startDance(); return; }
+    if (radioPlaying() && Math.random() < 0.03) { startDance(); return; }
     const bi = bondStage();
     if (bi === 0 && Math.random() < 0.22) { startExploreBox(); return; }
     if (bi >= 3 && Math.random() < 0.12) { setAct('blink', 2.4); return; }
-    if (bi >= 2 && mood() > 60 && !cat.perch && !cat.inBox && Math.random() < 0.08) { flop(); return; }
+    if (bi >= 2 && mood() > 60 && !cat.perch && !cat.inBox && Math.random() < 0.03) { flop(); return; }
     { const h = hourNow(); if ((h >= 22 || h < 4) && st.needs.energy > 45 && T - cat.zoomiesT > 600 && Math.random() < 0.1) { zoomies(); return; } }
     if (bi >= 2 && !st.gift && st.giftLive !== U.dayKey() && mood() > 55 && !cat.perch && !cat.inBox && Math.random() < 0.04) { presentGift(); return; }
     if (bi >= 2 && T - ptr.lastMove < 4 && B.has(st.bond, 'cuddly') && Math.random() < 0.25) { goTo(U.clamp(ptr.x, L.minX, L.maxX), () => { cat.happyT = 1; }, false, L.catY); return; }
@@ -969,7 +972,7 @@
       if (Math.random() < dt * 2.5) S.emit({ type: 'note', ch: Math.random() < 0.5 ? '♪' : '♫', x: cat.x + U.rand(-50, 50) * s, y: cat.y - 170 * s, vy: -50, vx: U.rand(-20, 20), life: 1.3, size: 8, color: '#c591ea' });
       if (cat.actT > cat.actDur) { setAct('idle', 0.5); cat.happyT = 1.5; st.needs.fun = U.clamp(st.needs.fun + 4, 0, 100); }
     } else if (cat.act === 'flop') {
-      if (Math.random() < dt * 0.5) A.meow(1.4, 0.25);
+      if (Math.random() < dt * 0.06) A.meow(1.4, 0.25);
       if (cat.actT > cat.actDur) setAct('idle', 0.5);
     } else if (cat.act === 'trap') {
       if (cat.actT > cat.actDur) { setAct('idle', 0.5); cat.happyT = 1.5; sayText('えへへ', 'Hehe~', true); }
@@ -995,7 +998,7 @@
       if (Math.random() < dt * 4) A.play('bubble');
       if (cat.actT > cat.actDur) { st.needs.hunger = U.clamp(st.needs.hunger + 3, 0, 100); cat.happyT = 0.8; setAct('idle', 0.5); }
     } else if (cat.act === 'scratch') {
-      if (Math.random() < dt * 9) A.play('scratch');
+      if (Math.random() < dt * 3.5) A.play('scratch');
       if (cat.actT > cat.actDur) { st.needs.fun = U.clamp(st.needs.fun + 3, 0, 100); setAct('idle', 0.5); }
     } else if (cat.act === 'sunbathe') {
       st.needs.energy = U.clamp(st.needs.energy + dt * 0.35, 0, 100);
@@ -1100,7 +1103,7 @@
     if (ball.x > hi) { ball.x = hi; ball.vx = -Math.abs(ball.vx) * 0.7; }
     ball.rot += ball.vx * dt / ballR();
     // a rolling ball is irresistible
-    if (mode === 'room' && (Math.abs(ball.vx) > 80 || Math.abs(ball.vz) > 80) && cat.act === 'idle' && !cat.perch && !cat.inBox && !cat.hop && Math.random() < dt * 4) { cat.chase = 'ball'; goTo(ball.x, null, true, ball.z); }
+    if (mode === 'room' && (Math.abs(ball.vx) > 80 || Math.abs(ball.vz) > 80) && !cozy.on && cat.act === 'idle' && !cat.perch && !cat.inBox && !cat.hop && Math.random() < dt * 4) { cat.chase = 'ball'; goTo(ball.x, null, true, ball.z); }
   }
   function batBall() {
     const s = catScale();
@@ -1278,6 +1281,7 @@
     });
   }
   function updateWorld(dt) {
+    updateCozy(dt);
     if (st) updateVisitor(dt);
     if (st && mode === 'room' && !RM && Math.random() < dt * 0.5 && st.health.coat >= 80 && HL.vitality(st) >= 85) {
       const s = catScale();
@@ -1287,7 +1291,7 @@
     const target = T - ptr.lastMove < 3 && ptr.x > -900 ? (ptr.x / W - 0.5) * 2 : Math.sin(T * 0.12) * 0.5;
     env.par = U.damp(env.par || 0, target, 1.5, dt);
     if (env.home === 'tokyo') NB.Apartment.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('train'); });
-    else NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
+    else if (env.home === 'washitsu') NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
     const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
     if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }
     env.scrollSwing = Math.max(0, (env.scrollSwing || 0) - dt * 0.6);
@@ -1666,6 +1670,80 @@
     return `<h3>ともだち <small>Window visitors</small></h3><div class="friends">${V.LIST.map((v) => met.includes(v.id)
       ? `<div class="friend"><b>${v.jp}</b><small>${v.en}</small><span class="hearts">${'♥'.repeat(fr[v.id] || 0)}${'♡'.repeat(V.MAX_HEARTS - (fr[v.id] || 0))}</span></div>`
       : '<div class="friend unknown"><b>？？？</b><small>Not met yet</small></div>').join('')}</div>`;
+  }
+
+  /* ================= COZY MODE: a calm companion for a second screen or an iPad stand ================= */
+  const cozy = { on: false, auto: false, peekT: 0, toasts: [], modals: [], wake: null, clockT: 0, shift: 0 };
+  const cozyNight = () => { const h = hourNow(); return h >= 23 || h < 6; };
+  async function keepAwake(on) {
+    try {
+      if (on && 'wakeLock' in navigator && !cozy.wake) { cozy.wake = await navigator.wakeLock.request('screen'); cozy.wake.addEventListener('release', () => { cozy.wake = null; }); }
+      if (!on && cozy.wake) { cozy.wake.release(); cozy.wake = null; }
+    } catch (e) { /* the browser said no; the screen may still dim */ }
+  }
+  function enterCozy(auto) {
+    if (cozy.on || !st) return;
+    if (mode !== 'room') setMode('room');
+    if (train.on) endTrain(); if (arrange.on) endArrange();
+    closeSheet(); if (modalShowing) closeModal(); hint(null);
+    cozy.on = true; cozy.auto = !!auto; cozy.peekT = 0;
+    document.body.classList.add('cozy'); document.body.classList.remove('peek');
+    A.setCozy(true); A.setAmbience(st.settings.ambience || 'off');
+    keepAwake(true); renderClock();
+    getDown(); cat.chase = null; laser.on = false;
+    thinkT = 2;
+    if (!auto && !st.bond.firsts.cozy) { st.bond.firsts.cozy = Date.now(); setTimeout(() => { if (cozy.on) peekCozy(5); }, 600); }
+  }
+  function exitCozy() {
+    if (!cozy.on) return;
+    cozy.on = false; ptr.lastMove = T; // count leaving as activity so it doesn't slip straight back in
+    document.body.classList.remove('cozy', 'peek');
+    A.setCozy(false); A.setAmbience('off'); keepAwake(false);
+    // anything that happened while you relaxed shows up now
+    const held = cozy.modals.splice(0); held.forEach((m) => modal(m[0], m[1], m[2]));
+    const ts = cozy.toasts.splice(0, 3); ts.forEach((t, i) => setTimeout(() => toast(t[0], t[1]), 300 + i * 500));
+    cozy.toasts.length = 0;
+    renderHUD(true);
+  }
+  // a tap shows the controls for a few seconds
+  function peekCozy(sec = 4) {
+    cozy.peekT = sec; document.body.classList.add('peek');
+  }
+  function renderClock() {
+    const el = $('#cozy-clock'); if (!el) return;
+    el.hidden = st.settings.clock === false;
+    const d = new Date();
+    el.querySelector('b').textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    el.querySelector('small').textContent = `${d.getMonth() + 1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）`;
+    // drift a few pixels every ten minutes so nothing sits still on the screen for hours
+    const slot = Math.floor(Date.now() / 600000) % 6;
+    el.style.transform = `translate(${[0, 6, 12, 6, -4, 2][slot]}px, ${[0, 4, -2, 8, 4, -6][slot]}px)`;
+  }
+  function updateCozy(dt) {
+    if (!cozy.on) {
+      // drift into cozy mode after five quiet minutes in the room
+      if (st && st.settings.cozyAuto !== false && mode === 'room' && T - ptr.lastMove > 300 && !modalShowing && $('#sheet').hidden && !train.on && !arrange.on && !laser.on && !hide.on) enterCozy(true);
+      return;
+    }
+    if (cozy.peekT > 0) { cozy.peekT -= dt; if (cozy.peekT <= 0) document.body.classList.remove('peek'); }
+    cozy.clockT -= dt; if (cozy.clockT <= 0) { cozy.clockT = 10; renderClock(); if (!cozy.wake && !document.hidden) keepAwake(true); }
+  }
+  // calm activities only: long naps, loafing, window-watching, sunbathing, slow blinks, kneading
+  function cozyThink() {
+    thinkT = U.rand(14, 28);
+    if (cozyNight()) {
+      if (cat.act !== 'nap') goTo(homeX(), () => setAct('nap', U.rand(120, 300)), false, L.catY);
+      return;
+    }
+    const r = Math.random();
+    if (r < 0.32) goTo(homeX() + U.rand(-30, 30) * catScale(), () => setAct('nap', U.rand(45, 120)), false, L.catY);
+    else if (r < 0.48) startExplore('sill');
+    else if (r < 0.58 && env.sun && S.nightness(env.hour) < 0.5) startExplore('sun');
+    else if (r < 0.68 && shown('zabuton')) startExplore('knead');
+    else if (r < 0.78) { setAct('groom', U.rand(3, 5)); }
+    else if (r < 0.88 && bondStage() >= 2) setAct('blink', 2.6);
+    else if (r < 0.94) startExplore('tower');
+    else { cat.lookTarget = { x: U.rand(-1, 1), y: U.rand(-0.4, 0.3) }; cat.lookT = 6; }
   }
 
   /* ================= ROOM TOYS ================= */
@@ -2057,6 +2135,7 @@
 
   function onDown(e) {
     if (mode === 'title' || mode === 'game') return;
+    if (cozy.on) peekCozy();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
     ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
     ptr.target = null; ptr.blinked = false;
@@ -2078,6 +2157,7 @@
     if (prop) ptr.target = prop;
   }
   function onMove(e) {
+    if (cozy.on && e.pointerType === 'mouse' && !cozy.peekT) peekCozy(3);
     const x = e.clientX, y = e.clientY;
     const d = ptr.x > -900 ? Math.hypot(x - ptr.x, y - ptr.y) : 0;
     const nowMs = performance.now(), spd = d / Math.max(8, nowMs - (ptr.lastMs || 0)) * 1000;
@@ -2351,6 +2431,7 @@
     drawThought(ctx);
     drawSpeech(ctx);
     drawBlinkRing(ctx);
+    if (cozy.on && cozyNight()) { ctx.fillStyle = 'rgba(16,12,40,0.28)'; ctx.fillRect(0, 0, W, H); }
     if (arrange.on) drawArrange(ctx);
     if (mode === 'bath' && ptr.x > -900 && !RM) drawSponge(ctx);
   }
@@ -2393,7 +2474,7 @@
   function loop(ts) {
     if (!running) return;
     const busy = ptr.down || T - ptr.lastMove < 6 || mode !== 'room' || cat.act !== 'idle' || laser.on || S.parts.length > 20;
-    if (!busy && ts - last < 31) { requestAnimationFrame(loop); return; }
+    if ((cozy.on ? !ptr.down : !busy) && ts - last < (cozy.on ? 41 : 31)) { requestAnimationFrame(loop); return; }
     const dt = Math.min(0.05, (ts - last) / 1000 || 0.016);
     last = ts; T += dt;
     env.windT += dt;
@@ -2449,6 +2530,7 @@
   /* ================= UI: sheets, modals, toasts ================= */
   let sheetTimer = 0, modalTimer = 0;
   function openSheet(title, jp, html, onMount, cls = '') {
+    if (cozy.on) exitCozy();
     clearTimeout(sheetTimer);
     A.play('pop');
     const sh = $('#sheet');
@@ -2470,6 +2552,7 @@
   const modalQueue = [];
   let modalShowing = false;
   function modal(html, cls = '', opts = {}) {
+    if (cozy.on) { cozy.modals.push([html, cls, opts]); return $('#modal'); }
     const m = $('#modal');
     if (!opts.replace && modalShowing) { modalQueue.push([html, cls, opts]); return m; }
     modalShowing = true;
@@ -2493,6 +2576,7 @@
     }, 250);
   }
   function toast(msg, cls = '') {
+    if (cozy.on) { cozy.toasts.push([msg, cls]); return; }
     const t = document.createElement('div');
     t.className = 'toast ' + cls; t.innerHTML = msg;
     $('#toasts').appendChild(t);
@@ -2501,6 +2585,7 @@
   }
   let hintTimer = 0;
   function hint(msg) {
+    if (cozy.on && msg) return;
     const h = $('#hint');
     clearTimeout(hintTimer);
     if (!msg) { h.classList.remove('show'); return; }
@@ -2884,6 +2969,9 @@
     const iosHint = U.isIOS() && !U.standalone() ? `<div class="install-hint">📱 <b>iPhone/iPad:</b> tap <b>Share</b> → <b>Add to Home Screen</b> to play full-screen like an app. Turn off silent mode to hear sound.</div>` : '';
     const html = `
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
+      <h3>まったり <small>Cozy mode</small></h3>
+      ${tog('cozyAuto', 'Start cozy mode after 5 quiet minutes', 'じどう')}${tog('clock', 'Show a clock in cozy mode', 'とけい')}
+      <label class="row"><span><b>かんきょうおん</b> Cozy ambience</span><select data-set="ambience">${[['off', 'None'], ['rain', 'Rain on the window'], ['heater', 'Crackling heater'], ['city', 'Quiet city night']].map(([v, l]) => `<option value="${v}" ${(s.ambience || 'off') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       ${tog('music', 'Music', 'おんがく')}<label class="row vol"><span><b>ラジオ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${Math.round(radioVol() * 100)}" data-radio-vol aria-label="Radio volume"><output>${Math.round(radioVol() * 100)}%</output></label>${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
@@ -3192,6 +3280,8 @@
       case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'health': openHealth(); break;
       case 'endtrain': endTrain(); break;
+      case 'cozy': if (cozy.on) exitCozy(); else enterCozy(false); break;
+      case 'cozyexit': exitCozy(); break;
       case 'fullscreen': closeSheet(); toggleFullscreen(); break;
       case 'visitortreat': visitorTreat(); break;
       case 'capsule': spinCapsule(); break;
@@ -3334,7 +3424,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

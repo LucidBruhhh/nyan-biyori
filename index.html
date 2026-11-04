@@ -19,6 +19,8 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-mode="title">
+  <div id="cozy-clock" hidden><b></b><small></small></div>
+  <div id="cozy-bar"><span><b>まったり</b> Cozy mode · tap the cat to pet</span><button class="pill" data-ui="cozyexit">Exit 🌙</button></div>
   <canvas id="scene" aria-label="Your kitty's room. Stroke the cat to pet it."></canvas>
 
   <!-- HUD -->
@@ -32,6 +34,7 @@
         <div class="coins" aria-label="Koban coins"><i class="koban"></i><b id="coins">0</b></div>
         <button class="round" id="btn-daily" data-ui="daily" aria-label="Daily missions" data-icon-name="daily"></button>
         <button class="round" id="btn-omikuji" data-ui="omikuji" aria-label="Daily omikuji fortune" data-icon-name="omikuji"></button>
+        <button class="round" id="btn-cozy" data-ui="cozy" aria-label="Cozy mode" data-icon-name="cozy"></button>
         <button class="round" id="btn-sound" data-ui="sound" aria-label="Toggle sound" data-icon-name="sound"></button>
         <button class="round" data-ui="settings" aria-label="Settings" data-icon-name="settings"></button>
       </div>

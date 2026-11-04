@@ -3,6 +3,9 @@
 NB.Audio = (() => {
   const U = NB.U;
   let ac = null, master, musicBus, sfxBus, verb, verbSend;
+  let cozyOn = false, lastMeow = 0;
+  // in cozy mode only gentle sounds play; scratchy or bouncy ones are skipped
+  const COZY_SKIP = new Set(['scratch', 'clack', 'boing', 'swat', 'whoosh', 'bubble', 'shake', 'thunk', 'bounce', 'fail']);
   let musicOn = true, sfxOn = true, radioVol = 0.8, radioOn = false;
   const musicLevel = () => (musicOn ? 0.32 * (radioOn ? radioVol * 1.25 : 1) : 0);
   let mode = 'day', nextNoteTime = 0, step = 0, timer = null, melodyDeg = 4, purrNode = null;
@@ -234,6 +237,10 @@ NB.Audio = (() => {
   // Young cats sound higher, and every meow is a little different.
   function meow(pitch = 1, len = 1) {
     if (!ac || !sfxOn) return;
+    // never a wall of meows: at least a few seconds apart, and only now and then in cozy mode
+    const nowMs = Date.now();
+    if (nowMs - lastMeow < (cozyOn ? 180000 : 3500)) return;
+    lastMeow = nowMs;
     if (playMew(pitch, len)) return;
     const lv = (NB.state && NB.state.level) || 1;
     pitch *= (lv < 5 ? 1.18 : lv < 10 ? 1.08 : 1) * U.rand(0.95, 1.05);
@@ -350,6 +357,34 @@ NB.Audio = (() => {
     page: (t) => { noise(t, 0.22, 0.12, sfxBus, 'bandpass', 2600, 1.2, { sweep: 1400, a: 0.04 }); noise(t + 0.12, 0.12, 0.07, sfxBus, 'highpass', 4000, 0.7); },
   };
   let rainNode = null;
+  /* ---------- cozy ambience: rain on the window, a crackling heater, or the city at night ---------- */
+  let amb = null;
+  function loopNoise(type, freq, q, vol) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(vol, ac.currentTime + 2);
+    s.connect(f); f.connect(g); g.connect(sfxBus); s.start();
+    return { s, g };
+  }
+  function setAmbience(kind) {
+    if (!ac) return;
+    if (amb) {
+      const a = amb; amb = null; clearInterval(a.timer);
+      a.nodes.forEach((n) => { n.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6); setTimeout(() => { try { n.s.stop(); } catch (e) { /* stopped */ } }, 3000); });
+    }
+    if (!kind || kind === 'off') return;
+    const nodes = [], tick = { rain: 0, heater: 140, city: 4000 }[kind];
+    if (kind === 'rain') { nodes.push(loopNoise('bandpass', 1400, 0.5, 0.07)); nodes.push(loopNoise('highpass', 4500, 0.4, 0.025)); }
+    if (kind === 'heater') nodes.push(loopNoise('lowpass', 170, 1.2, 0.06));
+    if (kind === 'city') { nodes.push(loopNoise('lowpass', 260, 0.8, 0.055)); nodes.push(loopNoise('bandpass', 900, 0.3, 0.008)); }
+    amb = { kind, nodes, timer: tick ? setInterval(() => {
+      if (!sfxOn) return;
+      const t = ac.currentTime + Math.random() * 0.1;
+      if (kind === 'heater' && Math.random() < 0.55) noise(t, 0.01 + Math.random() * 0.02, 0.02 + Math.random() * 0.05, sfxBus, 'highpass', 2200 + Math.random() * 2500, 0.8);
+      if (kind === 'city' && Math.random() < 0.06) SFX.train(t);
+    }, tick) : 0 };
+  }
+
   function setRain(on) {
     if (!ac) return;
     if (on && !rainNode) {
@@ -367,10 +402,12 @@ NB.Audio = (() => {
   }
   function play(name, v) {
     if (!ac || !sfxOn || !SFX[name]) return;
+    if (cozyOn && COZY_SKIP.has(name)) return;
     SFX[name](ac.currentTime + 0.005, v);
   }
 
   return {
+    setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
     unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
     get mode() { return mode; },

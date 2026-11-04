@@ -331,6 +331,7 @@ body[data-mode="play"] #scene { cursor: grab; }
 body:has(.sheet.open) .devbar, body:has(#modal.open) .devbar { display: none; }
 .devbar a, .devbar button { color: #fff; text-decoration: none; background: #4a3d5c; border: 0; border-radius: 99px; padding: 4px 8px; font: inherit; cursor: pointer; }
 @media (max-width: 420px) {
+  #btn-cozy { position: absolute; right: calc(var(--safe-r) + 12px); top: calc(100% + 52px); width: 36px; height: 36px; padding: 6px; }
   #btn-sound { position: absolute; right: calc(var(--safe-r) + 12px); top: calc(100% + 8px); width: 36px; height: 36px; padding: 6px; }
   .coins { padding: 8px 10px; }
 }
@@ -410,6 +411,18 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 #btn-sound.muted { background: #f1e6ec; }
 .steps { text-align: left; margin: 10px auto; padding-left: 22px; line-height: 1.8; font-size: 14px; max-width: 280px; }
 .share-ic { display: inline-block; padding: 0 5px; border: 1.5px solid #7fb6ff; border-radius: 5px; color: #3d7be0; font-size: 12px; }
+/* cozy mode */
+#cozy-clock, #cozy-bar { display: none; }
+body.cozy #hud, body.cozy #actions, body.cozy #modebar, body.cozy #hint, body.cozy #toasts, body.cozy .devbar { opacity: 0; pointer-events: none; transition: opacity .8s; }
+body.cozy.peek #hud, body.cozy.peek #actions { opacity: 1; pointer-events: auto; }
+body.cozy #cozy-clock:not([hidden]) { display: flex; flex-direction: column; position: fixed; left: calc(var(--safe-l) + 22px); bottom: calc(var(--safe-b) + 22px); z-index: 4; color: rgba(255,255,255,.88); text-shadow: 0 2px 12px rgba(40,20,50,.45); pointer-events: none; transition: transform 4s ease; }
+#cozy-clock b { font-family: "Yusei Magic", var(--font); font-weight: 400; font-size: 46px; line-height: 1; }
+#cozy-clock small { font-family: "Yusei Magic", var(--font); font-size: 15px; opacity: .85; }
+body.cozy #cozy-bar { display: flex; position: fixed; left: 50%; top: calc(var(--safe-t) + 14px); transform: translateX(-50%); z-index: 8; align-items: center; gap: 10px; padding: 6px 6px 6px 16px; border-radius: 30px; background: var(--card); box-shadow: var(--shadow); white-space: nowrap; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .5s; }
+body.cozy.peek #cozy-bar { opacity: 1; pointer-events: auto; }
+body.cozy.peek #hud { opacity: 0; pointer-events: none; }
+#cozy-bar b { color: #8a6fd1; }
+#btn-cozy svg { width: 100%; height: 100%; }
 /* radio */
 .stations { display: grid; gap: 8px; margin-bottom: 12px; }
 .station { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fff; border: 0; border-radius: 16px; padding: 12px 14px; box-shadow: 0 3px 0 #f0dde5; font: inherit; color: var(--ink); cursor: pointer; }
