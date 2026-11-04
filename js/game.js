@@ -1626,7 +1626,57 @@
     if (L.painted) { const { k, ox, oy } = L.painted, g = NB.Painted.ART.glassBox; return { x: ox + (g.x + 40 + visitor.x * (g.w - 80)) * k, y: oy + 600 * k, s: L.scale * 0.5 }; }
     return { x: L.win.x + L.win.w * (0.15 + visitor.x * 0.7), y: L.win.y + L.win.h - 4, s: L.scale * 0.42 };
   }
-  function spawnVisitor() {
+  /* ---------- friend cats: a short code carries a cat's look to a friend's window, no server needed ---------- */
+  function catCode() {
+    const p = pers(), t = P.title(p);
+    const data = { v: 1, n: st.name, f: st.look.fur, e: st.look.eye, a: [st.wear.head, st.wear.neck, st.wear.body], l: st.level, t: t ? t[1] : titleFor(st.level)[2], q: p.quirks };
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    let h = 0; for (const ch of b64) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return 'NYAN-' + b64 + '-' + (h % 1296).toString(36).toUpperCase().padStart(2, '0');
+  }
+  function readCode(code) {
+    const m = String(code || '').trim().match(/^NYAN-([A-Za-z0-9_-]+)-([A-Z0-9]{2})$/);
+    if (!m) return null;
+    let h = 0; for (const ch of m[1]) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    if ((h % 1296).toString(36).toUpperCase().padStart(2, '0') !== m[2]) return null;
+    try {
+      const d = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
+      if (!C.FURS[d.f] || !C.EYES[d.e]) return null;
+      const acc = {}; ['head', 'neck', 'body'].forEach((slot, i) => { const a = D.ACCESSORIES.find((x) => x.id === (d.a || [])[i] && x.slot === slot); if (a) acc[slot] = a.id; });
+      return { key: 'f:' + m[2] + cleanName(d.n), name: cleanName(d.n), look: { fur: d.f, eye: d.e, acc }, level: U.clamp(+d.l || 1, 1, 99), title: String(d.t || '').replace(/[<>&"'`\\]/g, '').slice(0, 24) };
+    } catch (e) { return null; }
+  }
+  function addFriendCat(code) {
+    const f = readCode(code);
+    if (!f) { toast("That code doesn't look right. Check it was copied completely."); A.play('fail'); return false; }
+    st.friendCats = st.friendCats || [];
+    if (st.friendCats.some((x) => x.key === f.key)) { toast(`${f.name} is already on your friends list`); return false; }
+    if (st.friendCats.length >= 8) st.friendCats.shift();
+    st.friendCats.push(f); A.play('success'); save();
+    toast(`🐾 ${f.name} will come to visit your window!`);
+    // first visit happens soon
+    st.visitDay = ''; setTimeout(() => { if (!visitor.id && mode === 'room') spawnVisitor(f.key); }, 4000);
+    return true;
+  }
+  const vget = (id) => {
+    if (!String(id).startsWith('f:')) return V.get(id);
+    const f = (st.friendCats || []).find((x) => x.key === id); if (!f) return null;
+    return { id, jp: f.name, en: f.name, title: `${f.title}, Lv ${f.level}`, look: f.look, friend: true,
+      story: [`${f.name} came all the way from a friend's home to say hi!`, `${f.name} and ${st.name} touched noses through the glass.`, `${f.name} brought news from their own room. Apparently it's very nice.`, `${f.name} stayed for a long time today. They seem to like it here.`, `${f.name} and ${st.name} are best friends now.`] };
+  };
+  async function shareCatCode() {
+    const code = catCode(), text = `Meet my cat ${st.name} in にゃん日和! Add this code under Album › Friends: ${code}`;
+    try { if (navigator.share) { await navigator.share({ title: 'にゃん日和', text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(code); toast('📋 Cat code copied! Send it to a friend.'); } catch (e) { prompt('Copy your cat code:', code); }
+  }
+  function spawnVisitor(force) {
+    const friendKeys = (st.friendCats || []).map((f) => f.key);
+    if (force || (friendKeys.length && Math.random() < 0.5)) {
+      const key = force || U.pick(friendKeys);
+      Object.assign(visitor, { id: key, x: U.rand(0.1, 0.9), t: 0, dur: U.rand(150, 300), fade: 0, greeted: false, reacted: false });
+      st.visitDay = U.dayKey(); P.bump(pers(), 'friend');
+      return;
+    }
     const pool = V.LIST.filter((v) => ((st.friends || {})[v.id] || 0) < V.MAX_HEARTS);
     const v = U.pick(pool.length ? pool : V.LIST);
     Object.assign(visitor, { id: v.id, x: U.rand(0.1, 0.9), t: 0, dur: U.rand(150, 300), fade: 0, greeted: false, reacted: false });
@@ -1654,14 +1704,14 @@
     }
   }
   function drawVisitor(c) {
-    const v = V.get(visitor.id); if (!v || visitor.fade < 0.02) return;
+    const v = vget(visitor.id); if (!v || visitor.fade < 0.02) return;
     const p = visitorPos(), pose = C.defaultPose();
     pose.blink = Math.sin(T * 1.3 + 1) > 0.97 ? 0 : 1; pose.tailPhase = T * 1.6; pose.lookX = U.clamp((cat.x - p.x) / 300, -1, 1); pose.lookY = 0.3;
     if (visitor.greeted) { pose.eyes = 'happy'; pose.blush = 0.8; }
     c.save(); c.globalAlpha = visitor.fade; C.draw(c, v.look, pose, T, p.x, p.y + (1 - visitor.fade) * 20, p.s); c.restore();
   }
   function openVisitor() {
-    const v = V.get(visitor.id); if (!v) return;
+    const v = vget(visitor.id); if (!v) return;
     st.friends = st.friends || {};
     const f = st.friends[v.id] || 0;
     modal(`<div class="visitor"><canvas id="vcat" width="200" height="200"></canvas>
@@ -1673,12 +1723,12 @@
     });
   }
   function visitorTreat() {
-    const v = V.get(visitor.id); if (!v || visitor.greeted) return;
+    const v = vget(visitor.id); if (!v || visitor.greeted) return;
     if (st.coins < V.TREAT_COST) { toast('Not enough koban for a treat'); A.play('fail'); return; }
     st.coins -= V.TREAT_COST; renderHUD(true);
     visitor.greeted = true;
     st.friends[v.id] = Math.min(V.MAX_HEARTS, (st.friends[v.id] || 0) + 1);
-    noteSet('visitor', v.id); A.play('success');
+    noteSet('visitor', v.id); if (v.friend) noteSet('friendVisit', v.en); A.play('success');
     const p = visitorPos(); S.burst('heart', p.x, p.y - 60 * p.s, 6, { p: { color: '#ff6f9f', size: 8 } });
     if (st.friends[v.id] >= V.MAX_HEARTS) { addCoins(150, p.x, p.y - 80); setTimeout(() => toast(`<span class="mini-hanko">ともだち</span><span><b>${v.en} is your friend for life!</b><br>+150 koban</span>`, 'ach'), 600); }
     openVisitor(); checkAch(); save();
@@ -1700,7 +1750,13 @@
     const met = st.friendsMet || [], fr = st.friends || {};
     return `<h3>ともだち <small>Window visitors</small></h3><div class="friends">${V.LIST.map((v) => met.includes(v.id)
       ? `<div class="friend"><b>${v.jp}</b><small>${v.en}</small><span class="hearts">${'♥'.repeat(fr[v.id] || 0)}${'♡'.repeat(V.MAX_HEARTS - (fr[v.id] || 0))}</span></div>`
-      : '<div class="friend unknown"><b>？？？</b><small>Not met yet</small></div>').join('')}</div>`;
+      : '<div class="friend unknown"><b>？？？</b><small>Not met yet</small></div>').join('')}</div>
+      <h3>なかま <small>Friends' cats · share codes to visit each other's windows</small></h3>
+      <div class="bondcard">
+        ${(st.friendCats || []).length ? `<div class="friends">${st.friendCats.map((f) => `<div class="friend"><b>${f.name}</b><small>${f.title}, Lv ${f.level}</small><span class="hearts">${'♥'.repeat(fr[f.key] || 0)}${'♡'.repeat(V.MAX_HEARTS - (fr[f.key] || 0))}</span><button class="x mini" data-unfriend="${f.key}" aria-label="Remove ${f.name}">✕</button></div>`).join('')}</div>` : '<p class="sub">No friends\' cats yet. Share your code, or paste a friend\'s below.</p>'}
+        <div class="btnrow"><button class="btn ghost" data-ui="sharecode">📤 Share ${st.name}'s code</button></div>
+        <label class="row code"><input id="friendcode" type="text" placeholder="NYAN-…" aria-label="Friend's cat code" autocomplete="off" spellcheck="false"><button class="btn mini" data-ui="addfriend">Add</button></label>
+      </div>`;
   }
 
   /* ================= PERSONALITY: quirks, likes and dislikes, moods, dreams ================= */
@@ -3496,8 +3552,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.unfriend) { st.friendCats = (st.friendCats || []).filter((f) => f.key !== el.dataset.unfriend); save(); openAlbum(); return; }
     if (el.dataset.pose) { A.play('tap'); setPose(el.dataset.pose); return; }
     if (el.dataset.frame) { A.play('tap'); photo.frame = el.dataset.frame; renderPhotoBar(); return; }
     if (el.dataset.sharepage != null) { shareDiaryPage(+el.dataset.sharepage); return; }
@@ -3542,6 +3599,8 @@
       case 'focus': openFocusPanel(); break;
       case 'cozyphoto': startPhoto(); break;
       case 'focusstop': stopFocus(); break;
+      case 'sharecode': shareCatCode(); break;
+      case 'addfriend': { const ok = addFriendCat($('#friendcode').value); if (ok) openAlbum(); break; }
       case 'photomode': startPhoto(); break;
       case 'photoclose': endPhoto(); break;
       case 'photoshoot': takePhoto(); break;
@@ -3690,7 +3749,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
