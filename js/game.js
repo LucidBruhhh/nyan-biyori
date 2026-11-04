@@ -825,6 +825,7 @@
       case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
       case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'stretch': { const k = Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)); p.sy *= 1 - k * 0.12; p.sx *= 1 + k * 0.1; p.pawL = p.pawR = 0.3 * k; p.pawLx = p.pawRx = 14 * k; p.eyes = 'closed'; p.mouth = 'yawn'; p.mouthOpen = k * 0.8; p.headY = 8 * k; p.tailPhase = T * 2; break; }
       case 'confused': p.headTilt = 0.22 * Math.sin(Math.min(1, cat.actT / 0.3) * Math.PI / 2); p.eyes = 'open'; p.earTwitchL = 0.4; p.mouth = 'flat'; break;
       case 'trick': {
         const k = Math.min(1, cat.actT / cat.actDur), sk = Math.sin(Math.PI * k);
@@ -1753,6 +1754,54 @@
     return false;
   }
 
+  /* ================= FOCUS TIMER: work beside a napping cat, stretch together on breaks ================= */
+  const focus = { phase: null, end: 0, work: 25, rest: 5, done: 0, bannerT: 0 };
+  const FOCUS_PRESETS = [[25, 5], [50, 10], [15, 3]];
+  function openFocusPanel() {
+    const el = $('#focus-panel');
+    el.innerHTML = `<b>⏱ しゅうちゅう Focus with ${st.name}</b>
+      <div class="fp-row">${FOCUS_PRESETS.map(([w, r]) => `<button class="pill" data-focus="${w}-${r}">${w} / ${r} min</button>`).join('')}</div>
+      ${focus.phase ? '<button class="pill ghost" data-ui="focusstop">Stop</button>' : '<small>' + st.name + ' naps while you work, and stretches with you on breaks.</small>'}`;
+    el.hidden = false; peekCozy(8);
+  }
+  function startFocus(w, r) {
+    if (!cozy.on) enterCozy(false);
+    Object.assign(focus, { phase: 'focus', end: Date.now() + w * 60000, work: w, rest: r, done: 0 });
+    $('#focus-panel').hidden = true;
+    A.play('chime');
+    goTo(homeX(), () => setAct('nap', w * 60), false, L.catY);
+    renderClock();
+  }
+  function stopFocus(quiet) {
+    if (!focus.phase) return;
+    const done = focus.done; focus.phase = null; $('#focus-panel').hidden = true;
+    if (!quiet && done) toast(`⏱ You focused for ${done} session${done === 1 ? '' : 's'} with ${st.name}. Nice work!`);
+    renderClock();
+  }
+  function focusBanner(jp, en) {
+    const b = $('#focus-banner'); b.innerHTML = `<b>${jp}</b><span>${en}</span>`; b.hidden = false; focus.bannerT = 9;
+  }
+  function updateFocus(dt) {
+    if (focus.bannerT > 0) { focus.bannerT -= dt; if (focus.bannerT <= 0) $('#focus-banner').hidden = true; }
+    if (!focus.phase || Date.now() < focus.end) return;
+    if (focus.phase === 'focus') {
+      focus.done++; focus.phase = 'break'; focus.end = Date.now() + focus.rest * 60000;
+      A.play('success'); U.vibrate([20, 60, 20]);
+      setAct('stretch', 3.2); A.chirp(1.1);
+      focusBanner('のびーっ！', `Break time! Stand up and stretch with ${st.name} 🙆`);
+      P.bump(pers(), 'focus'); noteAdd('focus');
+      const today = U.dayKey(); if (st.focusDay !== today) { st.focusDay = today; st.focusToday = 0; }
+      if (st.focusToday < 8) { st.focusToday++; st.coins += 5; addXP(4); }
+      trust(0.3); save();
+    } else {
+      focus.phase = 'focus'; focus.end = Date.now() + focus.work * 60000;
+      A.play('chime');
+      focusBanner('しゅうちゅう', `Back to it. ${st.name} will keep you company.`);
+      setAct('yawn', 1.4); setTimeout(() => goTo(homeX(), () => setAct('nap', focus.work * 60), false, L.catY), 1500);
+    }
+    renderClock();
+  }
+
   /* ================= COZY MODE: a calm companion for a second screen or an iPad stand ================= */
   const cozy = { on: false, auto: false, peekT: 0, toasts: [], modals: [], wake: null, clockT: 0, shift: 0 };
   const cozyNight = () => { const h = hourNow(); return h >= 23 || h < 6; };
@@ -1777,7 +1826,8 @@
   }
   function exitCozy() {
     if (!cozy.on) return;
-    cozy.on = false; ptr.lastMove = T; // count leaving as activity so it doesn't slip straight back in
+    cozy.on = false; ptr.lastMove = T;
+    stopFocus(); $('#focus-panel').hidden = true; $('#focus-banner').hidden = true; // count leaving as activity so it doesn't slip straight back in
     document.body.classList.remove('cozy', 'peek');
     A.setCozy(false); A.setAmbience('off'); keepAwake(false);
     // anything that happened while you relaxed shows up now
@@ -1796,6 +1846,9 @@
     const d = new Date();
     el.querySelector('b').textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
     el.querySelector('small').textContent = `${d.getMonth() + 1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）`;
+    const fl = el.querySelector('em');
+    if (focus.phase) { const left = Math.max(0, focus.end - Date.now()), m = Math.floor(left / 60000), s = Math.floor(left / 1000) % 60; fl.textContent = `${focus.phase === 'focus' ? '🍅 Focus' : '☕ Break'} · ${m}:${String(s).padStart(2, '0')}${focus.done ? ` · ${'●'.repeat(Math.min(focus.done, 8))}` : ''}`; fl.hidden = false; el.hidden = false; }
+    else fl.hidden = true;
     // drift a few pixels every ten minutes so nothing sits still on the screen for hours
     const slot = Math.floor(Date.now() / 600000) % 6;
     el.style.transform = `translate(${[0, 6, 12, 6, -4, 2][slot]}px, ${[0, 4, -2, 8, 4, -6][slot]}px)`;
@@ -1807,11 +1860,13 @@
       return;
     }
     if (cozy.peekT > 0) { cozy.peekT -= dt; if (cozy.peekT <= 0) document.body.classList.remove('peek'); }
-    cozy.clockT -= dt; if (cozy.clockT <= 0) { cozy.clockT = 10; renderClock(); if (!cozy.wake && !document.hidden) keepAwake(true); }
+    updateFocus(dt);
+    cozy.clockT -= dt; if (cozy.clockT <= 0) { cozy.clockT = focus.phase ? 1 : 10; renderClock(); if (!cozy.wake && !document.hidden) keepAwake(true); }
   }
   // calm activities only: long naps, loafing, window-watching, sunbathing, slow blinks, kneading
   function cozyThink() {
     thinkT = U.rand(14, 28);
+    if (focus.phase === 'focus') { if (cat.act !== 'nap') goTo(homeX(), () => setAct('nap', 600), false, L.catY); return; }
     if (cozyNight()) {
       if (cat.act !== 'nap') goTo(homeX(), () => setAct('nap', U.rand(120, 300)), false, L.catY);
       return;
@@ -3344,8 +3399,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.focus) { const [w, r] = el.dataset.focus.split('-').map(Number); startFocus(w, r); return; }
     if (el.dataset.station) { pickStation(el.dataset.station); return; }
     if (el.dataset.trick) { startTrain(el.dataset.trick); return; }
     if (el.dataset.diary != null) { openDiary(+el.dataset.diary); return; }
@@ -3383,6 +3439,8 @@
       case 'endtrain': endTrain(); break;
       case 'cozy': if (cozy.on) exitCozy(); else enterCozy(false); break;
       case 'cozyexit': exitCozy(); break;
+      case 'focus': openFocusPanel(); break;
+      case 'focusstop': stopFocus(); break;
       case 'fullscreen': closeSheet(); toggleFullscreen(); break;
       case 'visitortreat': visitorTreat(); break;
       case 'capsule': spinCapsule(); break;
@@ -3525,7 +3583,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

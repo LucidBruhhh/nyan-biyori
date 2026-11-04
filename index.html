@@ -19,8 +19,10 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-mode="title">
-  <div id="cozy-clock" hidden><b></b><small></small></div>
-  <div id="cozy-bar"><span><b>まったり</b> Cozy mode · tap the cat to pet</span><button class="pill" data-ui="cozyexit">Exit 🌙</button></div>
+  <div id="cozy-clock" hidden><b></b><small></small><em hidden></em></div>
+  <div id="cozy-bar"><span><b>まったり</b> Cozy mode</span><button class="pill ghost" data-ui="focus">⏱ Focus</button><button class="pill" data-ui="cozyexit">Exit 🌙</button></div>
+  <div id="focus-panel" hidden></div>
+  <div id="focus-banner" hidden></div>
   <canvas id="scene" aria-label="Your kitty's room. Stroke the cat to pet it."></canvas>
 
   <!-- HUD -->

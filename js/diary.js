@@ -100,6 +100,7 @@ window.NB = window.NB || {};
     if (ev.pref) add(54, 'Today you found out something about me. I am a cat of very particular taste.');
     if (ev.ignoredGift) add(64, 'I left you a present and you didn\'t even pick it up. I am pretending not to care.');
     if (c.opinion) add(41, c.opinion);
+    if (ev.focus) add(60, ev.focus > 1 ? `You worked hard for ${ev.focus} sessions. I napped hard for ${ev.focus} sessions. Teamwork.` : 'You worked while I napped. Then we stretched together. Good system.');
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');
