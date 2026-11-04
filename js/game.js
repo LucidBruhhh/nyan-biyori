@@ -1057,7 +1057,8 @@
   let birdT = 10;
   function spawnBird() {
     const w = L.win, from = Math.random() < 0.5 ? -1 : 1;
-    birds.push({ x: from < 0 ? w.x - 20 : w.x + w.w + 20, y: w.y + w.h * U.rand(0.1, 0.4), tx: w.x + w.w * U.rand(0.62, 0.9), ty: w.y + w.h * U.rand(0.08, 0.13), state: 'in', t: 0, stay: U.rand(5, 10), dir: -from, hop: 0 });
+    const tx = w.x + w.w * U.rand(0.62, 0.9);
+    birds.push({ x: from < 0 ? w.x - 20 : w.x + w.w + 20, y: w.y + w.h * U.rand(0.1, 0.4), tx, ty: env.home === 'tokyo' ? NB.Apartment.wireY(L, tx) + 1 : w.y + w.h * U.rand(0.08, 0.13), state: 'in', t: 0, stay: U.rand(5, 10), dir: -from, hop: 0 });
   }
   function updateBirds(dt) {
     const day = S.nightness(env.hour) < 0.5;
@@ -1172,7 +1173,8 @@
     updateBall(dt); updateBirds(dt); updateBugs(dt);
     const target = T - ptr.lastMove < 3 && ptr.x > -900 ? (ptr.x / W - 0.5) * 2 : Math.sin(T * 0.12) * 0.5;
     env.par = U.damp(env.par || 0, target, 1.5, dt);
-    NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
+    if (env.home === 'tokyo') NB.Apartment.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('train'); });
+    else NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
     const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
     if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }
     env.scrollSwing = Math.max(0, (env.scrollSwing || 0) - dt * 0.6);
@@ -1658,6 +1660,7 @@
     const now = new Date();
     env.hour = DEV && window.__hour != null ? window.__hour : now.getHours() + now.getMinutes() / 60;
     env.season = st && st.settings.season !== 'auto' ? st.settings.season : S.seasonOf(now.getMonth());
+    env.home = st ? st.settings.home || 'tokyo' : 'tokyo';
     env.decor = {}; if (st) st.decor.forEach((d) => { if (!st.hidden.includes(d)) env.decor[d] = true; });
     if (!st) env.decor = { zabuton: true, chochin: true, furin: true };
     const wk = U.dayKey() + env.season;
@@ -2119,6 +2122,7 @@
     const html = `
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
       ${tog('music', 'Music', 'おんがく')}${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${tog('english', 'Show English subtitles', 'えいご')}
+      <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['tokyo', 'とうきょう Tokyo apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${(s.home || 'tokyo') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
       ${iosHint}
