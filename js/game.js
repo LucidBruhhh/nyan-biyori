@@ -44,7 +44,7 @@
       settings: { music: true, sfx: true, haptics: true, season: 'auto', english: true },
       bond: B.fresh(),
       diary: Di.fresh(), gifts: {}, gift: null,
-      health: HL.fresh(),
+      health: HL.fresh(), unlockBase: n, unlockSeen: [],
     };
   }
   function load() {
@@ -59,6 +59,7 @@
       if (!s.bond) s.bond = B.migrate(s);
       if (!s.diary) { s.diary = Di.fresh(); s.gifts = {}; s.gift = null; }
       if (!s.health) s.health = HL.fresh();
+      if (s.unlockBase == null) { s.unlockBase = s.created - 30 * 86400000; s.unlockSeen = ['laser', 'radio', 'tricks', 'capsule', 'visitors', 'arrange']; }
       s.name = cleanName(s.name);
       return s;
     } catch (e) { return null; }
@@ -1396,11 +1397,30 @@
     if (Math.random() < 0.02) S.emit({ type: 'sparkle', x: p.x + U.rand(-20, 20), y: p.y - U.rand(0, 30), vy: -12, life: 0.8, size: 6, color: '#fff3a8' });
   }
 
+  /* ================= UNLOCKS: a new thing to find each day of the first week ================= */
+  const UNLOCKS = [
+    { id: 'laser', day: 2, icon: '🔴', text: 'Laser pointer: press and hold on the floor' },
+    { id: 'radio', day: 3, icon: '📻', text: 'The radio works. Tap it to change stations' },
+    { id: 'tricks', day: 3, icon: '🎓', text: 'Tricks: teach your cat with gestures' },
+    { id: 'capsule', day: 4, icon: '🎐', text: 'A capsule toy machine arrived in the shop' },
+    { id: 'visitors', day: 5, icon: '🐈', text: 'Stray cats may visit the window now' },
+    { id: 'arrange', day: 6, icon: '🛋', text: 'You can arrange your room from the shop' },
+  ];
+  const dayNo = () => Math.floor((Date.now() - (st.unlockBase || st.created)) / 86400000) + 1;
+  const unlocked = (id) => { const u = UNLOCKS.find((x) => x.id === id); return !u || !st || dayNo() >= u.day; };
+  function newUnlocks() {
+    const seen = st.unlockSeen || (st.unlockSeen = []);
+    const out = UNLOCKS.filter((u) => unlocked(u.id) && !seen.includes(u.id));
+    out.forEach((u) => seen.push(u.id));
+    return out;
+  }
+
   /* ================= ROOM TOYS ================= */
   const STATIONS = [['lofi', 'Lo-fi Neko Radio', 'night'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
   const laser = { on: false, x: 0, y: 0, pounceT: 0 };
   function tapRadio() {
+    if (!unlocked('radio')) { A.play('tap'); toast('📻 The radio is still in its box. Check back in a day or two!'); return; }
     const i = STATIONS.findIndex((s) => s[0] === st.radio), next = STATIONS[(i + 1) % STATIONS.length];
     st.radio = next[0]; updateMusic(); A.play('tap');
     toast(`📻 ${next[1]}`);
@@ -1464,7 +1484,7 @@
   }
   function updateLaser(dt) {
     laser.pounceT -= dt;
-    const want = ptr.down && ptr.target && ptr.target.type === 'floor' && T - ptr.t0 > 0.3;
+    const want = unlocked('laser') && ptr.down && ptr.target && ptr.target.type === 'floor' && T - ptr.t0 > 0.3;
     if (want) {
       laser.on = true; laser.x = U.clamp(ptr.x, L.minX, L.maxX); laser.y = U.clamp(ptr.y, L.floorY + 12, L.catY + 18);
       if (cat.perch && !cat.hop) getDown();
@@ -2091,6 +2111,8 @@
   /* ================= LOOP ================= */
   function loop(ts) {
     if (!running) return;
+    const busy = ptr.down || T - ptr.lastMove < 6 || mode !== 'room' || cat.act !== 'idle' || laser.on || S.parts.length > 20;
+    if (!busy && ts - last < 31) { requestAnimationFrame(loop); return; }
     const dt = Math.min(0.05, (ts - last) / 1000 || 0.016);
     last = ts; T += dt;
     env.windT += dt;
@@ -2578,7 +2600,39 @@
   }
 
   /* ---------- Welcome back letter ---------- */
+  const AWAY = ['napped in a sunbeam', 'watched the trains go by', 'kneaded the window-seat cushion', 'chattered at a sparrow', 'guarded the radio', 'waited by the door for you', 'counted the fairy lights (twice)', 'had a staring contest with the moon'];
+  function morningCard(v, gift, did) {
+    const days = dayNo(), h = new Date().getHours();
+    const hello = h < 11 ? ['おはよう！', 'Good morning'] : h < 17 ? ['こんにちは！', 'Good afternoon'] : ['こんばんは！', 'Good evening'];
+    const left = st.daily ? st.daily.list.filter((d) => !d.claimed).length : 0;
+    const se = Se.current(), ss = se && Se.state(st);
+    const streak = liveStreak();
+    const fresh = newUnlocks();
+    st.coins += gift;
+    modal(`<div class="morning"><canvas id="mcat" width="200" height="200"></canvas>
+      <h2>${hello[0]} <small>${hello[1]} · day ${days} with ${st.name}</small></h2>
+      <p>${did ? `While you were away, <b>${st.name}</b> ${did}.` : `<b>${st.name}</b> is so happy to see you.`}</p>
+      <div class="m-grid">
+        <div class="m-tile"><b>+${gift}</b><small>koban found</small></div>
+        <div class="m-tile"><b>${streak || 0}🔥</b><small>day streak</small></div>
+        <div class="m-tile"><b>${left}</b><small>tasks today</small></div>
+        ${ss ? `<div class="m-tile"><b>${se.emoji} ${ss.tier}</b><small>${se.en} tier</small></div>` : `<div class="m-tile"><b>${HL.vitality(st)}</b><small>health</small></div>`}
+      </div>
+      ${st.gift ? '<p class="m-note">✨ A little present is waiting on the floor</p>' : ''}
+      ${fresh.map((u) => `<p class="m-new"><span>NEW</span> ${u.icon} ${u.text}</p>`).join('')}
+      <div class="btnrow">${diaryUnread() ? '<button class="btn ghost" data-ui="diary">📖 Diary</button>' : ''}<button class="btn ghost" data-ui="daily">おつとめ Tasks</button><button class="btn" data-ui="closemodal">ただいま！</button></div></div>`, 'morning', {
+      onShow: (m) => C.portrait(m.querySelector('#mcat'), look(), { zoom: 1.05, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'happy', blush: 0.9, mouth: 'w', pawR: 0.8 } }),
+    });
+    setTimeout(() => greet(v), 400);
+  }
   function welcomeBack(off, v) {
+    if (v && v.first && (!off || off.hrs >= 0.5 || dayNo() > 1)) {
+      const hrs = off ? off.hrs : 0;
+      const vh = B.usual(st.bond.visitH);
+      const did = hrs < 0.5 ? null : vh != null && hrs > 3 && bondStage() >= 2 ? `sat by the door around ${B.fmtH(vh)}, because that's when you usually come home` : U.pick(AWAY);
+      morningCard(v, hrs >= 0.5 ? Math.min(80, 10 + Math.floor(hrs * 6)) : 10, did);
+      return;
+    }
     if (!off || off.hrs < 0.5) { greet(v); return; }
     const mins = Math.round(off.hrs * 60);
     const away = mins < 90 ? `${mins} minutes` : `${Math.round(off.hrs)} hours`;
@@ -2637,7 +2691,7 @@
     const v = arrive(off ? off.hrs : 0);
     if (fromBoot) setTimeout(() => welcomeBack(off, v), 700);
     if (st.tut < TUT.length) setTimeout(() => hint(TUT[st.tut][1]()), 2600);
-    else if (!st.bond.firsts.laserHint) { st.bond.firsts.laserHint = Date.now(); setTimeout(() => { if (mode === 'room') hint('Tip: press and hold on the floor for a laser pointer 🔴'); }, 9000); }
+    else if (!st.bond.firsts.laserHint && unlocked('laser')) { st.bond.firsts.laserHint = Date.now(); setTimeout(() => { if (mode === 'room') hint('Tip: press and hold on the floor for a laser pointer 🔴'); }, 9000); }
     checkAch();
   }
 
@@ -2750,7 +2804,7 @@
       case 'hide': if (modalShowing) closeModal(); startHide(); break;
       case 'settings': openSettings(); break;
       case 'omikuji': openOmikuji(); break;
-      case 'daily': openDaily(); break;
+      case 'daily': if (modalShowing) closeModal(); openDaily(); break;
       case 'bonus': claimBonus(); break;
       case 'shake': shakeOmikuji(); break;
       case 'sound': { const on = !(st.settings.music || st.settings.sfx); st.settings.music = st.settings.sfx = on; applySettings(); save(); toast(on ? 'Sound on 🔊' : 'Sound off 🔇'); break; }
@@ -2877,7 +2931,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
