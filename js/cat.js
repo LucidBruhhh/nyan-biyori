@@ -22,7 +22,9 @@ NB.Cat = (() => {
     murasaki: { name: 'Fuji',   jp: 'ふじ',   c: ['#321a6e', '#9a68ff', '#e3d5ff'] },
   };
 
-  const LW = 3.8; // outline width
+  const LW = 2.8; // outline width
+  // soft coloured line art: outlines lean toward the fur's own shade rather than near-black
+  Object.values(FURS).forEach((f) => { f.line = U.mix(f.line, f.shade, f.dark ? 0.12 : 0.3); });
 
   function defaultPose() {
     return {
@@ -55,12 +57,19 @@ NB.Cat = (() => {
       if (which === 1) P = P.map(([x, y]) => [-x, y - 6]); // nekomata: second tail on the other side
     }
     const pts = [];
+    const curlTip = p.loaf <= 0.5;
     for (let i = 0; i <= 18; i++) {
       const u = i / 18, v = 1 - u;
       pts.push([
         v * v * v * P[0][0] + 3 * v * v * u * P[1][0] + 3 * v * u * u * P[2][0] + u * u * u * P[3][0],
         v * v * v * P[0][1] + 3 * v * v * u * P[1][1] + 3 * v * u * u * P[2][1] + u * u * u * P[3][1],
       ]);
+    }
+    if (curlTip) {
+      const a = pts[pts.length - 2], b = pts[pts.length - 1];
+      let ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      const curl = (which ? 1 : -1) * (0.32 + 0.22 * Math.sin(p.tailPhase * 0.7));
+      for (let i = 0; i < 4; i++) { ang += curl; const l = pts[pts.length - 1]; pts.push([l[0] + Math.cos(ang) * 4.5, l[1] + Math.sin(ang) * 4.5]); }
     }
     return pts;
   }
@@ -99,9 +108,13 @@ NB.Cat = (() => {
     ctx.save();
     ctx.fillStyle = F.base; ctx.fill();
     ctx.clip();
-    // cel shade
-    ctx.fillStyle = F.shade; U.ell(ctx, 10, -h + 14, w + 6, h); ctx.fill();
-    ctx.fillStyle = F.base; U.ell(ctx, -4, -h - 6, w - 4, h - 4); ctx.fill();
+    // painterly shade: soft light from the upper left
+    const bg = ctx.createRadialGradient(-w * 0.3, -h * 1.5, 4, 0, -h, w * 1.25);
+    bg.addColorStop(0, U.mix(F.base, '#ffffff', F.dark ? 0.12 : 0.5)); bg.addColorStop(0.55, F.base); bg.addColorStop(1, F.shade);
+    ctx.fillStyle = bg; ctx.fillRect(-w - 10, -2 * h - 10, 2 * w + 20, 2 * h + 20);
+    const cg = ctx.createRadialGradient(0, -2 * h + 6, 2, 0, -2 * h + 6, w * 0.85);
+    cg.addColorStop(0, U.rgba(F.shade, 0.85)); cg.addColorStop(1, U.rgba(F.shade, 0));
+    ctx.fillStyle = cg; ctx.fillRect(-w, -2 * h - 10, 2 * w, h * 1.3);
     if (F.belly) { ctx.fillStyle = F.belly; U.ell(ctx, 0, -h + 12, w * 0.52, h * 0.7); ctx.fill(); }
     if (F.pattern === 'calico') {
       ctx.fillStyle = F.mark; U.ell(ctx, 38, -h - 10, 26, 22); ctx.fill();
@@ -113,8 +126,37 @@ NB.Cat = (() => {
     }
     if (look.acc && look.acc.body) drawBodyAcc(ctx, look.acc.body, w, h);
     if (p.dirt > 0.45) dirtSpots(ctx, p.dirt, [[-20, -h + 10], [24, -h - 14], [-30, -h - 20]]);
+    ctx.strokeStyle = 'rgba(255,238,215,0.55)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(-3, -h, w, h, 0, -1.0, 0.7); ctx.stroke();
+    if (p.tint) { ctx.fillStyle = p.tint; ctx.fillRect(-w - 10, -2 * h - 10, 2 * w + 20, 2 * h + 20); }
     ctx.restore();
     bodyPath(ctx, p); ctx.strokeStyle = F.line; ctx.lineWidth = LW; ctx.stroke();
+    // fluffy fur along the sides
+    const fluff = U.mix(F.base, F.shade, 0.55);
+    [[-1, 0.3], [-1, -0.25], [1, 0.35], [1, -0.2]].forEach(([s, th]) => {
+      const px = s * w * Math.cos(th), py = -h - h * Math.sin(th);
+      let nx = s * Math.cos(th) / w, ny = -Math.sin(th) / h; const l = Math.hypot(nx, ny); nx /= l; ny /= l;
+      furTuft(ctx, F, px, py, nx, ny, 9, fluff);
+    });
+    if (!look.acc || !look.acc.body) chestRuff(ctx, F, h);
+  }
+
+  function furTuft(ctx, F, x, y, nx, ny, size, fill) {
+    const tx = -ny, ty = nx;
+    const a = [x + tx * size * 0.75 - nx * 3, y + ty * size * 0.75 - ny * 3], b = [x - tx * size * 0.75 - nx * 3, y - ty * size * 0.75 - ny * 3];
+    const tip = [x + nx * size + tx * size * 0.4, y + ny * size + ty * size * 0.4];
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.quadraticCurveTo(x + nx * size * 0.4, y + ny * size * 0.4, tip[0], tip[1]); ctx.quadraticCurveTo(x + nx * size * 0.2 - tx * 2, y + ny * size * 0.2 - ty * 2, b[0], b[1]); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(a[0] + nx * 3, a[1] + ny * 3); ctx.quadraticCurveTo(x + nx * size * 0.4, y + ny * size * 0.4, tip[0], tip[1]); ctx.quadraticCurveTo(x + nx * size * 0.2 - tx * 2, y + ny * size * 0.2 - ty * 2, b[0] + nx * 3, b[1] + ny * 3);
+    ctx.strokeStyle = F.line; ctx.lineWidth = LW * 0.8; ctx.lineJoin = 'round'; ctx.stroke();
+  }
+  // a soft fluffy bib just under the chin
+  function chestRuff(ctx, F, h) {
+    const ry = -2 * h + 20;
+    const pts = [[-30, ry - 14], [-23, ry + 3], [-15, ry - 3], [-8, ry + 9], [0, ry + 1], [8, ry + 9], [15, ry - 3], [23, ry + 3], [30, ry - 14]];
+    ctx.beginPath(); ctx.moveTo(0, ry - 30); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.closePath();
+    ctx.fillStyle = F.belly || U.mix(F.base, '#ffffff', F.dark ? 0.15 : 0.6); ctx.fill();
+    ctx.beginPath(); pts.slice(1, -1).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.strokeStyle = U.rgba(F.dark ? '#d8cfe8' : F.line, 0.5); ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
   }
 
   function dirtSpots(ctx, d, spots) {
@@ -183,7 +225,7 @@ NB.Cat = (() => {
     const earXform = (s, fn) => {
       ctx.save();
       const tw = s < 0 ? p.earTwitchL : p.earTwitchR;
-      ctx.translate(s * 44, -160); ctx.rotate(s * (p.earDroop * 0.75 + tw * 0.25)); ctx.translate(-s * 44, 160);
+      ctx.translate(s * 44, -160); ctx.rotate(s * (p.earDroop * 0.75 + tw * 0.25) + Math.sin(t * 1.1 + s * 1.7) * 0.025); ctx.translate(-s * 44, 160);
       fn(); ctx.restore();
     };
     ctx.strokeStyle = F.line; ctx.lineWidth = LW * 2;
@@ -202,15 +244,28 @@ NB.Cat = (() => {
       ctx.save(); ctx.translate(s * 3, 6);
       ctx.restore();
       ctx.fillStyle = F.dark ? '#d97ca0' : '#ffb7cb'; ctx.fill();
+      ctx.save(); ctx.translate(s * 44, -164); ctx.strokeStyle = F.dark ? 'rgba(235,225,250,0.7)' : 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      [[-9, 10, -15, -14], [-2, 9, -7, -20], [5, 8, 1, -9]].forEach(([a, b, c, d]) => { ctx.beginPath(); ctx.moveTo(s * a, b); ctx.quadraticCurveTo(s * ((a + c) / 2 - 3), (b + d) / 2, s * c, d); ctx.stroke(); });
+      ctx.restore();
       ctx.fillStyle = F.base;
     }));
     ctx.fillStyle = F.base; tuftPath(ctx); ctx.fill();
     headPath(ctx); ctx.fill();
+    [[-8, -0.45, 9], [1, 0.05, 13], [9, 0.5, 8]].forEach(([x, r, len]) => {
+      ctx.save(); ctx.translate(x, -189); ctx.rotate(r);
+      ctx.beginPath(); ctx.moveTo(-5, 5); ctx.quadraticCurveTo(-3, -len * 0.6, 2, -len); ctx.quadraticCurveTo(1, -len * 0.3, 5, 5); ctx.closePath(); ctx.fillStyle = F.base; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-5, 1); ctx.quadraticCurveTo(-3, -len * 0.6, 2, -len); ctx.quadraticCurveTo(1, -len * 0.3, 5, 1); ctx.strokeStyle = F.line; ctx.lineWidth = LW * 0.7; ctx.stroke();
+      ctx.restore();
+    });
 
     // inside the head
     ctx.save(); headPath(ctx); ctx.clip();
-    ctx.fillStyle = F.shade; headPath(ctx); ctx.fill();
-    ctx.fillStyle = F.base; U.ell(ctx, -5, -136, 74, 60); ctx.fill();
+    const hg = ctx.createRadialGradient(-24, -152, 6, 0, -128, 98);
+    hg.addColorStop(0, U.mix(F.base, '#ffffff', F.dark ? 0.12 : 0.5)); hg.addColorStop(0.62, F.base); hg.addColorStop(1, F.shade);
+    ctx.fillStyle = hg; ctx.fillRect(-92, -200, 184, 140);
+    // watercolour blooms of shade
+    ctx.fillStyle = U.rgba(F.shade, 0.35);
+    [[46, -150, 22, 13, 0.5], [-52, -96, 18, 9, -0.3], [30, -84, 20, 8, 0.1]].forEach(([x, y, rx, ry, r]) => { U.ell(ctx, x, y, rx, ry, r); ctx.fill(); });
     if (F.pattern === 'calico') {
       ctx.fillStyle = F.mark; U.ell(ctx, -56, -170, 40, 34); ctx.fill();
       ctx.fillStyle = F.mark2; U.ell(ctx, 60, -178, 34, 28); ctx.fill();
@@ -233,6 +288,8 @@ NB.Cat = (() => {
     if (p.wet > 0) {
       ctx.fillStyle = `rgba(150,200,255,${0.25 * p.wet})`; headPath(ctx); ctx.fill();
     }
+    ctx.strokeStyle = 'rgba(255,238,215,0.5)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(-2, -131, 77, 60, 0, -1.1, 0.6); ctx.stroke();
+    if (p.tint) { ctx.fillStyle = p.tint; ctx.fillRect(-92, -200, 184, 140); }
     ctx.restore();
 
     drawFace(ctx, F, p, look, t);
@@ -291,7 +348,8 @@ NB.Cat = (() => {
         // top shadow from lid
         ctx.fillStyle = 'rgba(20,5,30,0.35)'; U.ell(ctx, 0, -18, 18, 8); ctx.fill();
         ctx.restore();
-        // highlights
+        // glassy sheen, then highlights
+        ctx.fillStyle = 'rgba(255,255,255,0.18)'; U.ell(ctx, -3 + lx * 0.3, -4, 12, 15); ctx.fill();
         ctx.fillStyle = '#ffffff';
         if (st === 'sparkle') {
           U.star(ctx, -5 + lx * 0.4, -7 + ly * 0.3, 8, 4, 0.3, t * 2); ctx.fill();
@@ -308,7 +366,7 @@ NB.Cat = (() => {
         }
       }
       // upper lash line + wing
-      ctx.strokeStyle = ink; ctx.lineWidth = 5;
+      ctx.strokeStyle = ink; ctx.lineWidth = 4.2;
       ctx.beginPath(); ctx.ellipse(0, 1, 18, 22, 0, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
       ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.moveTo(side * 16, -10); ctx.quadraticCurveTo(side * 22, -14, side * 25, -18); ctx.stroke();
@@ -331,8 +389,11 @@ NB.Cat = (() => {
     const E = EYES[look.eye] || EYES.amber;
     // blush
     if (p.blush > 0.05) {
-      ctx.fillStyle = `rgba(255,110,150,${0.42 * p.blush})`;
-      [-1, 1].forEach((s) => { U.ell(ctx, s * 52, -102, 14, 7.5); ctx.fill(); });
+      [-1, 1].forEach((s) => {
+        ctx.save(); ctx.translate(s * 52, -102); ctx.scale(1, 0.55);
+        const bg = ctx.createRadialGradient(0, 0, 1, 0, 0, 18); bg.addColorStop(0, `rgba(255,110,150,${0.5 * p.blush})`); bg.addColorStop(1, 'rgba(255,110,150,0)');
+        ctx.fillStyle = bg; U.ell(ctx, 0, 0, 18, 18); ctx.fill(); ctx.restore();
+      });
       if (p.blush > 0.55) {
         ctx.strokeStyle = `rgba(255,80,130,${0.6 * p.blush})`; ctx.lineWidth = 1.8;
         [-1, 1].forEach((s) => { for (let i = 0; i < 3; i++) { const x = s * 52 - 7 + i * 6; ctx.beginPath(); ctx.moveTo(x - 2, -98); ctx.lineTo(x + 2, -106); ctx.stroke(); } });
@@ -380,10 +441,12 @@ NB.Cat = (() => {
       }
     }
     // whiskers
-    ctx.strokeStyle = F.dark ? 'rgba(230,220,250,0.7)' : U.rgba(F.line, 0.55); ctx.lineWidth = 1.8;
+    ctx.strokeStyle = F.dark ? 'rgba(230,220,250,0.65)' : U.rgba(F.line, 0.45); ctx.lineWidth = 1.4;
+    const twitch = Math.max(0, Math.sin(t * 0.9)) ** 12 * Math.sin(t * 40) * 3;
     [-1, 1].forEach((s) => {
       [[-14, -3], [0, 0], [12, 3]].forEach(([dy, curve]) => {
-        ctx.beginPath(); ctx.moveTo(s * 60, -106 + dy * 0.3); ctx.quadraticCurveTo(s * 80, -110 + dy * 0.6 + curve, s * 98, -110 + dy); ctx.stroke();
+        const wob = Math.sin(t * 1.6 + dy * 0.2 + s) * 1.2 + twitch;
+        ctx.beginPath(); ctx.moveTo(s * 60, -106 + dy * 0.3); ctx.quadraticCurveTo(s * 80, -110 + dy * 0.6 + curve + wob * 0.5, s * 98, -110 + dy + wob); ctx.stroke();
       });
     });
   }
@@ -577,7 +640,8 @@ NB.Cat = (() => {
       drawFoot(ctx, F, -36, -9, 19, 11);
       drawFoot(ctx, F, 36, -9, 19, 11);
     }
-    drawBody(ctx, F, p, look);
+    const br = Math.sin(t * 2.3) * 0.02;
+    ctx.save(); ctx.scale(1 + br * 0.4, 1 + br); drawBody(ctx, F, p, look); ctx.restore();
     if (tailFront) { drawTail(ctx, F, p, t, 0); if (p.twin) drawTail(ctx, F, p, t, 1); }
     // front paws (on ground unless raised)
     [-1, 1].forEach((sd) => {
@@ -588,7 +652,7 @@ NB.Cat = (() => {
 
     // head group
     ctx.save();
-    ctx.translate(0, p.headY + p.loaf * 26);
+    ctx.translate(0, p.headY + p.loaf * 26 - br * 60);
     ctx.translate(0, -90); ctx.rotate(p.headTilt); ctx.translate(0, 90);
     drawHead(ctx, F, p, look, t);
     if (look.acc && look.acc.head) drawHeadAcc(ctx, look.acc.head, p, t);

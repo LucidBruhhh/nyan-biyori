@@ -789,6 +789,8 @@
       p.blush = 0.6;
     }
     if (cat.flopK > 0.01) p.noShadow = true;
+    // in the painted room the cat picks up the warm lamplight
+    if (L && L.painted) { const n = S.nightness(env.hour); if (n > 0.05 && !env.lightsOff) p.tint = `rgba(255,170,125,${0.15 * n})`; }
     cat.pose = p;
   }
 
