@@ -400,6 +400,21 @@ body:has(#modal.open) #toasts, body:has(.sheet.open) #toasts { top: calc(var(--s
 #btn-sound.muted { background: #f1e6ec; }
 .steps { text-align: left; margin: 10px auto; padding-left: 22px; line-height: 1.8; font-size: 14px; max-width: 280px; }
 .share-ic { display: inline-block; padding: 0 5px; border: 1.5px solid #7fb6ff; border-radius: 5px; color: #3d7be0; font-size: 12px; }
+/* bond */
+@media (max-width: 420px) { .who b { font-size: 14px; } .profile-chip { padding-right: 10px; } }
+.bond-h { display: block; font-size: 9px; line-height: 1.1; color: var(--pink-deep); letter-spacing: -0.5px; white-space: nowrap; }
+.bondcard { background: #fff; border-radius: 22px; padding: 12px 14px; box-shadow: 0 4px 0 #f0dde5; }
+.bond-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.bond-top .hearts, .bondup .hearts { color: var(--pink-deep); font-size: 18px; letter-spacing: 2px; }
+.bond-top small { color: var(--ink-soft); font-weight: 700; }
+.traits { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.trait { background: #fff1f6; border: 1.5px solid #ffc7da; border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.trait b { color: var(--pink-deep); margin-right: 5px; }
+.mem { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+.mem li { display: flex; gap: 8px; padding: 4px 0; border-top: 1px dashed #f3dbe5; }
+.mem li:first-child { border-top: 0; }
+.mem b { color: var(--ink); }
+.item .fav { position: absolute; top: 6px; left: 6px; background: var(--pink-deep); color: #fff; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 7px; }
 /* discoveries */
 .finds { display: flex; flex-wrap: wrap; gap: 8px; }
 .find { display: flex; flex-direction: column; align-items: center; min-width: 78px; padding: 8px 10px; border-radius: 16px; background: #fff; box-shadow: 0 3px 0 #f0dde5; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); opacity: .6; }

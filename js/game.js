@@ -1,7 +1,7 @@
 /* にゃん日和 — main game: state, cat AI, interaction, UI */
 'use strict';
 (() => {
-  const U = NB.U, D = NB.Data, S = NB.Scene, C = NB.Cat, A = NB.Audio;
+  const U = NB.U, D = NB.Data, S = NB.Scene, C = NB.Cat, A = NB.Audio, B = NB.Bond;
   const $ = (q) => document.querySelector(q);
   const SAVE_KEY = 'nyanbiyori.save.v1';
   const DEV = /[?&]dev=1/.test(location.search);
@@ -42,6 +42,7 @@
       best: {}, tasted: [], ach: [], lastOmikuji: '', tut: 0,
       daily: null, streak: 0, bestStreak: 0, lastDailyDone: '', roadClaimed: [], found: [], lampOff: false,
       settings: { music: true, sfx: true, haptics: true, season: 'auto', english: true },
+      bond: B.fresh(),
     };
   }
   function load() {
@@ -53,6 +54,7 @@
       if (!s.roadClaimed) s.roadClaimed = [];
       if (!s.found) s.found = [];
       if (s.streak == null) { s.streak = 0; s.bestStreak = 0; s.lastDailyDone = ''; s.daily = null; }
+      if (!s.bond) s.bond = B.migrate(s);
       s.name = cleanName(s.name);
       return s;
     } catch (e) { return null; }
@@ -88,6 +90,7 @@
     happyT: 0, petK: 0, purring: false, speech: null, thought: null,
     twitchL: 0, twitchR: 0, pose: C.defaultPose(), squash: 0, pawSwipe: 0,
     depth: 1, perch: null, hop: null, inBox: false, goal: null, chase: null, fast: false, batT: 0,
+    zoom: 0, sulk: 0, waitAt: 0,
   };
 
   function catScale() {
@@ -159,6 +162,89 @@
     const n = st.needs; let k = null, v = 101;
     Object.keys(n).forEach((key) => { if (n[key] < v) { v = n[key]; k = key; } });
     return [k, v];
+  }
+
+  /* ================= BOND (trust & memory) ================= */
+  const hourNow = () => { if (DEV && window.__hour != null) return window.__hour; const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+  const bondStage = () => (st ? B.stage(st.bond) : 2);
+  function trust(amt) {
+    if (!st) return;
+    if (amt < 0) { B.lose(st.bond, -amt); renderBond(); return; }
+    const up = B.gain(st.bond, amt);
+    if (up > 0) stageUp(up);
+    renderBond();
+  }
+  function renderBond() {
+    if (!st) return;
+    const i = bondStage(), el = $('#bond');
+    if (!el || el.dataset.i === String(i)) return;
+    el.dataset.i = i;
+    el.textContent = '♥'.repeat(i + 1) + '♡'.repeat(4 - i);
+    el.setAttribute('aria-label', `Bond: ${B.STAGES[i].en}`);
+  }
+  function stageUp(i) {
+    const sg = B.STAGES[i];
+    renderBond();
+    A.play('success'); U.vibrate([20, 50, 20]);
+    S.burst('heart', cat.x, cat.y - 160 * catScale(), 14, { p: { color: '#ff6f9f', size: 12, life: 1.6 } });
+    const unlock = ['', 'They now come when you call them, and will let you pet them without flinching.',
+      'They greet you with a head-bump when you come home.', 'Watch for slow blinks. That is cat for “I trust you”.',
+      'They will wait by the door for you, and nothing makes them happier than you.'][i];
+    setTimeout(() => modal(`<div class="lvup bondup"><div class="burst"></div><canvas id="bondcat" width="260" height="260"></canvas>
+      <h2>${sg.jp} <small>${sg.en}</small></h2><p class="hearts">${'♥'.repeat(i + 1)}${'♡'.repeat(4 - i)}</p>
+      <p><b>${st.name}</b> ${sg.desc}</p><p class="sub">${unlock}</p>
+      <button class="btn" data-ui="closemodal">だいすき！</button></div>`, 'levelup', {
+      onShow: (m) => C.portrait(m.querySelector('#bondcat'), look(), { zoom: 0.95, full: true, pose: { eyes: i >= 3 ? 'closed' : 'happy', blush: 1, mouth: 'w', twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } }),
+    }), 700);
+    checkAch();
+  }
+  // the greeting depends on how well the cat knows you and when you usually come
+  function greet(v) {
+    const i = bondStage(), s = catScale();
+    if (v && v.stage > 0) stageUp(v.stage);
+    if (mode !== 'room') { say('greet', true); return; }
+    if (v && v.absentDays >= 3 && i >= 1) {
+      cat.sulk = 3 + Math.min(4, Math.floor(v.absentDays / 2)); setAct('refuse', 1.4); cat.dir = -1;
+      sayText('ぷいっ', `*hmph* ${Math.floor(v.absentDays)} days is a long time…`, true); A.meow(0.85, 0.7);
+      setTimeout(() => hint(`${st.name} missed you. Pet them gently to make up 🤍`), 2400);
+      return;
+    }
+    if (i === 0) {
+      getDown(true); cat.x = boxX(); cat.y = L.catY; cat.depth = 1; cat.inBox = true; setAct('box', U.rand(7, 10));
+      sayText('……', '*peeks out of the box*', true);
+      if (!st.bond.firsts.shyHint) { st.bond.firsts.shyHint = Date.now(); setTimeout(() => hint(`${st.name} is shy at first. Be gentle and visit every day to earn their trust ♡`), 2000); }
+      return;
+    }
+    const line = v && v.onTime ? ['いつもの時間だね！', 'Right on time, like always!'] : v && v.late ? ['こんな時間に？', 'You’re up so late?'] : i >= 4 ? ['おかえり！ずっとまってた！', 'You’re home! I waited all day!'] : ['おかえり！', 'Welcome back!'];
+    if (i === 1) { sayText(line[0], line[1], true); A.meow(1.15); return; }
+    getDown(true); cat.inBox = false; cat.chase = null;
+    goTo(U.clamp(cat.x, L.sx + L.SW * 0.3, L.sx + L.SW * 0.7), () => { headBump(); sayText(line[0], line[1], true); }, true, L.catY);
+    A.meow(1.3, 0.8);
+    if (i >= 4) S.burst('heart', cat.x, cat.y - 120 * s, 6, { p: { color: '#ff9dbf', size: 9 } });
+  }
+  function headBump() { cat.dir = 1; setAct('bump', 1.5); cat.bonked = false; }
+  // learned routine: around the usual mealtime the cat goes and waits by the bowl
+  function waitForMeal() {
+    const b = st.bond, fh = B.usual(b.feedH);
+    if (fh == null || cat.perch || cat.inBox) return false;
+    const h = hourNow(), key = U.dayKey() + ':' + fh;
+    if (b.waited === key || h < fh - 0.25 || h > fh + 1.25 || Date.now() - b.lastMealAt < 2 * 3600000 || st.needs.hunger > 90) return false;
+    b.waited = key;
+    const sp = spots(), bs = L.scale * depthAt(sp.bowls.y);
+    goTo(sp.bowls.x - 34 * bs, () => {
+      cat.dir = 1; cat.waitAt = Date.now(); setAct('wait', 14);
+      sayText('そろそろごはん？', `It's almost ${B.fmtH(fh)}… ${B.mealWord(fh)} time?`, true); A.meow(1.1);
+      cat.thought = { need: 'hunger', t: 0, dur: 4 };
+      if (!b.firsts.wait) { b.firsts.wait = Date.now(); setTimeout(() => toast(`${st.name} learned when you usually feed them 🍚`), 1600); }
+    }, false, sp.bowls.y - 4);
+    return true;
+  }
+  function roughPet() {
+    st.bond.p.rough++;
+    if (bondStage() <= 1) {
+      cat.petK = 0; setAct('refuse', 1); sayText('にゃっ！', 'Too fast! Gently…', true); A.meow(0.85, 0.6); trust(-0.6);
+      if (!st.bond.firsts.roughHint) { st.bond.firsts.roughHint = Date.now(); hint('Slow, gentle strokes build trust ♡'); }
+    } else if (Math.random() < 0.4) sayText('ゆっくり〜', 'Gently~', true);
   }
 
   /* ================= XP / LEVEL ================= */
@@ -343,6 +429,12 @@
   function setAct(a, dur = 1.5) { cat.act = a; cat.actT = 0; cat.actDur = dur; }
   function think() {
     if (mode !== 'room') return;
+    if (cat.sulk > 0) { if (Math.random() < 0.3) sayText('ぷいっ', '*looks away*'); cat.dir = Math.random() < 0.5 ? -1 : 1; return; }
+    if (waitForMeal()) return;
+    const bi = bondStage();
+    if (bi === 0 && Math.random() < 0.22) { startExploreBox(); return; }
+    if (bi >= 3 && Math.random() < 0.12) { setAct('blink', 2.4); return; }
+    if (bi >= 2 && T - ptr.lastMove < 4 && B.has(st.bond, 'cuddly') && Math.random() < 0.25) { goTo(U.clamp(ptr.x, L.minX, L.maxX), () => { cat.happyT = 1; }, false, L.catY); return; }
     const [need, v] = lowestNeed();
     const r = Math.random();
     if (v < 30 && Math.random() < 0.5) {
@@ -410,7 +502,7 @@
           cat.depth = depthAt(cat.y);
         }
         if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
-      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe'].includes(cat.act)) {
+      } else if (['perch', 'box', 'knead', 'nap', 'bat', 'drink', 'scratch', 'sunbathe', 'wait', 'bump', 'blink'].includes(cat.act)) {
         updateActivity(dt);
       } else if (['groom', 'beckon', 'yawn', 'swat', 'dizzy', 'boop', 'nod', 'refuse', 'stretch'].includes(cat.act)) {
         if (cat.actT > cat.actDur) setAct('idle', 0.5);
@@ -437,6 +529,7 @@
       }
     }
 
+    cat.zoom = cat.act === 'bump' ? 0.16 * Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)) : U.damp(cat.zoom, 0, 10, dt);
     // purring when petting
     cat.petK = Math.max(0, cat.petK - dt * 0.8);
     if (cat.petK > 0.15 && !cat.purring) { A.startPurr(); cat.purring = true; }
@@ -460,7 +553,8 @@
     p.flip = 1;
     if (st && st.level >= 20) { p.twin = true; p.glow = 1; }
     if (st && m < 22 && mode === 'room') { p.eyes = 'sad'; p.earDroop = 0.4; p.mouth = 'flat'; }
-    if (cat.happyT > 0 || cat.petK > 0.3) { p.eyes = 'happy'; p.mouthOpen = cat.petK > 0.3 ? 0 : 0.4; }
+    if (cat.sulk > 0 && cat.act === 'idle') { p.eyes = 'closed'; p.mouth = 'flat'; p.earDroop = 0.35; p.headTilt = -0.1; p.flip = cat.dir < 0 ? -1 : 1; }
+    else if (cat.happyT > 0 || cat.petK > 0.3) { p.eyes = 'happy'; p.mouthOpen = cat.petK > 0.3 ? 0 : 0.4; }
     else if (st && m > 80 && Math.sin(T * 0.4) > 0.85) p.eyes = 'sparkle';
 
     switch (mode === 'sleep' && cat.act === 'sleep' ? 'sleep' : cat.act) {
@@ -492,6 +586,9 @@
       case 'knead': p.pawL = Math.max(0, Math.sin(T * 6)) * 0.3 + 0.08; p.pawR = Math.max(0, -Math.sin(T * 6)) * 0.3 + 0.08; p.eyes = 'happy'; p.blush = 0.9; p.tailPhase = T * 1.2; break;
       case 'nap': p.loaf = 1; p.eyes = 'closed'; p.tailPhase = T * 0.6; p.tailAmp = 0.4; p.blush = 0.6; p.sy = 1 + Math.sin(T * 1.6) * 0.03; break;
       case 'bat': p.pawR = Math.sin(Math.min(1, cat.actT / 0.35) * Math.PI); p.pawRx = 10; p.eyes = 'sparkle'; p.mouthOpen = 0.4; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'wait': p.eyes = Math.sin(T * 0.7) > 0.6 ? 'sparkle' : 'open'; p.tailPhase = T * 2.4; p.headTilt = Math.sin(T * 0.9) * 0.08; p.mouthOpen = Math.sin(T * 0.5) > 0.9 ? 0.4 : 0; break;
+      case 'bump': { const k = Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)); p.eyes = 'closed'; p.blush = 1; p.mouth = 'w'; p.headTilt = 0.18 * k; p.headY = -6 * k; p.tailPhase = T * 4; break; }
+      case 'blink': { const k = Math.sin(Math.PI * Math.min(1, cat.actT / cat.actDur)); p.blink = U.clamp(1 - k * 1.3, 0, 1); p.blush = 0.6 + k * 0.4; p.mouth = 'w'; p.tailPhase = T * 1.2; break; }
       case 'drink': p.headY = 20 + Math.sin(T * 9) * 1.5; p.tongue = (Math.sin(T * 12) + 1) / 2; p.eyes = 'closed'; p.tailPhase = T * 1.2; break;
       case 'scratch': p.pawL = 0.8 + Math.sin(T * 16) * 0.18; p.pawR = 0.8 - Math.sin(T * 16) * 0.18; p.pawLx = -6; p.pawRx = -6; p.flip = -1; p.lean = -0.08; p.eyes = 'happy'; p.mouthOpen = 0.3; break;
       case 'sunbathe': p.loaf = 1; p.eyes = 'closed'; p.blush = 0.85; p.tailAmp = 0.3; p.tailPhase = T * 0.5; p.mouth = 'w'; p.sy = 1 + Math.sin(T * 1.4) * 0.025; break;
@@ -537,7 +634,7 @@
     setTimeout(() => toast(`<span class="mini-hanko">${d[0]}</span><span><b>New discovery!</b><br>${st.name} ${d[2]} · +10 XP</span>`, 'ach'), 200);
     A.play('sparkle'); checkAch();
   }
-  const cs = () => catScale() * cat.depth;
+  const cs = () => catScale() * cat.depth * (1 + cat.zoom);
   const boxX = () => L.sx + L.SW * 0.78;
   const sillSpot = () => ({ x: L.win.x + L.win.w * U.rand(0.38, 0.62), y: L.win.y + L.win.h + 1, depth: 0.58 });
   const tokoSpot = () => ({ x: L.alcove.x + L.alcove.w * 0.5, y: L.alcove.y + L.alcove.h - 26, depth: 0.5 });
@@ -577,6 +674,8 @@
     if (shown('zabuton')) opts.push(['knead', 2]);
     if (shown('daruma')) opts.push(['daruma', 2]);
     if (env.sun && S.nightness(env.hour) < 0.5) opts.push(['sun', 4]);
+    const pl = B.has(st.bond, 'play') ? 2 : 1, lz = B.has(st.bond, 'rest') ? 2 : 1;
+    opts.forEach((o) => { if (['ball', 'daruma', 'scratch'].includes(o[0])) o[1] *= pl; if (['sun', 'knead', 'tower', 'sill'].includes(o[0])) o[1] *= lz; });
     let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), pick = opts[0][0];
     for (const [id, w] of opts) { if ((r -= w) <= 0) { pick = id; break; } }
     if (force) pick = force;
@@ -622,6 +721,23 @@
         if (Math.random() < dt * 3) A.meow(1.7, 0.18);
       } else if (cat.perch === 'sill') { cat.lookTarget = { x: Math.sin(T * 0.5) * 0.8, y: -0.5 }; cat.lookT = 1; }
       if (cat.actT > cat.actDur) { cat.chattered = false; getDown(); }
+    } else if (cat.act === 'wait') {
+      cat.lookTarget = { x: Math.sin(T * 0.6) * 0.3, y: 0.1 }; cat.lookT = 1;
+      if (cat.actT > cat.actDur) { setAct('idle', 0.5); if (st.needs.hunger < 70) { say('hungry'); A.meow(1.0); } }
+    } else if (cat.act === 'bump') {
+      if (!cat.bonked && cat.actT > cat.actDur * 0.45) {
+        cat.bonked = true; A.play('pop'); U.vibrate(14);
+        S.burst('heart', cat.x, cat.y - 200 * s, 5, { angle: -Math.PI / 2, spread: 1, min: 70, max: 150, p: { color: '#ff6f9f', size: 10, life: 1.1 } });
+        A.startPurr(); cat.purring = true; setTimeout(() => { if (cat.petK < 0.1) { A.stopPurr(); cat.purring = false; } }, 1800);
+      }
+      if (cat.actT > cat.actDur) setAct('idle', 0.5);
+    } else if (cat.act === 'blink') {
+      cat.lookTarget = { x: 0, y: 0.05 }; cat.lookT = 1;
+      if (!cat.blinked && cat.actT > cat.actDur * 0.5) {
+        cat.blinked = true; S.emit({ type: 'heart', x: cat.x, y: cat.y - 220 * s, vy: -40, life: 1.4, size: 10, color: '#ff9dbf' });
+        const b = st.bond; if (!b.firsts.blink) { b.firsts.blink = Date.now(); setTimeout(() => toast(`${st.name} slow-blinked at you. In cat language that means “I trust you” 😌`), 400); }
+      }
+      if (cat.actT > cat.actDur) { cat.blinked = false; setAct('idle', 0.5); }
     } else if (cat.act === 'drink') {
       if (Math.random() < dt * 4) A.play('bubble');
       if (cat.actT > cat.actDur) { st.needs.hunger = U.clamp(st.needs.hunger + 3, 0, 100); cat.happyT = 0.8; setAct('idle', 0.5); }
@@ -882,13 +998,24 @@
     n.energy = U.clamp(n.energy + f.energy, 0, 100);
     st.stats.fed++;
     if (!st.tasted.includes(f.id)) st.tasted.push(f.id);
+    const b = st.bond;
+    B.count(b.foods, f.id); b.p[f.price > 0 ? 'treat' : 'plain']++;
+    if (Date.now() - b.lastMealAt > 2 * 3600000) B.addHour(b.feedH, hourNow());
+    b.lastMealAt = Date.now(); if (!b.firsts.meal) b.firsts.meal = Date.now();
+    const isFav = B.fav(b.foods) === f.id && b.foods[f.id] >= 4, waited = Date.now() - cat.waitAt < 15 * 60000;
+    cat.waitAt = 0;
+    trust(0.6 + (isFav ? 0.4 : 0) + (waited ? 0.6 : 0));
+    if (isFav) n.fun = U.clamp(n.fun + 4, 0, 100);
     track('feed'); if (f.price > 0) track('treat');
     cared();
     if (!st.pendingPoop && Math.random() < 0.45) st.pendingPoop = U.rand(50, 140);
     meal.id = null;
     setAct('nod', 1);
-    cat.happyT = 1.6;
-    say('yum', true); A.meow(1.15);
+    cat.happyT = isFav ? 2.6 : 1.6;
+    if (waited) sayText('おぼえててくれた！', 'You remembered mealtime!', true);
+    else if (isFav) sayText(`だいすきな${f.jp}！`, `My favourite, ${f.name}!`, true);
+    else say('yum', true);
+    A.meow(isFav ? 1.3 : 1.15);
     const s = catScale();
     S.burst('heart', cat.x, cat.y - 150 * s, 5, { angle: -Math.PI / 2, spread: 0.9, min: 80, max: 170, p: { color: '#ff6f9f', size: 10, life: 1.2 } });
     S.emit({ type: 'text', text: `+${f.hunger} おなか`, x: cat.x, y: cat.y - 230 * s, vy: -50, life: 1.4, size: 18, color: '#3d7be0' });
@@ -933,6 +1060,7 @@
     cat.caught = true;
     st.stats.catches++;
     track('wand');
+    trust(0.08);
     cared();
     st.needs.fun = U.clamp(st.needs.fun + 6, 0, 100);
     st.needs.energy = U.clamp(st.needs.energy - 1.5, 0, 100);
@@ -1017,6 +1145,7 @@
         bath.done = true;
         st.stats.baths++;
         track('bath');
+        trust(0.5);
         cared();
         S.burst('sparkle', cat.x, cat.y - 120 * s, 16, { p: { color: '#ffffff', size: 10 } });
         A.play('sparkle'); say('clean', true);
@@ -1046,11 +1175,12 @@
     env.lightsOff = m === 'sleep';
     if (prev === 'sleep' && m !== 'sleep') { st.asleep = false; }
     if (m === 'play') {
+      B.count(st.bond.toys, 'wand'); st.bond.p.play++;
       wand.tx = wand.x = cat.x + 80 * catScale(); wand.ty = wand.y = cat.y - 300 * catScale();
       hint('Wave the feather wand — up high to make them jump!'); say('bored', true); A.meow(1.2);
     }
     if (m === 'bath') { bath.scrub = 0; bath.rinse = 0; bath.done = false; cat.act = 'idle'; hint('Rub your kitty to make bubbles 🫧'); A.play('whoosh'); }
-    if (m === 'sleep') { st.asleep = true; st.stats.sleeps++; track('sleep'); hint('Shh… sweet dreams. Tap “Wake” any time.'); A.play('yawn'); addXP(6); checkAch(); }
+    if (m === 'sleep') { st.bond.p.rest += 2; trust(0.3); st.asleep = true; st.stats.sleeps++; track('sleep'); hint('Shh… sweet dreams. Tap “Wake” any time.'); A.play('yawn'); addXP(6); checkAch(); }
     if (m === 'room' || m === 'title') hint(null);
     if (m === 'room' && cat.act !== 'eat') setAct('idle', 0.5);
     updateMusic();
@@ -1111,6 +1241,12 @@
     if (mode === 'play') { wand.tx = ptr.x; wand.ty = ptr.y; return; }
     if (mode === 'bath') return;
     const hit = hitCat(ptr.x, ptr.y);
+    if (hit && mode === 'room' && bondStage() === 0 && st.bond.trust < 12 && !cat.inBox && cat.act !== 'eat' && Math.random() < 0.35) {
+      setAct('boop', 0.6); sayText('…！', '*flinches*', true); A.meow(1.5, 0.35);
+      const away = cat.x + (ptr.x < cat.x ? 1 : -1) * 70 * catScale();
+      setTimeout(() => { if (cat.act === 'idle' || cat.act === 'boop') goTo(U.clamp(away, L.minX, L.maxX)); }, 500);
+      return;
+    }
     if (hit) { ptr.target = { type: 'cat', part: hit }; return; }
     const prop = propAt(ptr.x, ptr.y);
     if (prop) ptr.target = prop;
@@ -1118,6 +1254,8 @@
   function onMove(e) {
     const x = e.clientX, y = e.clientY;
     const d = ptr.x > -900 ? Math.hypot(x - ptr.x, y - ptr.y) : 0;
+    const nowMs = performance.now(), spd = d / Math.max(8, nowMs - (ptr.lastMs || 0)) * 1000;
+    ptr.lastMs = nowMs;
     ptr.x = x; ptr.y = y; ptr.lastMove = T;
     if (mode === 'play') { if (ptr.down || e.pointerType === 'mouse') { wand.tx = x; wand.ty = y; } return; }
     if (!ptr.down) return;
@@ -1126,7 +1264,9 @@
     if (ptr.target && ptr.target.type === 'cat' && ptr.moved > 14) {
       // stroking = petting
       if (hitCat(x, y)) {
-        cat.petK = Math.min(1.2, cat.petK + d * 0.006);
+        if (mode === 'room' && spd > 2600) { if (T - (cat.roughT || -9) > 1.2) { cat.roughT = T; roughPet(); } return; }
+        if (cat.act === 'refuse') return;
+        cat.petK = Math.min(1.2, cat.petK + d * 0.006 * (bondStage() === 0 ? 0.6 : 1));
         cat.petDist = (cat.petDist || 0) + d;
         if (cat.petDist > 46) {
           cat.petDist = 0;
@@ -1136,6 +1276,9 @@
           if (st.stats.pets % 6 === 0) addXP(1);
           track('pet');
           cared();
+          st.bond.p.gentle++; trust(spd < 900 ? 0.22 : 0.14);
+          if (cat.sulk > 0 && --cat.sulk === 0) { sayText('…もう、しょうがないなぁ', '…Fine. I forgive you.', true); setTimeout(headBump, 600); hint(null); }
+          else if (B.has(st.bond, 'tsun') && Math.random() < 0.03) sayText('べ、べつに…', 'I-it’s not like I like this…', true);
           if (st.stats.pets % 15 === 0) say('pet', true);
           U.vibrate(4);
           checkAch(); tutorialStep('pet');
@@ -1150,6 +1293,7 @@
     if (mode === 'play' || mode === 'bath') return;
     if (ptr.target && ptr.target.type === 'ball' && !tap) {
       const dt = Math.max(0.05, T - ptr.t0);
+      st.bond.toys.ball = (st.bond.toys.ball || 0) + 0.34; st.bond.p.play += 0.2;
       kickBall(U.clamp((ptr.x - ptr.sx) / dt * 0.6, -900, 900), -U.clamp(Math.abs(ptr.y - ptr.sy) / dt * 0.5 + 200, 200, 700));
       return;
     }
@@ -1164,7 +1308,7 @@
       st.needs.clean = U.clamp(st.needs.clean + 8, 0, 100);
       addXP(4); addCoins(2, px, L.catY - 30); checkAch();
     } else if (tg.type === 'furin') { env.windT = 0; A.play('chime'); }
-    else if (tg.type === 'daruma') { wobbleDaruma = 1.4; A.play('boing'); }
+    else if (tg.type === 'daruma') { wobbleDaruma = 1.4; A.play('boing'); st.bond.toys.daruma = (st.bond.toys.daruma || 0) + 0.34; }
     else if (tg.type === 'maneki') {
       const key = U.dayKey();
       if (st.manekiDay !== key) { st.manekiDay = key; addCoins(15, ptr.x, ptr.y - 40); toast('The maneki-neko beckoned some luck! +15'); }
@@ -1195,6 +1339,7 @@
         cat.floorTap = -9;
         if (cat.act === 'eat') return;
         const tx = ptr.x;
+        if (bondStage() === 0 && Math.random() < 0.5) { cat.lookTarget = { x: U.clamp((tx - cat.x) / 200, -1, 1), y: 0 }; cat.lookT = 2; sayText('……', '*watches you from a distance*', true); return; }
         const go = () => { goTo(tx, () => { cat.happyT = 1; S.emit({ type: 'heart', x: cat.x, y: cat.y - 200 * catScale(), vy: -70, life: 1, size: 11, color: '#ff6f9f' }); }); sayText('にゃ？', 'Coming!', true); A.meow(1.2, 0.6); };
         if (cat.perch) { getDown(); setTimeout(go, 700); } else { cat.inBox = false; cat.chase = null; go(); }
       } else cat.floorTap = T;
@@ -1205,7 +1350,7 @@
     if (mode === 'sleep') { cat.petK = Math.min(1, cat.petK + 0.3); S.emit({ type: 'heart', x: ptr.x, y: ptr.y - 10, vy: -60, life: 1, size: 8, color: '#ff9dbf' }); return; }
     if (cat.act === 'eat') return;
     tapTimes = tapTimes.filter((t) => T - t < 2); tapTimes.push(T);
-    if (tapTimes.length >= 6) { tapTimes = []; setAct('dizzy', 2.2); say('dizzy', true); A.play('boing'); return; }
+    if (tapTimes.length >= 6) { tapTimes = []; st.bond.p.rough++; trust(-1); setAct('dizzy', 2.2); say('dizzy', true); A.play('boing'); return; }
     const s = catScale();
     if (part === 'nose') { track('boop'); setAct('boop', 0.7); say('boop', true); A.meow(1.45, 0.5); S.emit({ type: 'ring', x: ptr.x, y: ptr.y, life: 0.4, size: 10, color: '#ff8fb1' }); U.vibrate(12); }
     else if (part === 'belly') { setAct('swat', 0.6); say('belly', true); A.play('swat'); U.vibrate([6, 30, 6]); }
@@ -1522,7 +1667,7 @@
         <div class="nm"><b>${f.jp}</b><small>${f.name}</small></div>
         <div class="fx"><span class="chip h">+${f.hunger}</span>${f.fun ? `<span class="chip f">+${f.fun}</span>` : ''}${f.energy ? `<span class="chip e">+${f.energy}</span>` : ''}</div>
         ${f.price ? koban(f.price) : '<span class="price free">FREE</span>'}
-        ${st.tasted.includes(f.id) ? '' : '<span class="new">NEW</span>'}
+        ${st.tasted.includes(f.id) ? '' : '<span class="new">NEW</span>'}${B.fav(st.bond.foods) === f.id ? '<span class="fav">♥ すき</span>' : ''}
       </button>`).join('')}</div>`;
     openSheet('Feed', 'ごはん', html, (sh) => {
       sh.querySelectorAll('[data-icon]').forEach((el) => el.appendChild(foodIcon(el.dataset.icon)));
@@ -1610,6 +1755,7 @@
       if (!res) return;
       st.stats.games++;
       track('game');
+      B.count(st.bond.toys, id); st.bond.p.play += 2; trust(1);
       cared();
       if (id === 'catch') track('catchScore', res.best.catch);
       if (id === 'taiko') track('taikoCombo', res.best.taikoCombo);
@@ -1660,6 +1806,17 @@
   }
 
   /* ---------- Album ---------- */
+  function bondHTML() {
+    const b = st.bond, i = B.stage(b), sg = B.STAGES[i], nx = B.STAGES[i + 1];
+    const pct = nx ? Math.round(((b.trust - sg.min) / (nx.min - sg.min)) * 100) : 100;
+    const tr = B.traits(b), mem = B.memories(st, D.FOODS);
+    return `<h3>きずな <small>Bond · how well ${st.name} knows you</small></h3>
+      <div class="bondcard"><div class="bond-top"><span class="hearts">${'♥'.repeat(i + 1)}${'♡'.repeat(4 - i)}</span><b>${sg.jp}</b><small>${sg.en}</small></div>
+      <div class="m-bar"><span style="width:${pct}%"></span></div>
+      <p class="sub">${st.name} ${sg.desc}${nx ? ` Next: <b>${nx.en}</b>.` : ''}</p>
+      ${tr.length ? `<div class="traits">${tr.map((t) => `<span class="trait"><b>${t[0]}</b>${t[1]}</span>`).join('')}</div>` : '<p class="sub">Their personality takes shape from how you care for them…</p>'}
+      <ul class="mem">${mem.length ? mem.map((m) => `<li><i>${m[0]}</i><span>${m[1]}</span></li>`).join('') : `<li><i>💭</i><span>${st.name} is still getting to know you.</span></li>`}</ul></div>`;
+  }
   function openAlbum() {
     const days = Math.max(1, Math.floor((Date.now() - st.created) / 86400000) + 1);
     const t = titleFor(st.level);
@@ -1670,6 +1827,7 @@
       <li>Fur: <b>${C.FURS[st.look.fur].jp}</b> · Eyes: <b>${C.EYES[st.look.eye].jp}</b></li>
       <li>Pets <b>${st.stats.pets}</b> · Meals <b>${st.stats.fed}</b> · Baths <b>${st.stats.baths}</b></li>
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
+      ${bondHTML()}
       <h3>絆の道 <small>Kizuna Road · rewards for growing together</small></h3>
       <div class="road">${D.ROAD.map((r) => { const l = roadLabel(r); const got = st.level >= r.lv; return `<div class="node ${got ? 'got' : ''} ${r.lv === st.level + 1 ? 'next' : ''}"><div class="lv">Lv ${r.lv}</div><div class="gift" data-road-icon="${r.acc || r.decor || ''}">${l.kind === 'coins' ? '<i class="koban"></i>' : ''}</div><b>${l.kind === 'coins' ? l.jp : l.jp}</b><small>${l.kind === 'coins' ? 'koban' : l.en}</small>${r.note ? `<em>${r.note}</em>` : ''}${got ? '<span class="ok">✓</span>' : ''}</div>`; }).join('')}</div>
       <h3>はっけん <small>Discoveries · ${st.found.length}/${Object.keys(DISCOVER).length}</small></h3>
@@ -1706,7 +1864,7 @@
       <p class="sub">Your progress saves automatically on this device. Copy the backup code to move it to another device or keep it safe.</p>
       <div class="btnrow"><button class="btn ghost" data-ui="export">Copy backup code</button><button class="btn ghost" data-ui="import">Restore from code</button></div>
       <button class="btn danger" data-ui="reset">Start over…</button>
-      ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button></div>' : ''}
+      ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button></div>' : ''}
       <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>All art, music and sound are generated live in code. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
@@ -1795,8 +1953,8 @@
   }
 
   /* ---------- Welcome back letter ---------- */
-  function welcomeBack(off) {
-    if (!off || off.hrs < 0.5) { say('greet', true); return; }
+  function welcomeBack(off, v) {
+    if (!off || off.hrs < 0.5) { greet(v); return; }
     const mins = Math.round(off.hrs * 60);
     const away = mins < 90 ? `${mins} minutes` : `${Math.round(off.hrs)} hours`;
     const gift = Math.min(80, 10 + Math.floor(off.hrs * 6));
@@ -1804,13 +1962,15 @@
       'napped in a sunbeam', 'chased a dragonfly past the window', 'counted the tatami lines (twice)', 'practised the maneki-neko wave',
       'watched the clouds over Fuji-san', 'made biscuits on the zabuton', 'had a very serious staring contest with the daruma', 'waited by the door for you',
     ];
-    const did = [U.pick(things), U.pick(things)].filter((v, i, a) => a.indexOf(v) === i);
+    const did = [U.pick(things), U.pick(things)].filter((x, i, a) => a.indexOf(x) === i);
+    const vh = B.usual(st.bond.visitH);
+    if (vh != null && off.hrs > 3 && bondStage() >= 2) did[0] = `sat by the door around ${B.fmtH(vh)}, because that's when you usually come home`;
     st.coins += gift;
     modal(`<div class="letter"><div class="envelope">✉</div><h2>おかえり！ <small>Welcome back</small></h2>
       <p>While you were away for ${away}, <b>${st.name}</b> ${did.join(' and ')}.</p>
       <p>They found something shiny for you:</p><p class="reward">+${gift} <i class="koban"></i></p>
       <p class="sign">— ${st.name} 🐾</p><button class="btn" data-ui="closemodal">ただいま！ I'm home</button></div>`, 'letter');
-    setTimeout(() => { say('greet', true); A.meow(1.15); }, 400);
+    setTimeout(() => greet(v), 400);
   }
 
   /* ================= TITLE & ADOPTION ================= */
@@ -1845,7 +2005,9 @@
     protectSave();
     renderAvatar(); renderHUD(true);
     setMode(st.asleep ? 'sleep' : 'room');
-    if (fromBoot) setTimeout(() => welcomeBack(off), 700);
+    renderBond();
+    const v = B.visit(st.bond, hourNow(), off ? off.hrs : 0);
+    if (fromBoot) setTimeout(() => welcomeBack(off, v), 700);
     if (st.tut < TUT.length) setTimeout(() => hint(TUT[st.tut][1]()), 2600);
     checkAch();
   }
@@ -1910,7 +2072,7 @@
       A.resume();
       if (st && mode !== 'title') {
         const off = applyOffline();
-        if (off && off.hrs > 0.5) welcomeBack(off);
+        if (off && off.hrs > 0.5) welcomeBack(off, B.visit(st.bond, hourNow(), off.hrs));
         renderHUD(true);
       }
     }
@@ -1966,6 +2128,7 @@
       case 'adopt': adopt(); break;
       case 'dev-coins': addCoins(1000); break;
       case 'dev-lv': st.xp = xpNeed(st.level); addXP(0); closeSheet(); break;
+      case 'dev-bond': { closeSheet(); const up = B.bump(st.bond, 15); if (up > 0) stageUp(up); renderBond(); break; }
       case 'dev-low': Object.keys(st.needs).forEach((k) => (st.needs[k] = 15)); renderHUD(true); break;
       default: break;
     }
@@ -2001,7 +2164,7 @@
     document.body.classList.add('ready');
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

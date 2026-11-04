@@ -131,6 +131,8 @@ NB.Data = {
     { id: 'daily1', jp: 'おつとめ', name: 'Daily Duty', desc: 'Finish all 3 daily missions', reward: 40, check: (s) => (s.stats.dailyDone || 0) >= 1 },
     { id: 'streak3', jp: '三日坊主', name: 'Three-day Streak', desc: 'Finish daily missions 3 days running', reward: 80, check: (s) => (s.bestStreak || 0) >= 3 },
     { id: 'streak7', jp: '一週間', name: 'Full Week', desc: 'Finish daily missions 7 days running', reward: 200, check: (s) => (s.bestStreak || 0) >= 7 },
+    { id: 'friends', jp: 'なかよし', name: 'Friends', desc: 'Reach the Friends bond', reward: 60, check: (s) => s.bond && s.bond.trust >= 45 },
+    { id: 'soulmate', jp: '運命', name: 'Soulmates', desc: 'Reach the Soulmates bond', reward: 200, check: (s) => s.bond && s.bond.trust >= 90 },
     { id: 'explorer', jp: 'たんけん家', name: 'Explorer', desc: 'Make all 12 room discoveries', reward: 150, check: (s) => (s.found || []).length >= 12 },
     { id: 'gourmet', jp: 'グルメ', name: 'Gourmet', desc: 'Try every food', reward: 80, check: (s) => NB.Data.FOODS.every((f) => s.tasted.includes(f.id)) },
   ],
