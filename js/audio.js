@@ -3,7 +3,8 @@
 NB.Audio = (() => {
   const U = NB.U;
   let ac = null, master, musicBus, sfxBus, verb, verbSend;
-  let musicOn = true, sfxOn = true;
+  let musicOn = true, sfxOn = true, radioVol = 0.8, radioOn = false;
+  const musicLevel = () => (musicOn ? 0.32 * (radioOn ? radioVol * 1.25 : 1) : 0);
   let mode = 'day', nextNoteTime = 0, step = 0, timer = null, melodyDeg = 4, purrNode = null;
   let noiseBuf = null;
 
@@ -32,7 +33,7 @@ NB.Audio = (() => {
     master = ac.createGain(); master.gain.value = 0.85;
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     master.connect(comp); comp.connect(ac.destination);
-    musicBus = ac.createGain(); musicBus.gain.value = musicOn ? 0.32 : 0; musicBus.connect(master);
+    musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master);
     sfxBus = ac.createGain(); sfxBus.gain.value = sfxOn ? 0.7 : 0; sfxBus.connect(master);
     // generated hall reverb
     verb = ac.createConvolver();
@@ -373,7 +374,8 @@ NB.Audio = (() => {
     unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
     get mode() { return mode; },
-    setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(on ? 0.32 : 0, ac.currentTime, 0.2); },
+    setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.2); },
+    setRadio(on, vol) { radioOn = on; if (vol != null) radioVol = Math.max(0, Math.min(1, vol)); if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.08); },
     setSfx(on) { sfxOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(on ? 0.7 : 0, ac.currentTime, 0.05); if (!on) stopPurr(); },
     suspend() { if (ac && ac.state === 'running') ac.suspend(); },
     resume() { if (ac && ac.state === 'suspended') ac.resume(); },

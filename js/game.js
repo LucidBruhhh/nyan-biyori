@@ -1672,12 +1672,29 @@
   const STATIONS = [['snowy', 'Snowy Chillstep · Alien Instinct', 'none', 'audio/snowy-chillstep.mp3'], ['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
   const laser = { on: false, x: 0, y: 0, pounceT: 0 };
+  const radioVol = () => (st.settings.radioVol == null ? 0.8 : st.settings.radioVol);
   function tapRadio() {
     if (!unlocked('radio')) { A.play('tap'); toast('📻 The radio is still in its box. Check back in a day or two!'); return; }
-    const i = STATIONS.findIndex((s) => s[0] === st.radio), next = STATIONS[(i + 1) % STATIONS.length];
-    st.radio = next[0]; updateMusic(); A.play('tap');
+    A.play('tap'); openRadio();
+  }
+  function openRadio() {
+    const cur = st.radio || 'off', v = Math.round(radioVol() * 100);
+    const html = `<p class="sub">Pick a station for ${st.name}'s room.</p>
+      <div class="stations">${STATIONS.map(([id, label]) => `<button class="station ${cur === id ? 'on' : ''}" data-station="${id}"><span>${id === 'off' ? '⏹' : cur === id ? '🔊' : '▶'}</span><b>${label}</b></button>`).join('')}</div>
+      <label class="row vol"><span><b>おとのおおきさ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${v}" data-radio-vol aria-label="Radio volume"><output>${v}%</output></label>
+      ${st.settings.music ? '' : '<p class="sub center">Music is muted. Turn it on with the sound button or in Settings.</p>'}`;
+    openSheet('Radio', 'ラジオ', html, (sh) => {
+      const r = sh.querySelector('[data-radio-vol]'), o = sh.querySelector('.vol output');
+      r.addEventListener('input', () => { st.settings.radioVol = r.value / 100; o.textContent = r.value + '%'; A.setRadio(!!(st.radio && st.radio !== 'off'), st.settings.radioVol); });
+      r.addEventListener('change', save);
+    });
+  }
+  function pickStation(id) {
+    const next = STATIONS.find((s) => s[0] === id); if (!next) return;
+    st.radio = id; updateMusic(); A.play('tap');
     toast(`📻 ${next[1]}`);
-    if (next[0] === 'off') return;
+    openRadio();
+    if (id === 'off') return;
     if (!st.settings.music) toast('Music is muted. Turn it on in Settings 🎵');
     const r = NB.Painted.spot(L, 'radio');
     for (let k = 0; k < 4; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-20, 20), y: r.y - 20, vx: U.rand(-20, 20), vy: -60 - k * 10, life: 1.6, size: 9, color: '#c591ea' });
@@ -1978,6 +1995,7 @@
   function updateMusic() {
     if (mode === 'game') return;
     const stn = st && st.radio && !['sleep', 'title'].includes(mode) && STATIONS.find((s) => s[0] === st.radio);
+    A.setRadio(!!(stn && stn[0] !== 'off'), st ? radioVol() : null);
     if (stn) { A.setMode(stn[2]); if (stn[3]) A.playTrack(stn[3]); else A.stopTrack(); return; }
     A.stopTrack();
     A.setMode(mode === 'sleep' ? 'sleep' : mode === 'title' ? 'title' : (env.hour >= 19 || env.hour < 5) ? 'night' : 'day');
@@ -2866,7 +2884,7 @@
     const iosHint = U.isIOS() && !U.standalone() ? `<div class="install-hint">📱 <b>iPhone/iPad:</b> tap <b>Share</b> → <b>Add to Home Screen</b> to play full-screen like an app. Turn off silent mode to hear sound.</div>` : '';
     const html = `
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
-      ${tog('music', 'Music', 'おんがく')}${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
+      ${tog('music', 'Music', 'おんがく')}<label class="row vol"><span><b>ラジオ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${Math.round(radioVol() * 100)}" data-radio-vol aria-label="Radio volume"><output>${Math.round(radioVol() * 100)}%</output></label>${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
@@ -2880,6 +2898,9 @@
       ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button><button class="btn ghost" data-ui="dev-gift">Gift</button><button class="btn ghost" data-ui="dev-day">Next day</button></div>' : ''}
       <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” by Alien Instinct. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
+      const rv = sh.querySelector('[data-radio-vol]'), ro = sh.querySelector('.vol output');
+      rv.addEventListener('input', () => { st.settings.radioVol = rv.value / 100; ro.textContent = rv.value + '%'; A.setRadio(!!(st.radio && st.radio !== 'off'), st.settings.radioVol); });
+      rv.addEventListener('change', save);
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
         const k = el.dataset.set;
         if (k === 'name') { const v = cleanName(el.value); if (el.value.trim()) { st.name = v; el.value = v; renderHUD(true); } }
@@ -3134,8 +3155,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.station) { pickStation(el.dataset.station); return; }
     if (el.dataset.trick) { startTrain(el.dataset.trick); return; }
     if (el.dataset.diary != null) { openDiary(+el.dataset.diary); return; }
     if (el.dataset.buy) { A.play('tap'); buyProduct(el.dataset.buy); return; }
@@ -3312,7 +3334,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
