@@ -55,6 +55,25 @@ NB.Audio = (() => {
     loadSamples();
   }
 
+  /* ---------- radio songs: streamed through the music bus so the music switch still applies ---------- */
+  let track = null;
+  function playTrack(url) {
+    if (!ac) return;
+    if (track && track.url === url) { if (track.el.paused) track.el.play().catch(() => {}); return; }
+    stopTrack();
+    const el = new Audio(); el.src = url; el.loop = true; el.preload = 'auto';
+    const src = ac.createMediaElementSource(el), g = ac.createGain(); g.gain.value = 1.6;
+    src.connect(g); g.connect(musicBus);
+    track = { el, src, g, url };
+    el.play().catch(() => {});
+  }
+  function stopTrack() {
+    if (!track) return;
+    track.el.pause();
+    try { track.src.disconnect(); } catch (e) { /* already disconnected */ }
+    track = null;
+  }
+
   /* ---------- recorded cat voices (CC0, see audio/CREDITS.md) ---------- */
   const SAMPLE_URLS = { kitten: 'audio/kitten-mew.mp3', adult: 'audio/cat-mew.mp3', purr: 'audio/cat-purr.mp3' };
   const smp = {};
@@ -351,7 +370,7 @@ NB.Audio = (() => {
   }
 
   return {
-    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
+    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(on ? 0.32 : 0, ac.currentTime, 0.2); },

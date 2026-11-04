@@ -1669,7 +1669,7 @@
   }
 
   /* ================= ROOM TOYS ================= */
-  const STATIONS = [['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
+  const STATIONS = [['snowy', 'Snowy Chillstep · Alien Instinct', 'none', 'audio/snowy-chillstep.mp3'], ['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
   const laser = { on: false, x: 0, y: 0, pounceT: 0 };
   function tapRadio() {
@@ -1978,7 +1978,8 @@
   function updateMusic() {
     if (mode === 'game') return;
     const stn = st && st.radio && !['sleep', 'title'].includes(mode) && STATIONS.find((s) => s[0] === st.radio);
-    if (stn) { A.setMode(stn[2]); return; }
+    if (stn) { A.setMode(stn[2]); if (stn[3]) A.playTrack(stn[3]); else A.stopTrack(); return; }
+    A.stopTrack();
     A.setMode(mode === 'sleep' ? 'sleep' : mode === 'title' ? 'title' : (env.hour >= 19 || env.hour < 5) ? 'night' : 'day');
   }
   function renderModeBar() {
@@ -2718,6 +2719,7 @@
     if (id === 'tricks') { openTricks(); return; }
     closeSheet();
     mode = 'game'; document.body.dataset.mode = 'game';
+    A.stopTrack();
     A.stopPurr(); cat.purring = false;
     NB.Mini.start(id, { look: look(), name: st.name, maneki: shown('maneki') }, (res, again) => {
       mode = again ? 'game' : 'room'; document.body.dataset.mode = mode;
@@ -2876,7 +2878,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="export">Copy backup code</button><button class="btn ghost" data-ui="import">Restore from code</button></div>
       <button class="btn danger" data-ui="reset">Start over…</button>
       ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button><button class="btn ghost" data-ui="dev-gift">Gift</button><button class="btn ghost" data-ui="dev-day">Next day</button></div>' : ''}
-      <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. No ads, no tracking.</p>`;
+      <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” by Alien Instinct. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
       sh.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => {
         const k = el.dataset.set;
