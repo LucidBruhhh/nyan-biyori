@@ -6,7 +6,7 @@
   const $ = (q) => document.querySelector(q);
   const SAVE_KEY = 'nyanbiyori.save.v1';
   const DEV = /[?&]dev=1/.test(location.search);
-  const RM = U.reducedMotion();
+  let RM = U.reducedMotion();
 
   /* ================= ICONS ================= */
   const O = '#5b3a4a';
@@ -121,6 +121,8 @@
   function layoutClass() {
     const tablet = PREVIEW_DEVICE ? PREVIEW_DEVICE === 'ipad' : Math.min(window.innerWidth, window.innerHeight) >= 700 && window.matchMedia('(pointer: coarse)').matches;
     document.documentElement.classList.toggle('tablet', tablet);
+    const mini = PREVIEW_DEVICE ? PREVIEW_DEVICE === 'mini' : window.innerWidth <= 560 && window.innerHeight <= 520 && window.matchMedia('(pointer: fine)').matches;
+    document.documentElement.classList.toggle('mini', mini);
   }
   function toggleFullscreen() {
     const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
@@ -2933,7 +2935,7 @@
     drawThought(ctx);
     drawSpeech(ctx);
     drawBlinkRing(ctx);
-    if (env.flash > 0.01) { ctx.fillStyle = `rgba(235,240,255,${0.32 * env.flash})`; ctx.fillRect(0, 0, W, H); }
+    if (env.flash > 0.01 && !RM) { ctx.fillStyle = `rgba(235,240,255,${0.32 * env.flash})`; ctx.fillRect(0, 0, W, H); }
     { const h = env.hour, gk = env.weather === 'clear' && h > 16.2 && h < 18.8 ? Math.sin(Math.PI * (h - 16.2) / 2.6) : 0;
       if (gk > 0.02) { const g = ctx.createLinearGradient(L.win.x, L.win.y, L.win.x + L.win.w, H); g.addColorStop(0, `rgba(255,170,90,${0.16 * gk})`); g.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); } }
     if (cozy.on && cozyNight()) { ctx.fillStyle = 'rgba(16,12,40,0.28)'; ctx.fillRect(0, 0, W, H); }
@@ -3485,6 +3487,10 @@
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
       <label class="row"><span><b>なまえ</b> Rename</span><input type="text" maxlength="12" value="${st.name.replace(/"/g, '&quot;')}" data-set="name" class="txt"></label>
+      <h3>みやすさ <small>Accessibility</small></h3>
+      <label class="row"><span><b>もじ</b> Text size</span><select data-set="textSize">${[['normal', 'Normal'], ['large', 'Large'], ['larger', 'Larger']].map(([v, l]) => `<option value="${v}" ${(s.textSize || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="row"><span><b>しずか</b> Reduce motion (no zoom, shake or flashes)</span><input type="checkbox" class="switch" data-set="calm" ${s.calm ? 'checked' : ''}></label>
+      <label class="row"><span><b>くっきり</b> Higher contrast</span><input type="checkbox" class="switch" data-set="contrast" ${s.contrast ? 'checked' : ''}></label>
       ${NB.Native.isNative ? '' : `<button class="btn ghost" data-ui="fullscreen">⛶ Full screen${document.fullscreenElement ? ' · exit' : ''}</button>`}
       ${iosHint}
       ${installEvt ? '<button class="btn" data-ui="install">Install app 📲</button>' : ''}
@@ -3510,6 +3516,10 @@
   }
   function applySettings() {
     A.setMusic(st.settings.music); A.setSfx(st.settings.sfx);
+    { const s = st.settings, de = document.documentElement;
+      de.style.setProperty('--ts', { large: 1.14, larger: 1.28 }[s.textSize] || 1);
+      de.classList.toggle('calm', !!s.calm); de.classList.toggle('hc', !!s.contrast);
+      RM = U.reducedMotion() || !!s.calm; }
     const on = st.settings.music || st.settings.sfx;
     $('#btn-sound').innerHTML = on ? ICON.sound : ICON.mute;
     $('#btn-sound').classList.toggle('muted', !on);
@@ -3685,12 +3695,40 @@
     checkAch();
   }
 
-  let adoptLook = { fur: 'mike', eye: 'amber', acc: {} }, adoptRaf = 0;
+  let adoptLook = { fur: 'mike', eye: 'amber', acc: {} }, adoptRaf = 0, adoptIntroSeen = false;
+  const INTRO = 3.6;
+  function adoptIntro(ctx, c, p, at, s) {
+    const cx = c.width / 2, base = c.height * 0.93;
+    const ease = (a, b) => U.clamp((at - a) / (b - a), 0, 1), sm = (x) => x * x * (3 - 2 * x);
+    const rise = 1 - (0.45 * sm(ease(1.0, 1.9)) + 0.55 * sm(ease(2.6, 3.05)));
+    const boxA = 1 - ease(INTRO, INTRO + 0.7), wob = at > 0.45 && at < 0.95 ? Math.sin(at * 42) * 3 * s : 0;
+    const bw = 104 * s, top = base - 62 * s;
+    // rain
+    ctx.save(); ctx.globalAlpha = 0.55 * (1 - ease(INTRO - 0.5, INTRO + 0.5)); ctx.strokeStyle = '#8fa6c8'; ctx.lineWidth = 1.4 * s; ctx.lineCap = 'round';
+    for (let i = 0; i < 28; i++) { const x = ((i * 97.3) % 300) * s, y = ((at * 480 + i * 61.7) % 330) * s - 24 * s; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 4 * s, y + 18 * s); ctx.stroke(); }
+    ctx.restore();
+    // back flaps
+    ctx.save(); ctx.globalAlpha = boxA; ctx.translate(wob, 0); ctx.fillStyle = '#a97a50';
+    ctx.beginPath(); ctx.moveTo(cx - bw, top); ctx.lineTo(cx - bw - 30 * s, top - 34 * s); ctx.lineTo(cx - 14 * s, top - 30 * s); ctx.lineTo(cx - 4 * s, top); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + bw, top); ctx.lineTo(cx + bw + 30 * s, top - 34 * s); ctx.lineTo(cx + 14 * s, top - 30 * s); ctx.lineTo(cx + 4 * s, top); ctx.fill();
+    ctx.restore();
+    if (rise > 0.02) { p.earDroop = 0.5 * rise; p.lookX = Math.sin(at * 1.7) * 0.9; p.blush = 0.3; }
+    C.draw(ctx, adoptLook, p, at, cx + wob, base + rise * 150 * s, s);
+    // the front of the box, a little rain-spotted
+    ctx.save(); ctx.globalAlpha = boxA; ctx.translate(wob, 0);
+    const g = ctx.createLinearGradient(0, top, 0, c.height); g.addColorStop(0, '#dcad7c'); g.addColorStop(1, '#b8875a');
+    ctx.fillStyle = g; ctx.fillRect(cx - bw, top, bw * 2, c.height - top);
+    ctx.fillStyle = '#c9985f'; ctx.fillRect(cx - bw - 4 * s, top - 4 * s, bw * 2 + 8 * s, 9 * s);
+    ctx.fillStyle = 'rgba(120,80,50,.18)'; [[-60, 30, 7], [38, 52, 9], [70, 22, 5], [-20, 64, 6]].forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(cx + x * s, top + y * s, r * s, 0, 7); ctx.fill(); });
+    ctx.fillStyle = '#6e4b30'; ctx.font = `${18 * s}px "Yusei Magic", sans-serif`; ctx.textAlign = 'center'; ctx.fillText('ねこ ♡', cx, top + 42 * s);
+    ctx.restore();
+  }
   function openAdopt() {
     const ad = $('#adopt'); ad.hidden = false;
     const furs = Object.entries(C.FURS).map(([id, f]) => `<button class="swatch ${adoptLook.fur === id ? 'on' : ''}" data-fur="${id}" style="--c:${f.base};--m:${f.mark || f.shade};--l:${f.line}" aria-label="${f.name}"><i></i><span>${f.jp}</span></button>`).join('');
     const eyes = Object.entries(C.EYES).map(([id, e]) => `<button class="swatch eye ${adoptLook.eye === id ? 'on' : ''}" data-eye="${id}" style="--c:${e.c[1]};--m:${e.c[0]};--l:${e.c[0]}" aria-label="${e.name}"><i></i><span>${e.jp}</span></button>`).join('');
     ad.innerHTML = `<div class="adopt-card">
+      <p class="adopt-tale">あめのひ、ちいさなはこのなかに…<small>One rainy day, in a little box…</small></p>
       <h2>ねこをおむかえ <small>Adopt your kitty</small></h2>
       <canvas id="adoptcat"></canvas>
       <div class="pick"><h4>けいろ <small>Fur</small></h4><div class="swatches">${furs}</div></div>
@@ -3701,7 +3739,13 @@
     const sz = Math.min(260, window.innerHeight * 0.3);
     c.width = c.height = sz * 2; c.style.width = c.style.height = sz + 'px';
     const actx = c.getContext('2d');
-    let at = 0, lastA = performance.now(), bl = 3;
+    let at = 0, lastA = performance.now(), bl = 3, popped = false;
+    const intro = !adoptIntroSeen && !RM, card = ad.querySelector('.adopt-card');
+    adoptIntroSeen = true;
+    if (intro) {
+      card.classList.add('intro'); A.setAmbience({ rain: 45 });
+      card.addEventListener('pointerdown', () => { if (at < INTRO) { at = INTRO; popped = true; } }, { once: true });
+    }
     cancelAnimationFrame(adoptRaf);
     const tick = (ts) => {
       const dt = (ts - lastA) / 1000; lastA = ts; at += dt; bl -= dt; if (bl < -0.14) bl = U.rand(2, 4);
@@ -3711,7 +3755,10 @@
       if (adoptLook.pop > 0) { adoptLook.pop -= dt; p.eyes = 'happy'; p.mouthOpen = 0.5; p.sy += Math.sin(adoptLook.pop * 20) * 0.03; }
       actx.setTransform(1, 0, 0, 1, 0, 0); actx.clearRect(0, 0, c.width, c.height);
       const s = c.width / 300;
-      C.draw(actx, adoptLook, p, at, c.width / 2, c.height * 0.93, s);
+      if (intro && !popped && at >= 3.0) { popped = true; adoptLook.pop = 0.6; A.meow(1.3); }
+      if (intro && at >= INTRO && card.classList.contains('intro')) { card.classList.remove('intro'); A.setAmbience({}); }
+      if (intro && at < INTRO + 0.7) adoptIntro(actx, c, p, at, s);
+      else C.draw(actx, adoptLook, p, at, c.width / 2, c.height * 0.93, s);
       if (!$('#adopt').hidden) adoptRaf = requestAnimationFrame(tick);
     };
     adoptRaf = requestAnimationFrame(tick);
@@ -3963,7 +4010,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { openAdopt, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

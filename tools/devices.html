@@ -25,12 +25,13 @@
     <button data-d="android">🤖 Android</button>
     <button data-d="ipad">▯ iPad</button>
     <button data-d="ipadl">▭ iPad landscape</button>
+    <button data-d="mini">◰ Mini window</button>
     <span id="info"></span>
   </div>
   <div class="stage"><div class="frame" id="frame"><iframe id="game" title="Game preview"></iframe></div></div>
   <script>
     // Previews the game at real device sizes. The game inside reads ?device= to switch on its tablet layout.
-    const DEVICES = { phone: [393, 852, 'iPhone 15'], android: [412, 915, 'Pixel'], ipad: [820, 1180, 'iPad Air'], ipadl: [1180, 820, 'iPad Air, landscape'] };
+    const DEVICES = { phone: [393, 852, 'iPhone 15'], android: [412, 915, 'Pixel'], ipad: [820, 1180, 'iPad Air'], ipadl: [1180, 820, 'iPad Air, landscape'], mini: [420, 360, 'Desktop mini window'] };
     const frame = document.getElementById('frame'), game = document.getElementById('game'), info = document.getElementById('info');
     let cur = new URLSearchParams(location.search).get('d') || 'phone';
     function show(d) {
@@ -39,7 +40,7 @@
       const [w, h, name] = DEVICES[d];
       game.style.width = w + 'px'; game.style.height = h + 'px';
       frame.classList.toggle('tablet', d.startsWith('ipad'));
-      const want = '../index.html?dev=1&device=' + (d.startsWith('ipad') ? 'ipad' : 'phone');
+      const want = '../index.html?dev=1&device=' + (d.startsWith('ipad') ? 'ipad' : d === 'mini' ? 'mini' : 'phone');
       if (!game.src.endsWith(want.slice(2))) game.src = want;
       document.querySelectorAll('[data-d]').forEach((b) => b.classList.toggle('on', b.dataset.d === d));
       history.replaceState(null, '', '?d=' + d);
