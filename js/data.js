@@ -148,6 +148,7 @@ NB.Data = {
     { id: 'supporter', jp: 'おうえん', name: 'Supporter', desc: 'Support the game with the Supporter Pack', reward: 50, check: (s) => !!s.supporter },
     { id: 'trick1', jp: 'おけいこ', name: 'Clever Kitty', desc: 'Teach your cat a trick', reward: 40, check: (s) => Object.values(s.tricks || {}).some((x) => x >= 1) },
     { id: 'trickmaster', jp: '名人', name: 'Trick Master', desc: 'Get every trick to 3 stars', reward: 200, check: (s) => ['paw', 'spin', 'beg', 'roll', 'hifive'].every((k) => ((s.tricks || {})[k] || 0) >= 6) },
+    { id: 'figs6', jp: 'ガチャ', name: 'Figure Fan', desc: 'Collect 6 capsule figures', reward: 80, check: (s) => Object.keys(s.figs || {}).length >= 6 },
     { id: 'explorer', jp: 'たんけん家', name: 'Explorer', desc: 'Make 12 room discoveries', reward: 150, check: (s) => (s.found || []).length >= 12 },
     { id: 'gourmet', jp: 'グルメ', name: 'Gourmet', desc: 'Try every food', reward: 80, check: (s) => NB.Data.FOODS.every((f) => s.tasted.includes(f.id)) },
   ],

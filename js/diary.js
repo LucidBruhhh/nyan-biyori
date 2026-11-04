@@ -93,6 +93,7 @@ window.NB = window.NB || {};
     if ((ev.games || []).includes('hide')) add(47, 'We played hide and seek. I hid very well. You still found me.');
     if (ev.trickStar) add(72, `You taught me a trick today. I am basically a genius.`);
     else if ((ev.tricks || []).length) add(40, 'We practised tricks. I let you think it was your idea.');
+    if (ev.capsule) add(35, 'A new little friend came out of a capsule. I sniffed it. It is acceptable.');
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');

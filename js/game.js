@@ -124,7 +124,8 @@
     if (!cat.x) { cat.x = homeX(); cat.tx = cat.x; }
     cat.x = U.clamp(cat.x, L.minX, L.maxX); cat.tx = U.clamp(cat.tx, L.minX, L.maxX);
   }
-  const homeX = () => L.sx + L.SW * 0.5;
+  const layoutPos = (id, def) => { const p = st && st.layout && st.layout[id]; return p ? { x: L.sx + p.x * L.SW, y: L.floorY + p.y * (L.catY - L.floorY) } : def; };
+  const homeX = () => layoutPos('home', { x: L.sx + L.SW * 0.5 }).x;
   const homeId = () => (st && st.settings.home) || 'painted';
 
   /* ================= NEEDS / TIME ================= */
@@ -859,11 +860,11 @@
     A.play('sparkle'); checkAch();
   }
   const cs = () => catScale() * cat.depth * (1 + cat.zoom);
-  const boxX = () => L.sx + L.SW * 0.78;
+  const boxX = () => layoutPos('box', { x: L.sx + L.SW * 0.78 }).x;
   const sillSpot = () => ({ x: L.win.x + L.win.w * U.rand(0.38, 0.62), y: L.win.y + L.win.h + 1, depth: 0.58 });
   const tokoSpot = () => ({ x: L.alcove.x + L.alcove.w * 0.5, y: L.alcove.y + L.alcove.h - 26, depth: 0.5 });
 
-  const spots = () => NB.Habitat.spots(L);
+  const spots = () => { const sp = NB.Habitat.spots(L); ['tower', 'bowls', 'daruma', 'bamboo'].forEach((k) => { sp[k] = layoutPos(k, sp[k]); }); return sp; };
   const depthAt = (y) => NB.Habitat.depthAt(L, y);
   const towerS = () => L.scale * depthAt(spots().tower.y) * 0.95;
   function goTo(x, then, fast, y) {
@@ -1802,6 +1803,7 @@
   /* ================= MODES ================= */
   function setMode(m) {
     if (train.on && m !== 'room') endTrain();
+    if (arrange.on && m !== 'room') endArrange();
     const prev = mode;
     if (m !== 'room') cancelHide();
     if (m !== 'room' && L) { getDown(true); A.stopPurr(); cat.purring = false; }
@@ -1890,6 +1892,7 @@
     ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
     ptr.target = null; ptr.blinked = false;
     if (train.on && mode === 'room') { train.pts = [{ x: ptr.x, y: ptr.y }]; return; }
+    if (arrange.on && mode === 'room') { arrangeDown(ptr.x, ptr.y); return; }
     if (mode === 'play') { wand.tx = ptr.x; wand.ty = ptr.y; return; }
     if (mode === 'bath') return;
     if (st.gift) { const gp = propAt(ptr.x, ptr.y); if (gp && gp.type === 'gift') { ptr.target = gp; return; } }
@@ -1911,6 +1914,7 @@
     ptr.lastMs = nowMs;
     ptr.x = x; ptr.y = y; ptr.lastMove = T;
     if (train.on && ptr.down) { train.pts.push({ x, y }); return; }
+    if (arrange.on && ptr.down) { arrangeMove(x, y); return; }
     if (mode === 'play') { if (ptr.down || e.pointerType === 'mouse') { wand.tx = x; wand.ty = y; } return; }
     if (!ptr.down) return;
     ptr.moved += d;
@@ -1955,6 +1959,7 @@
     ptr.down = false;
     const tap = ptr.moved < 12 && T - ptr.t0 < 0.45;
     if (train.on && mode === 'room') { trainGesture(readGesture(train.pts, T - ptr.t0)); return; }
+    if (arrange.on) { if (arrange.drag) A.play('pop'); arrange.drag = null; return; }
     if (mode === 'play' || mode === 'bath') return;
     if (ptr.target && ptr.target.type === 'ball' && !tap) {
       const dt = Math.max(0.05, T - ptr.t0);
@@ -2117,6 +2122,7 @@
     env.lampOff = !!(st && st.lampOff);
     env.fairyOff = !!(st && st.fairyOff);
     S.drawRoom(ctx, L, env, T);
+    if (st) drawFigs(ctx);
     const s = catScale();
     // light pouring in from the window, lantern glow on the floor
     env.sun = NB.Habitat.sunInfo(L, env);
@@ -2178,6 +2184,7 @@
     drawThought(ctx);
     drawSpeech(ctx);
     drawBlinkRing(ctx);
+    if (arrange.on) drawArrange(ctx);
     if (mode === 'bath' && ptr.x > -900 && !RM) drawSponge(ctx);
   }
   function drawSponge(ctx2) {
@@ -2382,14 +2389,16 @@
   let shopTab = 'fashion';
   function openShop(tab) {
     if (tab) shopTab = tab;
-    const tabs = `<div class="tabs" role="tablist">${[['fashion', 'おしゃれ', 'Fashion'], ['home', 'インテリア', 'Home'], ['support', 'おうえん', '✦ Support']].map(([id, jp, en]) => `<button role="tab" aria-selected="${shopTab === id}" class="${shopTab === id ? 'on' : ''}" data-tab="${id}"><b>${jp}</b> ${en}</button>`).join('')}</div>`;
+    const tabs = `<div class="tabs" role="tablist">${[['fashion', 'おしゃれ', 'Fashion'], ['home', 'インテリア', 'Home'], ['capsule', 'ガチャ', 'Capsules'], ['support', 'おうえん', '✦ Support']].map(([id, jp, en]) => `<button role="tab" aria-selected="${shopTab === id}" class="${shopTab === id ? 'on' : ''}" data-tab="${id}"><b>${jp}</b> ${en}</button>`).join('')}</div>`;
     let body = '';
     if (shopTab === 'fashion') {
       const slots = [['head', 'あたま', 'Head'], ['neck', 'くび', 'Neck'], ['body', 'ふく', 'Outfit']];
-      body = slots.map(([slot, jp, en]) => `<h3>${jp} <small>${en}</small></h3><div class="grid acc">${D.ACCESSORIES.filter((a) => a.slot === slot).map((a) => {
+      body = picksHTML() + slots.map(([slot, jp, en]) => `<h3>${jp} <small>${en}</small></h3><div class="grid acc">${D.ACCESSORIES.filter((a) => a.slot === slot).map((a) => {
         const owned = st.owned.includes(a.id), worn = st.wear[slot] === a.id;
         return `<button class="item ${worn ? 'worn' : ''} ${a.road || a.season || a.store ? 'excl' : ''}" data-acc="${a.id}"><div class="ic" data-acc-icon="${a.id}"></div><div class="nm"><b>${a.jp}</b><small>${a.name}</small></div>${owned ? `<span class="state">${worn ? 'Wearing ✓' : 'Wear'}</span>` : a.season ? '<span class="price lock">🌸 Event</span>' : a.store ? '<span class="price lock">💝 Supporter</span>' : a.road ? `<span class="price lock">🔒 Lv ${a.road}</span>` : koban(a.price)}</button>`;
       }).join('')}</div>`).join('');
+    } else if (shopTab === 'capsule') {
+      body = capsuleHTML();
     } else if (shopTab === 'support') {
       body = `<p class="sub">にゃん日和 is free with no ads. These optional packs help the game keep growing. Nothing here ever affects ${st.name}'s care, needs or love.</p>
         <div class="store">${NB.Store.PRODUCTS.map((p) => { const owned = p.once && st.supporter; return `<button class="store-item ${p.id === 'supporter' ? 'feat' : ''}" data-buy="${p.id}" ${owned ? 'disabled' : ''}>
@@ -2397,7 +2406,7 @@
           <span class="price real">${owned ? 'Owned ✓' : p.price}</span></button>`; }).join('')}</div>
         ${NB.Store.available() ? '' : '<p class="sub center">Purchases open with the App Store and Google Play release.</p>'}`;
     } else {
-      body = `<div class="grid decor">${D.DECOR.map((d) => {
+      body = picksHTML() + `<button class="btn ghost arrange-btn" data-ui="arrange">🛋 もようがえ Arrange your room${unlocked('arrange') ? '' : ' · day 6'}</button><div class="grid decor">${D.DECOR.map((d) => {
         const owned = st.decor.includes(d.id), hid = st.hidden.includes(d.id);
         return `<button class="item ${owned && !hid ? 'worn' : ''}" data-decor="${d.id}"><div class="ic" data-decor-icon="${d.id}"></div><div class="nm"><b>${d.jp}</b><small>${d.name}</small></div><p class="desc">${d.desc}</p>${owned ? `<span class="state">${hid ? 'Stored · Show' : 'Placed ✓'}</span>` : koban(d.price)}</button>`;
       }).join('')}</div>`;
@@ -2411,16 +2420,112 @@
         el.appendChild(c);
       });
       sh.querySelectorAll('[data-decor-icon]').forEach((el) => el.appendChild(decorIcon(el.dataset.decorIcon)));
+      sh.querySelectorAll('[data-fig-icon]').forEach((el) => el.prepend(figIcon(el.dataset.figIcon, 46)));
     });
   }
+  /* ---------- today's picks: three items at 25% off, new every day ---------- */
+  function todaysPicks() {
+    const R = seededRng(U.dayKey() + 'shop');
+    const pool = D.ACCESSORIES.filter((a) => a.price > 0 && !a.road && !a.season && !a.store && !st.owned.includes(a.id)).map((a) => ['acc', a])
+      .concat(D.DECOR.filter((d) => d.price > 0 && !st.decor.includes(d.id)).map((d) => ['decor', d]));
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    return pool.slice(0, 3);
+  }
+  const priceOf = (item) => (todaysPicks().some(([, x]) => x.id === item.id) ? Math.round(item.price * 0.75) : item.price);
+  function picksHTML() {
+    const picks = todaysPicks();
+    if (!picks.length) return '';
+    return `<h3>きょうのおすすめ <small>Today's picks · 25% off · new picks tomorrow</small></h3><div class="grid acc picks">${picks.map(([kind, it]) => `<button class="item excl" data-${kind}="${it.id}"><div class="ic" data-${kind}-icon="${it.id}"></div><div class="nm"><b>${it.jp}</b><small>${it.name}</small></div><span class="price"><s>${it.price}</s> ${koban(priceOf(it))}</span></button>`).join('')}</div>`;
+  }
+
+  /* ---------- capsule toys ---------- */
+  function capsuleHTML() {
+    if (!unlocked('capsule')) return '<p class="sub center">🎐 The capsule toy machine arrives on your fourth day together.</p>';
+    const owned = st.figs || {}, n = Object.keys(owned).length;
+    return `<div class="gacha"><div class="machine"><i></i><i></i><i></i><i></i><i></i></div>
+      <div><p>Each capsule holds one of 12 tiny figures. Your newest four sit on the window seat. Duplicates give ${NB.Capsule.DUP_REFUND} koban back.</p>
+      <button class="btn" data-ui="capsule">ガチャ Spin · ${koban(NB.Capsule.COST)}</button></div></div>
+      <h3>コレクション <small>Figures · ${n}/${NB.Capsule.FIGS.length}</small></h3>
+      <div class="giftgrid">${NB.Capsule.FIGS.map((f) => `<div class="gitem r${f.r} ${owned[f.id] ? 'got' : ''}" data-fig-icon="${f.id}"><b>${owned[f.id] ? f.jp : '？？？'}</b><small>${owned[f.id] ? f.en + (owned[f.id] > 1 ? ` ×${owned[f.id]}` : '') : NB.Capsule.RARITY[f.r].split(' ')[1]}</small></div>`).join('')}</div>`;
+  }
+  const figIcon = (id, size = 56) => iconCanvas((x, s) => NB.Capsule.draw(x, id, s / 2, s * 0.92, s / 50), size);
+  function spinCapsule() {
+    if (st.coins < NB.Capsule.COST) { toast('Not enough koban yet. Try the minigames! 🎮'); A.play('fail'); return; }
+    st.coins -= NB.Capsule.COST; renderHUD(true);
+    st.figs = st.figs || {};
+    const f = NB.Capsule.roll(st.figs), dup = !!st.figs[f.id];
+    st.figs[f.id] = (st.figs[f.id] || 0) + 1;
+    if (!dup) { st.figShow = (st.figShow || []).filter((x) => x !== f.id).concat(f.id).slice(-4); }
+    else st.coins += NB.Capsule.DUP_REFUND;
+    A.play('shake'); noteSet('capsule', f.id);
+    modal('<div class="capsule-open"><div class="ball"></div><p class="sub">ガラガラ…</p></div>', 'capsule', { replace: true });
+    setTimeout(() => {
+      A.play(f.r >= 3 ? 'fanfare' : 'success');
+      modal(`<div class="giftcard r${f.r}"><div class="burst"></div><canvas id="figic"></canvas><p class="rar">${NB.Capsule.RARITY[f.r]}</p>
+        <h2>${f.jp} <small>${f.en}</small></h2><p>${dup ? `Another one! +${NB.Capsule.DUP_REFUND} koban back.` : 'New figure! It now sits on your window seat.'}</p>
+        <p class="sub">Figures · ${Object.keys(st.figs).length}/${NB.Capsule.FIGS.length}</p>
+        <div class="btnrow"><button class="btn ghost" data-ui="capsule">Again</button><button class="btn" data-ui="closemodal">やったー！</button></div></div>`, 'gift', {
+        replace: true, onShow: (m) => { const c = m.querySelector('#figic'); c.replaceWith(Object.assign(figIcon(f.id, 120), { id: 'figic' })); },
+      });
+      if (!dup && mode === 'room' && cat.act === 'idle') { sayText('なにそれ？', '*sniffs the new figure*', true); }
+      checkAch(); save();
+    }, 1100);
+  }
+  function drawFigs(c) {
+    const show = st.figShow || [];
+    if (!show.length) return;
+    const y = L.win.y + L.win.h + 1, s = L.scale * 0.85;
+    show.forEach((id, i) => NB.Capsule.draw(c, id, L.win.x + L.win.w * (0.3 + i * 0.1), y, s));
+  }
+
+  /* ---------- arrange the room ---------- */
+  const arrange = { on: false, drag: null };
+  function arrangeItems() {
+    const sp = spots(), out = [['tower', sp.tower.x, sp.tower.y - 40], ['bowls', sp.bowls.x, sp.bowls.y], ['box', boxX(), L.catY - 30]];
+    if (shown('zabuton')) out.push(['home', homeX(), L.catY]);
+    if (shown('daruma')) out.push(['daruma', sp.daruma.x, sp.daruma.y - 20]);
+    if (shown('bamboo')) out.push(['bamboo', sp.bamboo.x, sp.bamboo.y - 30]);
+    return out;
+  }
+  function startArrange() {
+    if (!unlocked('arrange')) { toast('🛋 Room arranging unlocks on your sixth day together'); return; }
+    closeSheet(); if (mode !== 'room') setMode('room');
+    getDown(true); cat.inBox = false;
+    arrange.on = true; arrange.drag = null;
+    const mb = $('#modebar'); mb.hidden = false;
+    mb.innerHTML = '<span><b>もようがえ</b> Drag your furniture</span><button class="pill" data-ui="endarrange">Done ✓</button>';
+  }
+  function endArrange() { arrange.on = false; arrange.drag = null; $('#modebar').hidden = true; save(); toast('🛋 Room arranged!'); }
+  function arrangeDown(x, y) {
+    let best = null, bd = 70;
+    arrangeItems().forEach(([id, ix, iy]) => { const d = Math.hypot(x - ix, y - iy); if (d < bd) { bd = d; best = id; } });
+    arrange.drag = best;
+    if (best) A.play('tap');
+  }
+  function arrangeMove(x, y) {
+    const id = arrange.drag; if (!id) return;
+    st.layout = st.layout || {};
+    const fy = id === 'home' || id === 'box' ? 1 : U.clamp((y + (id === 'tower' ? 40 : 10) - L.floorY) / (L.catY - L.floorY), 0.12, 0.95);
+    st.layout[id] = { x: U.clamp((x - L.sx) / L.SW, 0.06, 0.94), y: fy };
+  }
+  function drawArrange(c) {
+    c.save(); c.setLineDash([6, 6]); c.lineWidth = 2.5;
+    arrangeItems().forEach(([id, x, y]) => {
+      c.strokeStyle = arrange.drag === id ? '#ff6f9f' : 'rgba(255,255,255,0.9)';
+      c.beginPath(); c.arc(x, y, 30, 0, Math.PI * 2); c.stroke();
+    });
+    c.restore();
+  }
+
   function accAction(id) {
     const a = D.ACCESSORIES.find((x) => x.id === id);
     if (!st.owned.includes(id) && a.season) { toast('🌸 A Hanami Festival reward. Earn it on the event track!'); A.play('fail'); return; }
     if (!st.owned.includes(id) && a.store) { toast('💝 A thank-you gift in the Supporter Pack (Shop › Support)'); A.play('fail'); return; }
     if (!st.owned.includes(id) && a.road) { toast(`🔒 Unlocks at <b>Lv ${a.road}</b> on the Kizuna Road`); A.play('fail'); return; }
     if (!st.owned.includes(id)) {
-      if (st.coins < a.price) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
-      st.coins -= a.price; st.owned.push(id); A.play('coin'); track('buy'); toast(`Bought <b>${a.jp}</b> ${a.name}!`);
+      const cost = priceOf(a);
+      if (st.coins < cost) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
+      st.coins -= cost; st.owned.push(id); A.play('coin'); track('buy'); toast(`Bought <b>${a.jp}</b> ${a.name}!`);
       st.wear[a.slot] = id;
     } else {
       st.wear[a.slot] = st.wear[a.slot] === id ? null : id;
@@ -2433,8 +2538,9 @@
   function decorAction(id) {
     const d = D.DECOR.find((x) => x.id === id);
     if (!st.decor.includes(id)) {
-      if (st.coins < d.price) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
-      st.coins -= d.price; st.decor.push(id); A.play('success'); track('buy'); toast(`<b>${d.jp}</b> placed in your room!`);
+      const cost = priceOf(d);
+      if (st.coins < cost) { toast('Not enough koban yet — try the minigames! 🎮'); A.play('fail'); return; }
+      st.coins -= cost; st.decor.push(id); A.play('success'); track('buy'); toast(`<b>${d.jp}</b> placed in your room!`);
       addXP(10);
     } else {
       st.hidden = st.hidden.includes(id) ? st.hidden.filter((x) => x !== id) : st.hidden.concat(id);
@@ -2910,6 +3016,9 @@
       case 'album': if (modalShowing) closeModal(); openAlbum(); break;
       case 'health': openHealth(); break;
       case 'endtrain': endTrain(); break;
+      case 'capsule': spinCapsule(); break;
+      case 'arrange': startArrange(); break;
+      case 'endarrange': endArrange(); break;
       case 'diary': openDiary(); break;
       case 'season': openSeason(); break;
       case 'hide': if (modalShowing) closeModal(); startHide(); break;
@@ -3042,7 +3151,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
