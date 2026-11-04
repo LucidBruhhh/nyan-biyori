@@ -2008,7 +2008,7 @@
   function updateCozy(dt) {
     if (!cozy.on) {
       // drift into cozy mode after five quiet minutes in the room
-      if (st && st.settings.cozyAuto !== false && mode === 'room' && T - ptr.lastMove > 300 && !modalShowing && $('#sheet').hidden && !train.on && !arrange.on && !laser.on && !hide.on) enterCozy(true);
+      if (st && st.settings.cozyAuto !== false && st.tut >= TUT.length && mode === 'room' && T - ptr.lastMove > 300 && !modalShowing && $('#sheet').hidden && !train.on && !arrange.on && !laser.on && !hide.on) enterCozy(true);
       return;
     }
     if (cozy.peekT > 0) { cozy.peekT -= dt; if (cozy.peekT <= 0) document.body.classList.remove('peek'); }
