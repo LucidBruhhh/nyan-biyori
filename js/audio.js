@@ -67,7 +67,8 @@ NB.Audio = (() => {
     stopTrack();
     const el = new Audio(); el.src = url; el.loop = true; el.preload = 'auto';
     const src = ac.createMediaElementSource(el), g = ac.createGain(); g.gain.value = 1.6;
-    src.connect(g); g.connect(musicBus);
+    const pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    if (pan) { pan.pan.value = 0.35; src.connect(g); g.connect(pan); pan.connect(musicBus); } else { src.connect(g); g.connect(musicBus); }
     track = { el, src, g, url };
     el.play().catch(() => {});
   }
@@ -355,7 +356,12 @@ NB.Audio = (() => {
     clack: (t) => { osc('square', 900, t, 0.04, 0.1, sfxBus); osc('sine', 320, t, 0.14, 0.22, sfxBus, { slide: 170, verb: true }); noise(t, 0.03, 0.18, sfxBus, 'bandpass', 2000, 3); },
     scratch: (t) => { noise(t, 0.09, 0.14, sfxBus, 'bandpass', U.rand(3000, 4200), 2, { a: 0.01 }); },
     sweep: (t) => { noise(t, 0.25, 0.2, sfxBus, 'bandpass', 1500, 1, { sweep: 4000, a: 0.05 }); },
-    train: (t) => { noise(t, 3.2, 0.07, sfxBus, 'lowpass', 260, 1, { a: 1.2 }); for (let i = 0; i < 8; i++) noise(t + 0.6 + i * 0.28, 0.08, 0.05, sfxBus, 'bandpass', 900, 3); },
+    train: (t) => {
+      const out = ac.createStereoPanner ? ac.createStereoPanner() : sfxBus;
+      if (out !== sfxBus) { out.pan.setValueAtTime(-0.8, t); out.pan.linearRampToValueAtTime(0.8, t + 3.2); out.connect(sfxBus); }
+      noise(t, 3.2, 0.07, out, 'lowpass', 260, 1, { a: 1.2 }); for (let i = 0; i < 8; i++) noise(t + 0.6 + i * 0.28, 0.08, 0.05, out, 'bandpass', 900, 3);
+    },
+    thunder: (t) => { noise(t, 3, 0.11, sfxBus, 'lowpass', 140, 0.9, { a: 0.25 }); noise(t + 0.15, 1.6, 0.05, sfxBus, 'lowpass', 400, 0.7, { a: 0.05, sweep: 120 }); },
     page: (t) => { noise(t, 0.22, 0.12, sfxBus, 'bandpass', 2600, 1.2, { sweep: 1400, a: 0.04 }); noise(t + 0.12, 0.12, 0.07, sfxBus, 'highpass', 4000, 0.7); },
   };
   let rainNode = null;

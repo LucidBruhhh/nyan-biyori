@@ -1313,6 +1313,14 @@
   }
   function updateWorld(dt) {
     updateCozy(dt); updatePhoto(dt);
+    const nightK = S.nightness(env.hour);
+    env.fog = U.damp(env.fog || 0, (env.weather === 'rain' || env.season === 'winter') && nightK > 0.4 ? 1 : 0, 0.3, dt);
+    env.radioOn = !!radioPlaying();
+    if (env.weather === 'rain' && nightK > 0.5 && mode !== 'game') {
+      env.boltT = (env.boltT == null ? U.rand(20, 60) : env.boltT) - dt;
+      if (env.boltT <= 0) { env.boltT = U.rand(45, 120); env.flash = 1; setTimeout(() => { env.flash = 0.6; }, 160); setTimeout(() => A.play('thunder'), U.rand(900, 2200)); if (mode === 'room' && cat.act === 'idle' && !cozy.on) { cat.twitchL = cat.twitchR = 1; } }
+    }
+    env.flash = Math.max(0, (env.flash || 0) - dt * 3.5);
     if (st) updateVisitor(dt);
     if (st && mode === 'room' && !RM && Math.random() < dt * 0.5 && st.health.coat >= 80 && HL.vitality(st) >= 85) {
       const s = catScale();
@@ -2548,6 +2556,7 @@
     else if (tg.type === 'tower') { A.play('boing'); if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) startExplore('tower'); }
     else if (tg.type === 'bowls') { A.play('bubble'); S.burst('sparkle', ptr.x, ptr.y - 10, 6, { p: { color: '#bfe3ff', size: 6 } }); if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox) startExplore('drink'); }
     else if (tg.type === 'flowers') { S.burst('petal', ptr.x, ptr.y, 8, { p: { color: env.season === 'autumn' ? '#ff8a4c' : '#ffb3cb', size: 8, g: 120, life: 1.6 } }); A.play('chime'); }
+    else if (tg.type === 'window' && env.fog > 0.3) { (env.wipes = env.wipes || []).push({ x: ptr.x, y: ptr.y, t: T }); A.play('sweep'); if (!st.bond.firsts.fog) { st.bond.firsts.fog = Date.now(); toast('🐾 You drew a paw print on the foggy glass'); } }
     else if (tg.type === 'window') {
       if (S.nightness(env.hour) < 0.5) { if (birds.length < 3) spawnBird(); A.play('tap'); }
       else {
@@ -2740,6 +2749,9 @@
     drawThought(ctx);
     drawSpeech(ctx);
     drawBlinkRing(ctx);
+    if (env.flash > 0.01) { ctx.fillStyle = `rgba(235,240,255,${0.32 * env.flash})`; ctx.fillRect(0, 0, W, H); }
+    { const h = env.hour, gk = env.weather === 'clear' && h > 16.2 && h < 18.8 ? Math.sin(Math.PI * (h - 16.2) / 2.6) : 0;
+      if (gk > 0.02) { const g = ctx.createLinearGradient(L.win.x, L.win.y, L.win.x + L.win.w, H); g.addColorStop(0, `rgba(255,170,90,${0.16 * gk})`); g.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); } }
     if (cozy.on && cozyNight()) { ctx.fillStyle = 'rgba(16,12,40,0.28)'; ctx.fillRect(0, 0, W, H); }
     if (arrange.on) drawArrange(ctx);
     if (mode === 'bath' && ptr.x > -900 && !RM) drawSponge(ctx);

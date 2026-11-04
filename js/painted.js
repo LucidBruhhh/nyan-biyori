@@ -111,7 +111,34 @@ NB.Painted = (function () {
       for (let i = 0; i < 50; i++) { const q = (i * 0.618) % 1, px = g2.x + ((q * g2.w + t * 40) % g2.w), py = g2.y + (((i * 0.37) % 1) * g2.h + t * 420 * (0.8 + q * 0.4)) % g2.h; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3, py + 12); ctx.stroke(); }
     }
     env.drawOutsideParticles && env.drawOutsideParticles(ctx);
+    // rain beads sliding down the glass
+    NB.Habitat.drawGlass(ctx, glassL, env, t);
+    // a ledge of snow outside in winter
+    if (env.season === 'winter') {
+      const sy = oy + 603 * k, gx0 = ox + gb.x * k, gw = gb.w * k;
+      ctx.fillStyle = 'rgba(248,250,255,0.95)'; ctx.beginPath(); ctx.moveTo(gx0, sy);
+      for (let i = 0; i <= 24; i++) { const px = gx0 + gw * i / 24; ctx.lineTo(px, sy - (10 + Math.sin(i * 1.7) * 4 + Math.sin(i * 0.6) * 5) * k); }
+      ctx.lineTo(gx0 + gw, sy); ctx.closePath(); ctx.fill();
+    }
+    // fogged glass on cold or rainy nights, with paw-print wipes
+    if (env.fog > 0.02) {
+      const gx0 = ox + gb.x * k, gy0 = oy + gb.y * k, gw = gb.w * k, gh = gb.h * k, now = t;
+      const paw = (wx, wy, sc) => { const r = 18 * sc; ctx.moveTo(wx + r * 1.1, wy + r * 0.3); ctx.ellipse(wx, wy + r * 0.3, r * 1.1, r * 0.9, 0, 0, Math.PI * 2); [[-1.05, -0.75], [-0.38, -1.2], [0.38, -1.2], [1.05, -0.75]].forEach(([a, b]) => { ctx.moveTo(wx + a * r + r * 0.42, wy + b * r); ctx.ellipse(wx + a * r, wy + b * r, r * 0.42, r * 0.52, 0, 0, Math.PI * 2); }); };
+      const wipes = (env.wipes || []).filter((w) => now - w.t < 60);
+      env.wipes = wipes;
+      ctx.save(); ctx.beginPath(); ctx.rect(gx0, gy0, gw, gh); wipes.forEach((w) => paw(w.x, w.y, k * 1.6)); ctx.clip('evenodd');
+      ctx.fillStyle = `rgba(232,236,248,${0.34 * env.fog})`; ctx.fillRect(gx0, gy0, gw, gh); ctx.restore();
+      // wipes slowly fog over again
+      wipes.forEach((w) => { const a = Math.max(0, (now - w.t - 15) / 45); if (a <= 0) return; ctx.beginPath(); paw(w.x, w.y, k * 1.6); ctx.fillStyle = `rgba(232,236,248,${0.34 * env.fog * a})`; ctx.fill(); });
+    }
     ctx.restore();
+    // the radio's little light pulses while it plays
+    if (env.radioOn) {
+      const rx = ox + 1000 * k, ry = oy + 548 * k, a = 0.55 + 0.45 * Math.sin(t * 4.2);
+      const g = ctx.createRadialGradient(rx, ry, 1, rx, ry, 14 * k); g.addColorStop(0, `rgba(255,120,170,${a})`); g.addColorStop(1, 'rgba(255,120,170,0)');
+      ctx.fillStyle = g; U.ell(ctx, rx, ry, 14 * k, 14 * k); ctx.fill();
+      ctx.fillStyle = `rgba(255,220,235,${a})`; U.ell(ctx, rx, ry, 3 * k, 3 * k); ctx.fill();
+    }
 
     // daylight lifts the whole room a little
     if (day > 0) { ctx.fillStyle = `rgba(255,246,236,${0.14 * day})`; ctx.fillRect(ox, 0, iw, H); }
