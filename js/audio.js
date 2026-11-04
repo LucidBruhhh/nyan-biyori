@@ -162,39 +162,77 @@ NB.Audio = (() => {
     noise(t, 0.05, vol, dest, 'bandpass', 3200, 3);
     osc('square', 820, t, 0.03, vol * 0.2, dest);
   }
+  // a kitten "m-yaa-ow": two voices through moving mouth formants, a breathy layer and a nasal onset.
+  // Young cats sound higher, and every meow is a little different.
   function meow(pitch = 1, len = 1) {
     if (!ac || !sfxOn) return;
-    const t = ac.currentTime + 0.01, d = 0.42 * len;
-    const o = ac.createOscillator(); o.type = 'sawtooth';
-    const base = 620 * pitch;
-    o.frequency.setValueAtTime(base * 0.85, t);
-    o.frequency.exponentialRampToValueAtTime(base * 1.35, t + d * 0.35);
-    o.frequency.exponentialRampToValueAtTime(base * 0.8, t + d);
-    const vib = ac.createOscillator(), vg = ac.createGain(); vib.frequency.value = 7; vg.gain.value = 14 * pitch; vib.connect(vg); vg.connect(o.frequency);
-    // formants: "n" -> "ya" -> "a"
-    const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 5;
-    f1.frequency.setValueAtTime(500, t); f1.frequency.linearRampToValueAtTime(1100, t + d * 0.3); f1.frequency.linearRampToValueAtTime(900, t + d);
-    const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 7;
-    f2.frequency.setValueAtTime(2300, t); f2.frequency.linearRampToValueAtTime(1600, t + d);
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.05); g.gain.setValueAtTime(0.9, t + d * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-    const g2 = ac.createGain(); g2.gain.value = 0.6;
-    o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g2); g2.connect(g); g.connect(sfxBus); g.connect(verbSend);
-    o.start(t); vib.start(t); o.stop(t + d + 0.05); vib.stop(t + d + 0.05);
+    const lv = (NB.state && NB.state.level) || 1;
+    pitch *= (lv < 5 ? 1.18 : lv < 10 ? 1.08 : 1) * U.rand(0.95, 1.05);
+    const t = ac.currentTime + 0.01, d = Math.max(0.16, 0.36 * len * U.rand(0.88, 1.15));
+    const base = 760 * pitch, question = Math.random() < 0.25;
+    const pre = ac.createGain(); pre.gain.value = 1;
+    [['sawtooth', 1, 0.5], ['triangle', 1.003, 0.55]].forEach(([type, m, v]) => {
+      const o = ac.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(base * 0.8 * m, t);
+      o.frequency.exponentialRampToValueAtTime(base * 1.28 * m, t + d * (question ? 0.75 : 0.32));
+      o.frequency.exponentialRampToValueAtTime(base * (question ? 1.16 : 0.76) * m, t + d);
+      const vib = ac.createOscillator(), vg = ac.createGain(); vib.frequency.value = 6.5;
+      vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(16 * pitch, t + d); vib.connect(vg); vg.connect(o.frequency);
+      const g = ac.createGain(); g.gain.value = v; o.connect(g); g.connect(pre);
+      o.start(t); vib.start(t); o.stop(t + d + 0.05); vib.stop(t + d + 0.05);
+    });
+    // the mouth opens: a nasal "m" that brightens into the vowel
+    const mouth = ac.createBiquadFilter(); mouth.type = 'lowpass'; mouth.Q.value = 0.7;
+    mouth.frequency.setValueAtTime(650, t); mouth.frequency.exponentialRampToValueAtTime(5200, t + 0.07); mouth.frequency.exponentialRampToValueAtTime(2600, t + d);
+    pre.connect(mouth);
+    const out = ac.createGain();
+    out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.7, t + 0.035); out.gain.setValueAtTime(0.7, t + d * 0.55); out.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    [[[460, 1050, 760], 4, 1], [[1750, 2500, 1500], 6, 0.6], [[3300, 3300, 3100], 8, 0.22]].forEach(([fs, q, v]) => {
+      const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q;
+      f.frequency.setValueAtTime(fs[0], t); f.frequency.linearRampToValueAtTime(fs[1], t + d * 0.3); f.frequency.linearRampToValueAtTime(fs[2], t + d);
+      const g = ac.createGain(); g.gain.value = v; mouth.connect(f); f.connect(g); g.connect(out);
+    });
+    // breath
+    const s = ac.createBufferSource(); s.buffer = noiseBuf;
+    const nf = ac.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 2600; nf.Q.value = 0.9;
+    const ng = ac.createGain(); ng.gain.value = 0.07; s.connect(nf); nf.connect(ng); ng.connect(out);
+    s.start(t, Math.random() * 0.5); s.stop(t + d + 0.05);
+    out.connect(sfxBus); const vs = ac.createGain(); vs.gain.value = 0.35; out.connect(vs); vs.connect(verbSend);
   }
+  // a happy "mrrp!" trill: the little rolled chirp cats use to say hello
+  function chirp(pitch = 1) {
+    if (!ac || !sfxOn) return;
+    const t = ac.currentTime + 0.01, d = 0.24 * U.rand(0.9, 1.1), f0 = 640 * pitch * U.rand(0.96, 1.04);
+    const o = ac.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.45, t + d);
+    const roll = ac.createOscillator(); roll.type = 'square'; roll.frequency.value = 32;
+    const am = ac.createGain(); am.gain.value = 0.55; const rg = ac.createGain(); rg.gain.value = 0.45; roll.connect(rg); rg.connect(am.gain);
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1300; f.Q.value = 1.6;
+    const out = ac.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.75, t + 0.02); out.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(am); am.connect(f); f.connect(out); out.connect(sfxBus); out.connect(verbSend);
+    o.start(t); roll.start(t); o.stop(t + d + 0.05); roll.stop(t + d + 0.05);
+  }
+  // a purr is a low ~26 Hz rumble that swells on each breath in and out
   function startPurr() {
     if (!ac || !sfxOn || purrNode) return;
     const t = ac.currentTime;
+    const buzz = ac.createOscillator(); buzz.type = 'sawtooth'; buzz.frequency.value = 26;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340; lp.Q.value = 1.4;
     const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
-    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260; f.Q.value = 2;
-    const am = ac.createGain(); am.gain.value = 0;
-    const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 24;
-    const lg = ac.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(am.gain);
-    const breath = ac.createOscillator(); breath.frequency.value = 0.55; const bg = ac.createGain(); bg.gain.value = 0.25; breath.connect(bg); bg.connect(am.gain);
-    const out = ac.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.9, t + 0.4);
-    s.connect(f); f.connect(am); am.connect(out); out.connect(sfxBus);
-    s.start(); lfo.start(); breath.start();
-    purrNode = { s, lfo, breath, out };
+    const nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 220; nf.Q.value = 2;
+    const ng = ac.createGain(); ng.gain.value = 0.5;
+    const body = ac.createGain(); body.gain.value = 0.5;
+    const breath = ac.createOscillator(); breath.frequency.value = 0.68;
+    const bg = ac.createGain(); bg.gain.value = 0.35; breath.connect(bg); bg.connect(body.gain);
+    const bf = ac.createGain(); bf.gain.value = 2.5; breath.connect(bf); bf.connect(buzz.frequency);
+    const out = ac.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.55, t + 0.5);
+    buzz.connect(lp); lp.connect(body); s.connect(nf); nf.connect(ng); ng.connect(body); body.connect(out); out.connect(sfxBus);
+    buzz.start(); s.start(); breath.start();
+    purrNode = { s, lfo: buzz, breath, out };
+  }
+  function purrLevel(v) {
+    if (!purrNode || !ac) return;
+    purrNode.out.gain.setTargetAtTime(0.35 + 0.55 * Math.min(1, v), ac.currentTime, 0.2);
   }
   function stopPurr() {
     if (!purrNode) return;
@@ -205,11 +243,11 @@ NB.Audio = (() => {
   }
 
   const SFX = {
-    tap: (t) => { osc('sine', 880, t, 0.08, 0.15, sfxBus, { slide: 1320, slideT: 0.05 }); },
-    pop: (t) => { osc('sine', 500, t, 0.12, 0.35, sfxBus, { slide: 1400, slideT: 0.08 }); },
+    tap: (t) => { osc('sine', 1046, t, 0.07, 0.11, sfxBus, { slide: 1568, slideT: 0.04 }); noise(t, 0.015, 0.04, sfxBus, 'highpass', 5000, 0.7); },
+    pop: (t) => { osc('sine', 420, t, 0.1, 0.3, sfxBus, { slide: 1250, slideT: 0.07 }); osc('triangle', 1700, t + 0.03, 0.06, 0.05, sfxBus); },
     bubble: (t) => { osc('sine', U.rand(600, 900), t, 0.1, 0.2, sfxBus, { slide: U.rand(1500, 2400), slideT: 0.08 }); },
-    coin: (t) => { osc('square', 1318, t, 0.08, 0.12, sfxBus); osc('square', 1760, t + 0.07, 0.25, 0.12, sfxBus, { verb: true }); },
-    chomp: (t) => { noise(t, 0.07, 0.4, sfxBus, 'lowpass', 1200, 1); noise(t + 0.12, 0.06, 0.3, sfxBus, 'lowpass', 1000, 1); },
+    coin: (t) => { osc('sine', 1975, t, 0.12, 0.13, sfxBus, { verb: true }); osc('sine', 2637, t + 0.07, 0.35, 0.13, sfxBus, { verb: true }); osc('triangle', 3951, t + 0.07, 0.08, 0.03, sfxBus); noise(t + 0.06, 0.12, 0.03, sfxBus, 'highpass', 7000, 0.7); },
+    chomp: (t) => { noise(t, 0.06, 0.28, sfxBus, 'lowpass', 1300, 1); noise(t + 0.1, 0.05, 0.2, sfxBus, 'lowpass', 1100, 1); osc('sine', 330, t + 0.02, 0.07, 0.06, sfxBus, { slide: 260, slideT: 0.06 }); },
     sparkle: (t) => { [0, 4, 7, 12, 16].forEach((n, i) => osc('sine', mtof(84 + n), t + i * 0.05, 0.4, 0.12, sfxBus, { verb: true })); },
     whoosh: (t) => { noise(t, 0.3, 0.25, sfxBus, 'bandpass', 600, 1, { sweep: 2500, a: 0.08 }); },
     boing: (t) => { osc('sine', 220, t, 0.3, 0.35, sfxBus, { slide: 660, slideT: 0.12 }); },
@@ -217,7 +255,10 @@ NB.Audio = (() => {
     chime: (t) => { [2637, 3951, 3322].forEach((f, i) => osc('sine', f * U.rand(0.98, 1.02), t + i * 0.09, 2.2, 0.06, sfxBus, { verb: true })); },
     success: (t) => { [0, 2, 4, 7, 9, 12].forEach((n, i) => koto(mtof(74 + n), t + i * 0.08, 0.22, sfxBus, 1)); },
     fanfare: (t) => { [[0, 0], [4, 0.12], [7, 0.24], [12, 0.36], [16, 0.6], [19, 0.6], [24, 0.6]].forEach(([n, d]) => koto(mtof(64 + n), t + d, 0.24, sfxBus, 1.6)); taikoDon(t, 0.5); taikoDon(t + 0.6, 0.6); },
-    fail: (t) => { [7, 4, 0].forEach((n, i) => osc('triangle', mtof(64 + n), t + i * 0.12, 0.25, 0.18, sfxBus)); },
+    fail: (t) => { osc('sine', mtof(76), t, 0.13, 0.12, sfxBus, { slide: mtof(74), slideT: 0.1 }); osc('sine', mtof(71), t + 0.13, 0.22, 0.11, sfxBus, { slide: mtof(69), slideT: 0.2 }); },
+    bounce: (t, v = 1) => { osc('sine', 190, t, 0.14, 0.22 * v, sfxBus, { slide: 85, slideT: 0.1 }); noise(t, 0.04, 0.05 * v, sfxBus, 'lowpass', 600, 0.8); },
+    thunk: (t) => { osc('sine', 240, t, 0.1, 0.16, sfxBus, { slide: 150, slideT: 0.08 }); noise(t, 0.035, 0.08, sfxBus, 'bandpass', 950, 2); },
+    swish: (t) => { noise(t, 0.22, 0.08, sfxBus, 'bandpass', 500, 0.9, { sweep: 3200, a: 0.03 }); [0, 4, 7, 12].forEach((n, i) => koto(mtof(79 + n), t + 0.12 + i * 0.06, 0.18, sfxBus, 0.9)); },
     shake: (t) => { for (let i = 0; i < 6; i++) noise(t + i * 0.07, 0.05, 0.25, sfxBus, 'bandpass', 2500 + i * 200, 4); },
     don: (t) => taikoDon(t),
     ka: (t) => taikoKa(t),
@@ -246,13 +287,13 @@ NB.Audio = (() => {
       setTimeout(() => { try { r.s.stop(); } catch (e) { /* already stopped */ } }, 2500);
     }
   }
-  function play(name) {
+  function play(name, v) {
     if (!ac || !sfxOn || !SFX[name]) return;
-    SFX[name](ac.currentTime + 0.005);
+    SFX[name](ac.currentTime + 0.005, v);
   }
 
   return {
-    unlock, play, meow, startPurr, stopPurr, setRain,
+    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain,
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(on ? 0.32 : 0, ac.currentTime, 0.2); },

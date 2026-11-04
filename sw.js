@@ -1,5 +1,5 @@
 /* にゃん日和 — offline cache */
-const VERSION = 'nyanbiyori-v19';
+const VERSION = 'nyanbiyori-v20';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest',
   './js/util.js', './js/native.js', './js/data.js', './js/audio.js', './js/cat.js', './js/scene.js', './js/habitat.js', './js/apartment.js', './js/painted.js', './art/apartment-night.webp', './js/health.js', './js/bond.js', './js/diary.js', './js/season.js', './js/store.js', './js/capsule.js', './js/visitors.js', './js/minigames.js', './js/game.js',

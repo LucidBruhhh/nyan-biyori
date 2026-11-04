@@ -95,6 +95,7 @@ window.NB = window.NB || {};
     else if ((ev.tricks || []).length) add(40, 'We practised tricks. I let you think it was your idea.');
     if (ev.capsule) add(35, 'A new little friend came out of a capsule. I sniffed it. It is acceptable.');
     if (ev.visitor) { const n = { kuro: 'Kuro', mikan: 'Mikan', tama: 'Grandpa Tama', hoshi: 'Hoshi' }[ev.visitor]; if (n) add(62, `${n} came to the window today. We talked through the glass. You shared a treat, which was very correct of you.`); }
+    if (ev.shots >= 2) add(46, `You threw the ball into my box ${ev.shots} times. Show-off. I went in after it anyway.`);
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');

@@ -404,7 +404,7 @@
           cat.dir = cat.x < homeX() ? 1 : -1;
           placeGift((cat.x + 52 * s * cat.dir - L.sx) / L.SW);
           setAct('nod', 1.2); cat.happyT = 2; A.play('pop'); A.meow(1.3);
-          sayText('これ、あげる！', 'I found this for you!', true);
+          sayText('これ、あげる！', 'I found this for you!', true); A.chirp(1.2);
           const p = giftPos(); S.burst('sparkle', p.x, p.y - 10, 10, { p: { color: '#fff3a8', size: 8 } });
         }, false, L.catY);
       }, 1300);
@@ -698,7 +698,7 @@
       if (hide.on) hide.t += dt;
       else if (cat.hop) updateHop(dt);
       else if (cat.act === 'walk') {
-        if (cat.chase === 'ball') { cat.tx = U.clamp(ball.x, L.minX, L.maxX); cat.ty = L.catY; }
+        if (cat.chase === 'ball') { cat.tx = U.clamp(ball.x, L.minX, L.maxX); cat.ty = U.clamp(ball.z, L.floorY + 10, L.catY); }
         if (cat.chase === 'bug') cat.ty = L.catY;
         if (cat.chase === 'laser') { cat.tx = laser.x; cat.ty = laser.y; cat.actT = 0; if (laser.pounceT <= 0 && Math.hypot(laser.x - cat.x, laser.y - cat.y) < 36 * catScale()) pounce(); }
         const dx = cat.tx - cat.x, dy = (cat.ty == null ? L.catY : cat.ty) - cat.y, dist = Math.hypot(dx, dy);
@@ -746,6 +746,7 @@
     // purring when petting
     cat.petK = Math.max(0, cat.petK - dt * 0.8);
     if (cat.petK > 0.15 && !cat.purring) { A.startPurr(); cat.purring = true; }
+    if (cat.purring) A.purrLevel(cat.petK);
     if (cat.petK <= 0.05 && cat.purring) { A.stopPurr(); cat.purring = false; }
 
     computePose(dt);
@@ -977,7 +978,7 @@
       if (cat.actT > cat.actDur) { setAct('idle', 0.5); if (st.needs.hunger < 70) { say('hungry'); A.meow(1.0); } }
     } else if (cat.act === 'bump') {
       if (!cat.bonked && cat.actT > cat.actDur * 0.45) {
-        cat.bonked = true; A.play('pop'); U.vibrate(14);
+        cat.bonked = true; A.chirp(1.1); U.vibrate(14);
         S.burst('heart', cat.x, cat.y - 200 * s, 5, { angle: -Math.PI / 2, spread: 1, min: 70, max: 150, p: { color: '#ff6f9f', size: 10, life: 1.1 } });
         A.startPurr(); cat.purring = true; setTimeout(() => { if (cat.petK < 0.1) { A.stopPurr(); cat.purring = false; } }, 1800);
       }
@@ -1026,9 +1027,10 @@
   }
 
   /* ---------- temari ball ---------- */
-  const ball = { x: 0, h: 0, vx: 0, vh: 0, rot: 0, init: false };
-  const ballY = () => L.catY + 16 * L.scale;
-  const ballR = () => 17 * L.scale;
+  const ball = { x: 0, z: 0, h: 0, vx: 0, vz: 0, vh: 0, rot: 0, init: false, inBox: 0, streak: 0, scored: false };
+  const ballY = () => ball.z || L.catY + 16 * L.scale;
+  const ballR = () => 17 * L.scale * depthAt(ballY());
+  const ballZRange = () => [L.floorY + (L.catY - L.floorY) * 0.12, L.catY + 34 * L.scale];
   const tilt = { on: false, g: 0, bound: false };
   function setTilt(want) {
     const bind = () => {
@@ -1041,12 +1043,56 @@
     if (typeof D0.requestPermission === 'function') D0.requestPermission().then((r) => { if (r === 'granted') bind(); else { st.settings.tilt = false; toast('Motion access was not allowed'); } }).catch(() => { st.settings.tilt = false; });
     else bind();
   }
-  function kickBall(vx, vh) { ball.vx = vx; ball.vh = vh; A.play('pop'); }
+  function kickBall(vx, vh, vz = 0) { ball.vx = vx; ball.vh = vh; ball.vz = vz; ball.scored = false; A.play('pop'); }
+  // flick the ball like a paper ball: swipe up to throw it deep into the room, sideways to curve it across
+  function throwBall() {
+    const h = ptr.hist, now = performance.now();
+    const recent = h.filter((p) => now - p.t < 110);
+    const a = recent[0] || h[0], z = h[h.length - 1];
+    if (!a || !z || z.t === a.t) return false;
+    const dt = Math.max(0.016, (z.t - a.t) / 1000), dx = (z.x - a.x) / dt, dy = (z.y - a.y) / dt;
+    const speed = Math.hypot(dx, dy);
+    if (speed < 120) return false;
+    const up = Math.max(0, -dy);
+    kickBall(U.clamp(dx * 0.55, -1100, 1100), -U.clamp(260 + up * 0.42, 260, 950), U.clamp(dy * 0.32, -520, 320));
+    A.play('whoosh'); U.vibrate(8);
+    st.bond.toys.ball = (st.bond.toys.ball || 0) + 0.34; st.bond.p.play += 0.2;
+    return true;
+  }
+  // a ball that drops into the mikan box is a "nice shot"
+  function checkBoxShot() {
+    if (ball.scored || ball.vh <= 0 || cat.inBox) return;
+    const b = boxDims(), top = -b.h * 0.9;
+    if (ball.h > top - 6 && ball.h < top + 10 && Math.abs(ball.x - b.x) < b.w * 0.75 && Math.abs(ballY() - b.y) < 26 * L.scale) {
+      ball.scored = true; ball.inBox = 1.2; ball.vx = ball.vz = ball.vh = 0;
+      ball.streak = (st.lastShot && Date.now() - st.lastShot < 60000) ? ball.streak + 1 : 1; st.lastShot = Date.now();
+      A.play('swish'); U.vibrate([10, 30, 20]);
+      S.emit({ type: 'text', text: ball.streak > 1 ? `ナイス！ ×${ball.streak}` : 'ナイスシュート！', x: b.x, y: b.y - b.h - 30, vy: -40, life: 1.4, size: 18, color: '#ff6f9f' });
+      S.burst('star', b.x, b.y - b.h, 10, { p: { color: U.pick(['#ffd34e', '#ff8fb1', '#7fb6ff']), size: 8 } });
+      const today = U.dayKey();
+      if (st.shotDay !== today) { st.shotDay = today; st.shotsToday = 0; }
+      if (st.shotsToday < 10) { st.shotsToday++; addCoins(2 + Math.min(4, ball.streak), b.x, b.y - b.h - 50); }
+      noteAdd('shots'); discover('ball');
+      if (mode === 'room' && cat.act === 'idle' && !cat.perch && Math.random() < 0.5) setTimeout(startExploreBox, 500);
+    }
+  }
   function updateBall(dt) {
-    if (!ball.init) { ball.x = L.sx + L.SW * 0.3; ball.init = true; }
+    if (!ball.init) { ball.x = L.sx + L.SW * 0.3; ball.z = L.catY + 16 * L.scale; ball.init = true; }
+    if (ball.inBox > 0) {
+      ball.inBox -= dt;
+      if (ball.inBox <= 0) { const b = boxDims(); ball.x = b.x + U.rand(-10, 10); ball.z = b.y + 14 * L.scale; ball.h = -b.h; kickBall(U.rand(-160, 160) * L.scale, -320, 90); }
+      return;
+    }
+    const [zLo, zHi] = ballZRange();
+    ball.z = U.clamp(ball.z + ball.vz * dt, zLo - 1, zHi + 1);
+    if (ball.z <= zLo) { ball.z = zLo; if (Math.abs(ball.vz) > 60) A.play('thunk'); ball.vz = Math.abs(ball.vz) * 0.5; }
+    if (ball.z >= zHi) { ball.z = zHi; ball.vz = -Math.abs(ball.vz) * 0.5; }
+    ball.vz *= Math.exp(-(ball.h < 0 ? 0.2 : 1.6) * dt);
+    if (Math.abs(ball.vz) < 3) ball.vz = 0;
     if (tilt.on && mode === 'room' && ball.h >= -1 && Math.abs(tilt.g) > 4) ball.vx += U.clamp(tilt.g, -35, 35) * 26 * L.scale * dt;
     ball.vh += 1500 * dt; ball.h += ball.vh * dt;
-    if (ball.h > 0) { ball.h = 0; ball.vh = Math.abs(ball.vh) > 90 ? -ball.vh * 0.45 : 0; }
+    checkBoxShot();
+    if (ball.h > 0) { if (ball.vh > 160) A.play('bounce', Math.min(1, ball.vh / 900)); ball.h = 0; ball.vh = Math.abs(ball.vh) > 90 ? -ball.vh * 0.45 : 0; }
     ball.x += ball.vx * dt; ball.vx *= Math.exp(-(ball.h < 0 ? 0.3 : 1.3) * dt);
     if (Math.abs(ball.vx) < 4) ball.vx = 0;
     const lo = L.sx + 24 * L.scale, hi = L.sx + L.SW - 24 * L.scale;
@@ -1054,7 +1100,7 @@
     if (ball.x > hi) { ball.x = hi; ball.vx = -Math.abs(ball.vx) * 0.7; }
     ball.rot += ball.vx * dt / ballR();
     // a rolling ball is irresistible
-    if (mode === 'room' && Math.abs(ball.vx) > 80 && cat.act === 'idle' && !cat.perch && !cat.inBox && !cat.hop && Math.random() < dt * 4) { cat.chase = 'ball'; goTo(ball.x, null, true); }
+    if (mode === 'room' && (Math.abs(ball.vx) > 80 || Math.abs(ball.vz) > 80) && cat.act === 'idle' && !cat.perch && !cat.inBox && !cat.hop && Math.random() < dt * 4) { cat.chase = 'ball'; goTo(ball.x, null, true, ball.z); }
   }
   function batBall() {
     const s = catScale();
@@ -1062,7 +1108,7 @@
     const toward = ball.x < L.sx + L.SW / 2 ? 1 : -1;
     cat.dir = Math.sign(ball.x - cat.x) || 1;
     setAct('bat', 0.5); cat.batT = 0;
-    kickBall(toward * U.rand(220, 420) * L.scale, -U.rand(220, 420)); A.play('swat');
+    kickBall(toward * U.rand(220, 420) * L.scale, -U.rand(220, 420), U.rand(-140, 140)); A.play('swat');
     st.needs.fun = U.clamp(st.needs.fun + 3, 0, 100);
     discover('ball');
     if (Math.random() < 0.3) cat.happyT = 0.8;
@@ -1568,7 +1614,7 @@
       const sx = U.clamp(p.x, L.win.x + 40, L.win.x + L.win.w - 40);
       goTo(sx + (sx > cat.x ? -60 : 60) * s, () => hopTo(sx, seatY, 0.58, () => {
         cat.perch = 'sill'; setAct('perch', U.rand(8, 12));
-        sayText('にゃっ！', bondStage() >= 2 && ((st.friends || {})[visitor.id] || 0) >= 3 ? '*boops noses through the glass*' : '*chirps at the visitor*', true); A.meow(1.5, 0.4);
+        sayText('にゃっ！', bondStage() >= 2 && ((st.friends || {})[visitor.id] || 0) >= 3 ? '*boops noses through the glass*' : '*chirps at the visitor*', true); A.chirp(1.3);
       }));
     }
   }
@@ -1995,6 +2041,7 @@
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
     ptr.down = true; ptr.id = e.pointerId; ptr.x = ptr.sx = e.clientX; ptr.y = ptr.sy = e.clientY; ptr.t0 = T; ptr.moved = 0; ptr.lastMove = T;
     ptr.target = null; ptr.blinked = false;
+    ptr.hist = [{ x: ptr.x, y: ptr.y, t: performance.now() }];
     if (train.on && mode === 'room') { train.pts = [{ x: ptr.x, y: ptr.y }]; return; }
     if (arrange.on && mode === 'room') { arrangeDown(ptr.x, ptr.y); return; }
     if (mode === 'play') { wand.tx = ptr.x; wand.ty = ptr.y; return; }
@@ -2015,6 +2062,7 @@
     const x = e.clientX, y = e.clientY;
     const d = ptr.x > -900 ? Math.hypot(x - ptr.x, y - ptr.y) : 0;
     const nowMs = performance.now(), spd = d / Math.max(8, nowMs - (ptr.lastMs || 0)) * 1000;
+    if (ptr.down && ptr.hist) { ptr.hist.push({ x, y, t: nowMs }); if (ptr.hist.length > 8) ptr.hist.shift(); }
     ptr.lastMs = nowMs;
     ptr.x = x; ptr.y = y; ptr.lastMove = T;
     if (train.on && ptr.down) { train.pts.push({ x, y }); return; }
@@ -2065,12 +2113,7 @@
     if (train.on && mode === 'room') { trainGesture(readGesture(train.pts, T - ptr.t0)); return; }
     if (arrange.on) { if (arrange.drag) A.play('pop'); arrange.drag = null; return; }
     if (mode === 'play' || mode === 'bath') return;
-    if (ptr.target && ptr.target.type === 'ball' && !tap) {
-      const dt = Math.max(0.05, T - ptr.t0);
-      st.bond.toys.ball = (st.bond.toys.ball || 0) + 0.34; st.bond.p.play += 0.2;
-      kickBall(U.clamp((ptr.x - ptr.sx) / dt * 0.6, -900, 900), -U.clamp(Math.abs(ptr.y - ptr.sy) / dt * 0.5 + 200, 200, 700));
-      return;
-    }
+    if (ptr.target && ptr.target.type === 'ball' && !tap) { throwBall(); return; }
     if (hide.on && tap) { hideTap(ptr.x, ptr.y); return; }
     if (!tap || !ptr.target) return;
     const tg = ptr.target;
@@ -2099,7 +2142,7 @@
       st.lampOff = !st.lampOff; A.play('tap');
       toast(st.lampOff ? 'Lantern off 🌙' : 'Lantern on 🏮');
     } else if (tg.type === 'ball') {
-      kickBall((ball.x < cat.x ? -1 : 1) * U.rand(200, 380) * L.scale, -U.rand(300, 480));
+      kickBall((ball.x < cat.x ? -1 : 1) * U.rand(200, 380) * L.scale, -U.rand(300, 480), U.rand(-80, 80));
     } else if (tg.type === 'box') {
       if (cat.inBox) popOut();
       else { A.play('pop'); S.burst('sparkle', boxX(), L.catY - 60 * L.scale, 5, { p: { color: '#fff3a8', size: 7 } }); if (mode === 'room' && cat.act === 'idle' && !cat.perch) startExploreBox(); }
@@ -2249,7 +2292,7 @@
     if (laser.on) add(laser.y - 1, () => drawLaser(ctx));
     if (st) st.poops.forEach((p, i) => add(L.catY + 6, () => S.drawPoop(ctx, L.sx + p.x * L.SW, L.catY + 6, L.scale * 0.9, T, i)));
     if (st && !cat.inBox) add(L.catY - 3, () => { drawBox(ctx, false); drawBox(ctx, true); });
-    if (st) add(ballY(), () => drawBall(ctx));
+    if (st && ball.inBox <= 0) add(ballY(), () => drawBall(ctx));
     if (mode === 'bath') { add(L.catY - 1, () => drawTub(ctx, false)); add(L.catY + 1, () => drawTub(ctx, true)); }
     let catKey = cat.y;
     if (cat.perch === 'sill' || cat.perch === 'toko') catKey = -1;
@@ -3267,7 +3310,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
