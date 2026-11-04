@@ -121,5 +121,26 @@ NB.Share = (function () {
     return c;
   }
 
-  return { image, frame, card, diaryPage, FRAMES };
+  // a week of focus sessions with your cat
+  function focusCard(info) {
+    const W = 1080, H = 1080, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2b2445'); g.addColorStop(1, '#5a3f6e'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < 40; i++) { x.fillStyle = 'rgba(255,248,215,' + (0.3 + Math.random() * 0.5) + ')'; U.star(x, Math.random() * W, Math.random() * H * 0.4, 2 + Math.random() * 4, 4, 0.4); x.fill(); }
+    x.save(); x.beginPath(); x.arc(W / 2, 250, 150, 0, Math.PI * 2); x.clip(); x.drawImage(info.portrait, W / 2 - 150, 100, 300, 300); x.restore();
+    x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = `64px ${FONT_HAND}`; x.fillText(`${info.hours} with ${info.name}`, W / 2, 480);
+    x.fillStyle = '#ffc7da'; x.font = `700 34px ${FONT_UI}`; x.fillText(`${info.sessions} focus sessions this week`, W / 2, 540);
+    const max = Math.max(1, ...info.days.map((d) => d[1])), bw = 90, gap = 34, x0 = (W - (bw * 7 + gap * 6)) / 2;
+    info.days.forEach(([lab, mins], i) => {
+      const h = 300 * mins / max, bx = x0 + i * (bw + gap);
+      x.fillStyle = 'rgba(255,255,255,0.12)'; U.rr(x, bx, 600, bw, 300, 18); x.fill();
+      if (mins) { const bg = x.createLinearGradient(0, 900 - h, 0, 900); bg.addColorStop(0, '#ff8fb1'); bg.addColorStop(1, '#c591ea'); x.fillStyle = bg; U.rr(x, bx, 900 - h, bw, h, 18); x.fill(); }
+      x.fillStyle = '#fff'; x.font = `700 28px ${FONT_UI}`; x.fillText(lab, bx + bw / 2, 950);
+      if (mins) { x.fillStyle = '#ffe0ec'; x.font = `700 24px ${FONT_UI}`; x.fillText(mins + 'm', bx + bw / 2, 890 - h); }
+    });
+    x.fillStyle = 'rgba(255,255,255,0.7)'; x.font = `700 26px ${FONT_UI}`; x.fillText('にゃん日和 · Nyan Biyori', W / 2, H - 50);
+    return c;
+  }
+
+  return { image, frame, card, diaryPage, focusCard, FRAMES };
 })();

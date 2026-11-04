@@ -865,6 +865,7 @@
       if (w > 62) { const k = Math.min(1, (w - 62) / 38); p.sx *= 1 + k * 0.14; p.sy *= 1 - k * 0.035; }
       else if (w < 30) p.sx *= 0.95;
     }
+    if (well.breath && cat.breathK != null) { p.sy *= 1 + cat.breathK * 0.06; p.sx *= 1 + cat.breathK * 0.025; p.eyes = 'closed'; }
     if (cat.flopK > 0.01) p.noShadow = true;
     // in the painted room the cat picks up the warm lamplight
     if (L && L.painted) { const n = S.nightness(env.hour); if (n > 0.05 && !env.lightsOff) p.tint = `rgba(255,170,125,${0.15 * n})`; }
@@ -1322,7 +1323,7 @@
     });
   }
   function updateWorld(dt) {
-    updateCozy(dt); updatePhoto(dt); if (st) updateRadioSleep();
+    updateCozy(dt); updatePhoto(dt); if (st) { updateWellbeing(dt); updateBreathing(); } if (st) updateRadioSleep();
     if (cat.purring && st && st.settings.haptics) { cat.purrHT = (cat.purrHT || 0) - dt; if (cat.purrHT <= 0) { cat.purrHT = 0.45; U.vibrate(4); } }
     const nightK = S.nightness(env.hour);
     env.fog = U.damp(env.fog || 0, (env.weather === 'rain' || env.season === 'winter') && nightK > 0.4 ? 1 : 0, 0.3, dt);
@@ -1925,6 +1926,80 @@
       </div>`;
   }
 
+  /* ================= WELLBEING: gentle nudges, a mood journal, breathing together ================= */
+  const well = { waterT: 0, eyesT: 0, postureT: 0, breath: null };
+  const NUDGES = [
+    ['waterT', 60, '🍵', 'おちゃ', (n) => `${n} brought you some tea. Time for a sip of water?`, 'drink'],
+    ['eyesT', 25, '👀', 'まどのそと', (n) => `Rest your eyes: look out the window with ${n} for 20 seconds.`, 'sill'],
+    ['postureT', 45, '🙆', 'のびのび', (n) => `Roll your shoulders and sit tall. ${n} is stretching too.`, 'stretch'],
+  ];
+  function updateWellbeing(dt) {
+    if (!cozy.on || cozyNight() || st.settings.nudges === false || focus.phase === 'break') return;
+    NUDGES.forEach(([key, mins, icon, jp, text, act]) => {
+      well[key] += dt;
+      if (well[key] < mins * 60) return;
+      well[key] = 0;
+      focusBanner(`${icon} ${jp}`, text(st.name)); A.play('chime');
+      if (act === 'sill') startExplore('sill'); else if (act === 'drink') startExplore('drink'); else setAct('stretch', 3);
+    });
+  }
+  // breathe with the cat: in as its chest rises, out as it falls
+  function startBreathing() {
+    if (!cozy.on) enterCozy(false);
+    goTo(homeX(), () => setAct('nap', 120), false, L.catY);
+    well.breath = { t0: performance.now(), cycles: 5 };
+    $('#breathe').hidden = false; peekCozy(0.1);
+  }
+  function updateBreathing() {
+    const b = well.breath; if (!b) return;
+    const el = $('#breathe'), e = (performance.now() - b.t0) / 1000, cyc = 12, i = Math.floor(e / cyc), k = e % cyc;
+    if (i >= b.cycles) { well.breath = null; el.hidden = true; trust(0.5); noteSet('breathe'); focusBanner('ふぅ…', `Lovely. ${st.name} feels calm too.`); return; }
+    const phase = k < 4 ? ['いきをすって', 'Breathe in…', k / 4] : k < 6 ? ['とめて', 'Hold…', 1] : ['はいて', 'Breathe out…', 1 - (k - 6) / 6];
+    el.style.setProperty('--b', (0.55 + phase[2] * 0.45).toFixed(3));
+    el.querySelector('b').textContent = phase[0]; el.querySelector('span').textContent = `${phase[1]}  ${i + 1}/${b.cycles}`;
+    cat.breathK = phase[2];
+  }
+  // the evening check-in: how was your day?
+  const MOODS = [['😢', 'Rough'], ['😕', 'Meh'], ['😐', 'Okay'], ['🙂', 'Good'], ['😄', 'Great']];
+  function askMood(force) {
+    const today = U.dayKey();
+    st.moods = st.moods || {};
+    if (!force && (st.moods[today] != null || hourNow() < 19 || st.moodAsked === today)) return;
+    st.moodAsked = today;
+    modal(`<div class="letter mood"><div class="envelope">🌙</div><h2>きょうはどうだった？ <small>How was your day?</small></h2>
+      <p>${st.name} curls up next to you to listen.</p><div class="moods">${MOODS.map(([e, l], i) => `<button data-mood="${i}"><span>${e}</span><small>${l}</small></button>`).join('')}</div>
+      <button class="btn ghost" data-ui="closemodal">Maybe later</button></div>`, 'letter');
+  }
+  function setMood(i) {
+    st.moods[U.dayKey()] = i; noteSet('mood', i); closeModal();
+    const lines = [['だいじょうぶ…', `*${st.name} presses close and purrs. I'm here.*`], ['よしよし', `*${st.name} rests a paw on your hand*`], ['うん', `*${st.name} slow-blinks at you*`], ['えへへ', `*${st.name} is happy you had a good day*`], ['やったー！', `*${st.name} does a happy little dance!*`]][i];
+    setTimeout(() => {
+      sayText(lines[0], lines[1], true);
+      if (i <= 1) { headBump(); A.startPurr(); cat.purring = true; cat.petK = 0.6; } else if (i === 4) startDance(); else setAct('blink', 2.6);
+    }, 400);
+    trust(0.4); save();
+  }
+  function moodStripHTML() {
+    const m = st.moods || {}, days = [];
+    for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000), k = U.dayKey(d); days.push([['日', '月', '火', '水', '木', '金', '土'][d.getDay()], m[k]]); }
+    return `<div class="moodstrip">${days.map(([l, v]) => `<span><b>${v == null ? '·' : MOODS[v][0]}</b><small>${l}</small></span>`).join('')}</div>`;
+  }
+  // a week of focus, as a shareable card
+  function focusWeek() {
+    const log = st.focusLog || {}, days = [];
+    let total = 0, sessions = 0;
+    for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000), k = U.dayKey(d), e = log[k] || { m: 0, s: 0 }; total += e.m; sessions += e.s; days.push([['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()], e.m]); }
+    return { total, sessions, days };
+  }
+  async function shareFocusWeek() {
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    const w = focusWeek(), port = document.createElement('canvas'); port.width = port.height = 300;
+    C.portrait(port, look(), { zoom: 1.1, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'closed', blush: 0.8, mouth: 'w' } });
+    const hours = w.total >= 60 ? `${Math.floor(w.total / 60)}h ${w.total % 60}m` : `${w.total} min`;
+    const pic = NB.Share.focusCard({ name: st.name, portrait: port, hours, sessions: w.sessions, days: w.days });
+    sharePic(pic, `${st.name}-focus-week.png`, `I focused for ${hours} this week with ${st.name} · にゃん日和`);
+  }
+
   /* ================= FOCUS TIMER: work beside a napping cat, stretch together on breaks ================= */
   const focus = { phase: null, end: 0, work: 25, rest: 5, done: 0, bannerT: 0 };
   const FOCUS_PRESETS = [[25, 5], [50, 10], [15, 3]];
@@ -1932,7 +2007,8 @@
     const el = $('#focus-panel');
     el.innerHTML = `<b>⏱ しゅうちゅう Focus with ${st.name}</b>
       <div class="fp-row">${FOCUS_PRESETS.map(([w, r]) => `<button class="pill" data-focus="${w}-${r}">${w} / ${r} min</button>`).join('')}</div>
-      ${focus.phase ? '<button class="pill ghost" data-ui="focusstop">Stop</button>' : '<small>' + st.name + ' naps while you work, and stretches with you on breaks.</small>'}`;
+      ${focus.phase ? '<button class="pill ghost" data-ui="focusstop">Stop</button>' : '<small>' + st.name + ' naps while you work, and stretches with you on breaks.</small>'}
+      <div class="fp-row"><button class="pill ghost" data-ui="breathe">🌬 Breathe together</button><button class="pill ghost" data-ui="focusweek">📊 This week</button></div>`;
     el.hidden = false; peekCozy(8);
   }
   function startFocus(w, r) {
@@ -1961,6 +2037,7 @@
       setAct('stretch', 3.2); A.chirp(1.1);
       focusBanner('のびーっ！', `Break time! Stand up and stretch with ${st.name} 🙆`);
       P.bump(pers(), 'focus'); noteAdd('focus');
+      { st.focusLog = st.focusLog || {}; const k = U.dayKey(), e = st.focusLog[k] || { m: 0, s: 0 }; e.m += focus.work; e.s++; st.focusLog[k] = e; const keys = Object.keys(st.focusLog); if (keys.length > 21) delete st.focusLog[keys[0]]; }
       const today = U.dayKey(); if (st.focusDay !== today) { st.focusDay = today; st.focusToday = 0; }
       if (st.focusToday < 8) { st.focusToday++; st.coins += 5; addXP(4); }
       trust(0.3); save();
@@ -3254,6 +3331,7 @@
         <div class="need-row"><span class="nm"><b>けなみ</b><small>Coat</small></span>${bar(h.coat, '#ffd34e')}<span class="num">${Math.round(h.coat)}</span></div>
       </div>
       ${spark ? `<h3>きぶん <small>Mood this week</small></h3><div class="spark-wrap">${spark}</div>` : ''}
+      <h3>こころ <small>Your week</small></h3>${moodStripHTML()}<div class="btnrow"><button class="btn ghost" data-ui="mood">🌙 How was today?</button></div>
       <h3>アドバイス <small>Tips</small></h3><ul class="mem">${HL.tips(st).map((t) => `<li><i>${t[0]}</i><span>${t[1]}</span></li>`).join('')}</ul>`;
     openSheet('Health', 'けんこう', html, (sh) => {
       C.portrait(sh.querySelector('#hcat'), look(), { zoom: 1, full: true, bg: ['#fff1f6', '#ffe0ec'], pose: v >= 60 ? { eyes: 'happy', blush: 0.8, mouth: 'w' } : { eyes: 'sad', earDroop: 0.3 } });
@@ -3323,7 +3401,7 @@
     const html = `
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
       <h3>まったり <small>Cozy mode</small></h3>
-      ${tog('cozyAuto', 'Start cozy mode after 5 quiet minutes', 'じどう')}${tog('clock', 'Show a clock in cozy mode', 'とけい')}
+      ${tog('cozyAuto', 'Start cozy mode after 5 quiet minutes', 'じどう')}${tog('clock', 'Show a clock in cozy mode', 'とけい')}${tog('nudges', 'Gentle reminders: water, eye rest, posture', 'リマインド')}
       <p class="sub">Cozy ambience mixer</p>${[['rain', '🌧 Rain on the window'], ['heater', '🔥 Crackling heater'], ['city', '🌃 Quiet city night'], ['birds', '🐦 Forest birds and stream']].map(([k, l]) => `<label class="row vol"><span>${l}</span><input type="range" min="0" max="100" step="1" value="${ambMix()[k] || 0}" data-amb="${k}" aria-label="${l}"></label>`).join('')}${tog('sleepPurr', 'Purr softly while the cat sleeps', 'ごろごろ')}
       ${tog('music', 'Music', 'おんがく')}<label class="row vol"><span><b>ラジオ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${Math.round(radioVol() * 100)}" data-radio-vol aria-label="Radio volume"><output>${Math.round(radioVol() * 100)}%</output></label>${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -3521,6 +3599,7 @@
     setMode(st.asleep ? 'sleep' : 'room');
     renderBond();
     const v = arrive(off ? off.hrs : 0);
+    setTimeout(() => askMood(false), 6000);
     if (fromBoot) setTimeout(() => welcomeBack(off, v), 700);
     if (st.tut < TUT.length) setTimeout(() => hint(TUT[st.tut][1]()), 2600);
     else if (!st.bond.firsts.laserHint && unlocked('laser')) { st.bond.firsts.laserHint = Date.now(); setTimeout(() => { if (mode === 'room') hint('Tip: press and hold on the floor for a laser pointer 🔴'); }, 9000); }
@@ -3598,8 +3677,9 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-sleep],[data-amb],[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-mood],[data-sleep],[data-amb],[data-unfriend],[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.mood != null) { setMood(+el.dataset.mood); return; }
     if (el.dataset.sleep != null) { const m = +el.dataset.sleep; radioSleep.end = m ? Date.now() + m * 60000 : 0; radioSleep.mins = m; if (!m) A.setRadio(!!(st.radio && st.radio !== 'off'), radioVol()); toast(m ? `💤 The radio will fade out in ${m} minutes` : '💤 Sleep timer off'); openRadio(); return; }
     if (el.dataset.unfriend) { st.friendCats = (st.friendCats || []).filter((f) => f.key !== el.dataset.unfriend); save(); openAlbum(); return; }
     if (el.dataset.pose) { A.play('tap'); setPose(el.dataset.pose); return; }
@@ -3646,6 +3726,9 @@
       case 'focus': openFocusPanel(); break;
       case 'cozyphoto': startPhoto(); break;
       case 'focusstop': stopFocus(); break;
+      case 'breathe': $('#focus-panel').hidden = true; startBreathing(); break;
+      case 'focusweek': $('#focus-panel').hidden = true; shareFocusWeek(); break;
+      case 'mood': askMood(true); break;
       case 'sharecode': shareCatCode(); break;
       case 'addfriend': { const ok = addFriendCat($('#friendcode').value); if (ok) openAlbum(); break; }
       case 'photomode': startPhoto(); break;
@@ -3797,7 +3880,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

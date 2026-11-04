@@ -102,6 +102,8 @@ window.NB = window.NB || {};
     if (ev.ignoredGift) add(64, 'I left you a present and you didn\'t even pick it up. I am pretending not to care.');
     if (c.opinion) add(41, c.opinion);
     if (ev.focus) add(60, ev.focus > 1 ? `You worked hard for ${ev.focus} sessions. I napped hard for ${ev.focus} sessions. Teamwork.` : 'You worked while I napped. Then we stretched together. Good system.');
+    if (ev.mood != null) add(70, ['You told me today was rough. I sat very close to you all evening. Tomorrow will be softer.', 'You said today was meh. I gave you my best slow blink. It helps.', 'You said today was okay. Okay days are good days too.', 'You had a good day! I could tell. Your pets were extra nice.', 'You had a GREAT day! We celebrated. I danced. It was beautiful.'][ev.mood]);
+    if (ev.breathe) add(52, 'We breathed together, slow and deep. I fell asleep a little. That counts.');
     if (ev.trap) add(58, 'I showed you my tummy. It was a trap. You fell for it. Again.');
     if (ev.blinkSwap) add(66, 'I blinked at you slowly, and you blinked back. Now we have a secret.');
     else if (ev.blink) add(52, 'You blinked at me very slowly today. I know what that means.');
