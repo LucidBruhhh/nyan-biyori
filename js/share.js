@@ -9,6 +9,7 @@ NB.Share = (function () {
 
   // share as an image where the platform supports it, otherwise download it
   async function image(canvas, filename, text) {
+    if (NB.Native && NB.Native.isNative) return NB.Native.shareFile(canvas.toDataURL('image/png').split(',')[1], filename.replace(/[^\w.-]+/g, '_'), text);
     const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
     if (!blob) return 'failed';
     const file = new File([blob], filename, { type: 'image/png' });

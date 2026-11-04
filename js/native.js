@@ -80,5 +80,22 @@ NB.Native = (function () {
     wb.update({ json: JSON.stringify(snapshot), images: images || null }).catch(() => {});
   }
 
-  return { isNative, platform: isNative ? Cap.getPlatform() : 'web', mirror, restore, haptic, permission, planNotes, clearNotes, onLifecycle, minimize, ready, widget };
+  /* ---------- sharing: the system share sheet with a real image file ---------- */
+  const cancelled = (e) => /cancel/i.test(String((e && (e.message || e.errorMessage)) || e));
+  async function shareFile(base64, filename, text) {
+    const fsys = P('Filesystem'), sh = P('Share');
+    if (!fsys || !sh) return 'failed';
+    try {
+      const w = await fsys.writeFile({ path: filename, data: base64, directory: 'CACHE' });
+      await sh.share({ title: 'にゃん日和', text, files: [w.uri], dialogTitle: 'Share' });
+      return 'shared';
+    } catch (e) { return cancelled(e) ? 'cancelled' : 'failed'; }
+  }
+  async function shareText(text) {
+    const sh = P('Share');
+    if (!sh) return 'failed';
+    try { await sh.share({ title: 'にゃん日和', text, dialogTitle: 'Share' }); return 'shared'; } catch (e) { return cancelled(e) ? 'cancelled' : 'failed'; }
+  }
+
+  return { isNative, platform: isNative ? Cap.getPlatform() : 'web', mirror, restore, haptic, permission, planNotes, clearNotes, onLifecycle, minimize, ready, widget, shareFile, shareText };
 })();

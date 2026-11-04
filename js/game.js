@@ -1666,6 +1666,7 @@
   };
   async function shareCatCode() {
     const code = catCode(), text = `Meet my cat ${st.name} in にゃん日和! Add this code under Album › Friends: ${code}`;
+    if (NB.Native.isNative) { const r = await NB.Native.shareText(text); if (r === 'failed') toast('Could not open sharing. Your code: ' + code); return; }
     try { if (navigator.share) { await navigator.share({ title: 'にゃん日和', text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     try { await navigator.clipboard.writeText(code); toast('📋 Cat code copied! Send it to a friend.'); } catch (e) { prompt('Copy your cat code:', code); }
   }
