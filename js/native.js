@@ -73,5 +73,12 @@ NB.Native = (function () {
     if (sp) sp.hide({ fadeOutDuration: 300 }).catch(() => {});
   }
 
-  return { isNative, platform: isNative ? Cap.getPlatform() : 'web', mirror, restore, haptic, permission, planNotes, clearNotes, onLifecycle, minimize, ready };
+  /* ---------- home-screen widgets: a stats snapshot plus three mood portraits ---------- */
+  function widget(snapshot, images) {
+    const wb = P('WidgetBridge');
+    if (!wb) return;
+    wb.update({ json: JSON.stringify(snapshot), images: images || null }).catch(() => {});
+  }
+
+  return { isNative, platform: isNative ? Cap.getPlatform() : 'web', mirror, restore, haptic, permission, planNotes, clearNotes, onLifecycle, minimize, ready, widget };
 })();
