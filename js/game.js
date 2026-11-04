@@ -374,7 +374,7 @@
       <div class="d-lines">${p.lines.map((l) => `<p>${l}</p>`).join('')}</div>
       <p class="d-sign">— ${st.name} 🐾</p>
       <div class="d-nav"><button data-diary="${i - 1}" ${i <= 0 ? 'disabled' : ''} aria-label="Older page">‹</button><span>${i + 1} / ${list.length}</span><button data-diary="${i + 1}" ${i >= list.length - 1 ? 'disabled' : ''} aria-label="Newer page">›</button></div>
-      <button class="btn" data-ui="closemodal">とじる Close</button></div>`, 'diarymodal', {
+      <div class="btnrow"><button class="btn ghost" data-sharepage="${i}">📤 Share page</button><button class="btn" data-ui="closemodal">とじる Close</button></div></div>`, 'diarymodal', {
       replace: true,
       onShow: (m) => C.portrait(m.querySelector('#dcat'), look(), { zoom: 1.1, pose: MOOD_POSE[p.mood] || MOOD_POSE.happy }),
     });
@@ -643,6 +643,7 @@
   function think() {
     if (mode !== 'room') return;
     if (cozy.on) { cozyThink(); return; }
+    if (photo.on) return;
     if (cat.sulk > 0) { if (Math.random() < 0.3) sayText('ぷいっ', '*looks away*'); cat.dir = Math.random() < 0.5 ? -1 : 1; return; }
     if (waitForMeal()) return;
     if (radioPlaying() && Math.random() < (quirk('radiofan') || P.likes(pers(), 'radio:' + st.radio) ? 0.1 : 0.03)) { startDance(); return; }
@@ -1311,7 +1312,7 @@
     });
   }
   function updateWorld(dt) {
-    updateCozy(dt);
+    updateCozy(dt); updatePhoto(dt);
     if (st) updateVisitor(dt);
     if (st && mode === 'room' && !RM && Math.random() < dt * 0.5 && st.health.coat >= 80 && HL.vitality(st) >= 85) {
       const s = catScale();
@@ -1754,6 +1755,100 @@
     return false;
   }
 
+  /* ================= PHOTO MODE, PERSONALITY CARD, SHAREABLE DIARY ================= */
+  const photo = { on: false, pose: 'sit', frame: 'polaroid', loopT: 0 };
+  const POSES = [['sit', '🐱', 'Sit'], ['happy', '😊', 'Happy'], ['sparkle', '✨', 'Sparkle'], ['sleep', '💤', 'Sleep'], ['spin', '🌀', 'Spin'], ['hifive', '✋', 'High five'], ['belly', '🙃', 'Belly']];
+  const daysTogether = () => Math.max(1, Math.floor((Date.now() - st.created) / 86400000) + 1);
+  const catTitle = () => { const t = P.title(pers()); return t ? t[1] : titleFor(st.level)[2]; };
+  function startPhoto() {
+    if (cozy.on) exitCozy();
+    closeSheet(); if (modalShowing) closeModal(); if (mode !== 'room') setMode('room');
+    getDown(true); cat.inBox = false; cat.chase = null; laser.on = false;
+    photo.on = true; document.body.classList.add('photo');
+    goTo(L.sx + L.SW * 0.5, () => setPose(photo.pose), false, L.catY);
+    renderPhotoBar();
+  }
+  function endPhoto() { photo.on = false; document.body.classList.remove('photo'); $('#photo-bar').hidden = true; setAct('idle', 0.5); cat.happyT = 0; }
+  function renderPhotoBar() {
+    const b = $('#photo-bar'); b.hidden = false;
+    b.innerHTML = `<div class="pb-row">${POSES.map(([id, ic, l]) => `<button class="${photo.pose === id ? 'on' : ''}" data-pose="${id}" aria-label="${l}">${ic}<small>${l}</small></button>`).join('')}</div>
+      <div class="pb-row frames">${NB.Share.FRAMES.map(([id, l]) => `<button class="${photo.frame === id ? 'on' : ''}" data-frame="${id}">${l}</button>`).join('')}</div>
+      <div class="pb-row"><button class="pill ghost" data-ui="photoclose">✕ Close</button><button class="pill shoot" data-ui="photoshoot">📸 Take photo</button></div>`;
+  }
+  function setPose(id) {
+    photo.pose = id; cat.happyT = 0; cat.flopK = 0;
+    if (id === 'sit') setAct('idle', 999);
+    else if (id === 'happy') { setAct('idle', 999); cat.happyT = 999; }
+    else if (id === 'sparkle') setAct('wait', 999);
+    else if (id === 'sleep') setAct('nap', 999);
+    else if (id === 'belly') setAct('flop', 999);
+    else { cat.trick = id; setAct('trick', 1.6); }
+    renderPhotoBar();
+  }
+  function updatePhoto(dt) {
+    if (!photo.on) return;
+    if ((photo.pose === 'spin' || photo.pose === 'hifive') && cat.act !== 'trick' && cat.act !== 'walk') { photo.loopT -= dt; if (photo.loopT <= 0) { photo.loopT = 0.8; cat.trick = photo.pose; setAct('trick', 1.6); } }
+  }
+  async function takePhoto() {
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    A.play('page'); U.vibrate(14);
+    const flash = $('#flash'); flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+    const s = cs(), size = U.clamp(430 * s, 240, Math.min(W, H) * 0.9);
+    const cx = U.clamp(cat.x, size / 2, W - size / 2), cy = U.clamp(cat.y - 100 * s, size / 2, H - size / 2);
+    const k = Math.min(DPR, 1400 / size);
+    const crop = document.createElement('canvas'); crop.width = crop.height = Math.round(size * k);
+    crop.getContext('2d').drawImage(canvas, (cx - size / 2) * DPR, (cy - size / 2) * DPR, size * DPR, size * DPR, 0, 0, crop.width, crop.height);
+    const pic = NB.Share.frame(crop, photo.frame, st.name, `day ${daysTogether()} · ${catTitle()}`);
+    noteSet('photo'); P.bump(pers(), 'photo');
+    modal(`<div class="photo-preview"><img alt="Your photo" src="${pic.toDataURL('image/png')}"></div>
+      <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Retake</button><button class="btn" data-ui="sharepic">シェア Share</button></div>`, 'photo', { replace: true });
+    cozy.lastPic = pic;
+  }
+  async function sharePic(pic, name, text) {
+    const r = await NB.Share.image(pic, name, text);
+    toast(r === 'shared' ? '📸 Shared!' : r === 'saved' ? '📸 Saved to your downloads' : r === 'cancelled' ? 'Not shared' : 'Could not create the picture');
+  }
+  function personalityInfo() {
+    const p = pers(), lab = (id) => P.prefName(id);
+    return {
+      quirks: p.quirks.map((q) => `${P.quirk(q).jp} · ${P.quirk(q).en}`),
+      likes: p.likes.map((id) => (p.known.includes(id) ? lab(id) : '？？？')),
+      dislikes: p.dislikes.map((id) => (p.known.includes(id) ? lab(id) : '？？？')),
+      spot: P.spotOf(p.spot).en, ritual: P.ritualOf(p.ritual).en,
+    };
+  }
+  async function shareCard() {
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    const port = document.createElement('canvas'); port.width = port.height = 800;
+    C.portrait(port, look(), { zoom: 1, full: true, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.4, pawR: 0.8, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } });
+    const i = personalityInfo();
+    const card = NB.Share.card(Object.assign(i, { portrait: port, name: st.name, title: catTitle(), stats: `Lv ${st.level} · day ${daysTogether()} · ${'♥'.repeat(bondStage() + 1)} · ${{ kitten: 'Kitten', adult: 'Adult', senior: 'Senior' }[P.stage(st)]}` }));
+    modal(`<div class="photo-preview card"><img alt="Personality card" src="${card.toDataURL('image/png')}"></div>
+      <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Close</button><button class="btn" data-ui="sharecard">シェア Share</button></div>`, 'photo', { replace: true });
+    cozy.lastPic = card;
+  }
+  async function shareDiaryPage(i) {
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    const list = diaryPages(), p = list[U.clamp(i, 0, list.length - 1)]; if (!p) return;
+    const port = document.createElement('canvas'); port.width = port.height = 220;
+    C.portrait(port, look(), { zoom: 1.1, bg: ['#fff1f6', '#ffe0ec'], pose: MOOD_POSE[p.mood] || MOOD_POSE.happy });
+    const wx = Di.WX[p.wx] || Di.WX.clear;
+    const pic = NB.Share.diaryPage({ date: Di.label(p.day), weather: `${wx[0]} ${wx[1]}`, title: p.title, lines: p.lines, name: st.name, portrait: port });
+    sharePic(pic, `${st.name}-diary.png`, `${st.name}'s diary · にゃん日和`);
+  }
+  function personaHTML() {
+    const i = personalityInfo(), t = P.title(pers());
+    return `<h3>せいかく <small>Personality · what makes ${st.name} ${st.name}</small></h3>
+      <div class="bondcard persona">
+        ${t ? `<p class="ptitle">🏷 <b>${t[0]}</b> ${t[1]}</p>` : ''}
+        <div class="traits">${i.quirks.map((q) => `<span class="trait">${q}</span>`).join('')}</div>
+        <ul class="mem"><li><i>💗</i><span>Loves: <b>${i.likes.join(', ')}</b></span></li><li><i>💢</i><span>Dislikes: <b>${i.dislikes.join(', ')}</b></span></li>
+        <li><i>📍</i><span>Favourite spot: <b>${i.spot}</b></span></li><li><i>✨</i><span>Ritual: <b>${i.ritual}</b></span></li>
+        <li><i>🌱</i><span>Life stage: <b>${{ kitten: 'Kitten', adult: 'Adult', senior: 'Senior' }[P.stage(st)]}</b></span></li></ul>
+        <div class="btnrow"><button class="btn ghost" data-ui="card">🪪 Personality card</button><button class="btn" data-ui="photomode">📸 Photo mode</button></div>
+      </div>`;
+  }
+
   /* ================= FOCUS TIMER: work beside a napping cat, stretch together on breaks ================= */
   const focus = { phase: null, end: 0, work: 25, rest: 5, done: 0, bannerT: 0 };
   const FOCUS_PRESETS = [[25, 5], [50, 10], [15, 3]];
@@ -2189,6 +2284,7 @@
   /* ================= MODES ================= */
   function setMode(m) {
     if (train.on && m !== 'room') endTrain();
+    if (photo.on && m !== 'room') endPhoto();
     if (arrange.on && m !== 'room') endArrange();
     const prev = mode;
     if (m !== 'room') cancelHide();
@@ -3094,6 +3190,7 @@
       <li>Pets <b>${st.stats.pets}</b> · Meals <b>${st.stats.fed}</b> · Baths <b>${st.stats.baths}</b></li>
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
       ${bondHTML()}
+      ${personaHTML()}
       ${diaryHTML()}
       ${friendsHTML()}
       <h3>絆の道 <small>Kizuna Road · rewards for growing together</small></h3>
@@ -3399,8 +3496,11 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
+    const el = e.target.closest('[data-pose],[data-frame],[data-sharepage],[data-focus],[data-station],[data-trick],[data-buy],[data-diary],[data-claim],[data-go],[data-ui],[data-act],[data-food],[data-acc],[data-decor],[data-tab],[data-game],[data-fur],[data-eye]');
     if (!el) return;
+    if (el.dataset.pose) { A.play('tap'); setPose(el.dataset.pose); return; }
+    if (el.dataset.frame) { A.play('tap'); photo.frame = el.dataset.frame; renderPhotoBar(); return; }
+    if (el.dataset.sharepage != null) { shareDiaryPage(+el.dataset.sharepage); return; }
     if (el.dataset.focus) { const [w, r] = el.dataset.focus.split('-').map(Number); startFocus(w, r); return; }
     if (el.dataset.station) { pickStation(el.dataset.station); return; }
     if (el.dataset.trick) { startTrain(el.dataset.trick); return; }
@@ -3440,7 +3540,14 @@
       case 'cozy': if (cozy.on) exitCozy(); else enterCozy(false); break;
       case 'cozyexit': exitCozy(); break;
       case 'focus': openFocusPanel(); break;
+      case 'cozyphoto': startPhoto(); break;
       case 'focusstop': stopFocus(); break;
+      case 'photomode': startPhoto(); break;
+      case 'photoclose': endPhoto(); break;
+      case 'photoshoot': takePhoto(); break;
+      case 'card': shareCard(); break;
+      case 'sharepic': sharePic(cozy.lastPic, `${st.name}-photo.png`, `${st.name} · にゃん日和`); break;
+      case 'sharecard': sharePic(cozy.lastPic, `${st.name}-card.png`, `Meet ${st.name} · にゃん日和`); break;
       case 'fullscreen': closeSheet(); toggleFullscreen(); break;
       case 'visitortreat': visitorTreat(); break;
       case 'capsule': spinCapsule(); break;
@@ -3583,7 +3690,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="closemodal">Not now</button><button class="btn" data-ui="notify-yes">Yes please</button></div></div>`, 'letter'), 3500);
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
-  if (DEV) NB.Game.dbg = { focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

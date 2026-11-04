@@ -20,8 +20,10 @@
 </head>
 <body data-mode="title">
   <div id="cozy-clock" hidden><b></b><small></small><em hidden></em></div>
-  <div id="cozy-bar"><span><b>まったり</b> Cozy mode</span><button class="pill ghost" data-ui="focus">⏱ Focus</button><button class="pill" data-ui="cozyexit">Exit 🌙</button></div>
+  <div id="cozy-bar"><span><b>まったり</b> Cozy mode</span><button class="pill ghost" data-ui="focus">⏱ Focus</button><button class="pill ghost" data-ui="cozyphoto">📸</button><button class="pill" data-ui="cozyexit">Exit 🌙</button></div>
   <div id="focus-panel" hidden></div>
+  <div id="photo-bar" hidden></div>
+  <div id="flash"></div>
   <div id="focus-banner" hidden></div>
   <canvas id="scene" aria-label="Your kitty's room. Stroke the cat to pet it."></canvas>
 
@@ -95,6 +97,7 @@
   <script src="js/bond.js"></script>
   <script src="js/diary.js"></script>
   <script src="js/season.js"></script>
+  <script src="js/share.js"></script>
   <script src="js/store.js"></script>
   <script src="js/capsule.js"></script>
   <script src="js/visitors.js"></script>
