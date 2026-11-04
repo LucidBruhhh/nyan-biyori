@@ -4,7 +4,7 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const out = path.join(root, 'www');
-const ITEMS = ['index.html', 'manifest.webmanifest', 'css', 'js', 'art', 'icons'];
+const ITEMS = ['index.html', 'manifest.webmanifest', 'css', 'js', 'art', 'icons', 'audio'];
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out);

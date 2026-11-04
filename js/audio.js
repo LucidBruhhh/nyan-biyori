@@ -52,6 +52,54 @@ NB.Audio = (() => {
     // iOS: a silent buffer kick-starts output
     const b = ac.createBuffer(1, 1, 22050), s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(0);
     if (!timer) { nextNoteTime = ac.currentTime + 0.1; timer = setInterval(schedule, 90); }
+    loadSamples();
+  }
+
+  /* ---------- recorded cat voices (CC0, see audio/CREDITS.md) ---------- */
+  const SAMPLE_URLS = { kitten: 'audio/kitten-mew.mp3', adult: 'audio/cat-mew.mp3', purr: 'audio/cat-purr.mp3' };
+  const smp = {};
+  let samplesLoading = false;
+  // split a recording into its separate mews by finding the loud stretches
+  function findCuts(buf) {
+    const d = buf.getChannelData(0), win = Math.round(buf.sampleRate * 0.01), env = [];
+    for (let i = 0; i < d.length; i += win) { let s = 0; for (let j = i; j < Math.min(i + win, d.length); j++) s += d[j] * d[j]; env.push(Math.sqrt(s / win)); }
+    const thr = Math.max(...env) * 0.18, cuts = [];
+    let st = -1, quiet = 0;
+    env.forEach((v, i) => {
+      if (v > thr) { if (st < 0) st = i; quiet = 0; }
+      else if (st >= 0 && ++quiet > 8) { const end = i - quiet; if (end - st >= 12) cuts.push([Math.max(0, st * 0.01 - 0.02), end * 0.01 + 0.06]); st = -1; quiet = 0; }
+    });
+    return cuts;
+  }
+  function loadSamples() {
+    if (samplesLoading || !ac) return;
+    samplesLoading = true;
+    Object.entries(SAMPLE_URLS).forEach(([k, url]) => {
+      fetch(url).then((r) => r.arrayBuffer()).then((ab) => ac.decodeAudioData(ab)).then((buf) => {
+        smp[k] = { buf, cuts: k === 'purr' ? [] : findCuts(buf) };
+      }).catch(() => { /* the synthesised voice stays as the fallback */ });
+    });
+  }
+  function playMew(pitch, len) {
+    const lv = (NB.state && NB.state.level) || 1;
+    const kind = smp.kitten && (lv < 8 || !smp.adult || Math.random() < 0.3) ? 'kitten' : 'adult';
+    const s = smp[kind];
+    if (!s || !s.cuts.length) return false;
+    // short calls pick the shorter mews
+    const sorted = s.cuts.slice().sort((a, b) => (a[1] - a[0]) - (b[1] - b[0]));
+    const pool = len < 0.6 ? sorted.slice(0, Math.ceil(sorted.length / 2)) : sorted;
+    const [a, b] = pool[Math.floor(Math.random() * pool.length)];
+    const t = ac.currentTime + 0.01, src = ac.createBufferSource();
+    src.buffer = s.buf;
+    src.playbackRate.value = U.clamp((kind === 'kitten' ? 1 : 1.05) * (0.86 + (pitch - 1) * 0.35) * U.rand(0.95, 1.06), 0.78, 1.35);
+    const dur = (b - a) / src.playbackRate.value;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(kind === 'kitten' ? 0.75 : 0.95, t + 0.012);
+    g.gain.setValueAtTime(kind === 'kitten' ? 0.75 : 0.95, t + dur * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(g); g.connect(sfxBus);
+    const vs = ac.createGain(); vs.gain.value = 0.2; g.connect(vs); vs.connect(verbSend);
+    src.start(t, a, b - a + 0.02);
+    return true;
   }
 
   /* ---------- voices ---------- */
@@ -166,6 +214,7 @@ NB.Audio = (() => {
   // Young cats sound higher, and every meow is a little different.
   function meow(pitch = 1, len = 1) {
     if (!ac || !sfxOn) return;
+    if (playMew(pitch, len)) return;
     const lv = (NB.state && NB.state.level) || 1;
     pitch *= (lv < 5 ? 1.18 : lv < 10 ? 1.08 : 1) * U.rand(0.95, 1.05);
     const t = ac.currentTime + 0.01, d = Math.max(0.16, 0.36 * len * U.rand(0.88, 1.15));
@@ -216,6 +265,15 @@ NB.Audio = (() => {
   function startPurr() {
     if (!ac || !sfxOn || purrNode) return;
     const t = ac.currentTime;
+    if (smp.purr) {
+      const s = ac.createBufferSource(); s.buffer = smp.purr.buf; s.loop = true;
+      s.loopStart = 0.5; s.loopEnd = Math.max(1, smp.purr.buf.duration - 0.2);
+      const out = ac.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.6, t + 0.4);
+      s.connect(out); out.connect(sfxBus);
+      s.start(t, 0.5 + Math.random() * 6);
+      purrNode = { s, out };
+      return;
+    }
     const buzz = ac.createOscillator(); buzz.type = 'sawtooth'; buzz.frequency.value = 26;
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340; lp.Q.value = 1.4;
     const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
@@ -232,14 +290,14 @@ NB.Audio = (() => {
   }
   function purrLevel(v) {
     if (!purrNode || !ac) return;
-    purrNode.out.gain.setTargetAtTime(0.35 + 0.55 * Math.min(1, v), ac.currentTime, 0.2);
+    purrNode.out.gain.setTargetAtTime((purrNode.lfo ? 0.35 : 0.4) + 0.55 * Math.min(1, v), ac.currentTime, 0.2);
   }
   function stopPurr() {
     if (!purrNode) return;
     const p = purrNode; purrNode = null;
     const t = ac.currentTime;
     p.out.gain.cancelScheduledValues(t); p.out.gain.setValueAtTime(p.out.gain.value || 0.5, t); p.out.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-    setTimeout(() => { try { p.s.stop(); p.lfo.stop(); p.breath.stop(); } catch (e) { /* already stopped */ } }, 600);
+    setTimeout(() => { [p.s, p.lfo, p.breath].forEach((n) => { try { if (n) n.stop(); } catch (e) { /* already stopped */ } }); }, 600);
   }
 
   const SFX = {
@@ -293,7 +351,7 @@ NB.Audio = (() => {
   }
 
   return {
-    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain,
+    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(on ? 0.32 : 0, ac.currentTime, 0.2); },
