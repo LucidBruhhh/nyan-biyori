@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <ImageView
+        android:id="@+id/widget_cat"
+        android:layout_width="88dp"
+        android:layout_height="88dp"
+        android:contentDescription="@string/widget_cat"
+        android:scaleType="fitCenter"
+        android:src="@mipmap/ic_launcher" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#5B3A4A"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <LinearLayout style="@style/WidgetRow">
+            <TextView style="@style/WidgetLabel" android:text="おなか" />
+            <ProgressBar android:id="@+id/bar_hunger" style="@style/WidgetBar" />
+        </LinearLayout>
+        <LinearLayout style="@style/WidgetRow">
+            <TextView style="@style/WidgetLabel" android:text="ごきげん" />
+            <ProgressBar android:id="@+id/bar_fun" style="@style/WidgetBar" />
+        </LinearLayout>
+        <LinearLayout style="@style/WidgetRow">
+            <TextView style="@style/WidgetLabel" android:text="きれい" />
+            <ProgressBar android:id="@+id/bar_clean" style="@style/WidgetBar" />
+        </LinearLayout>
+        <LinearLayout style="@style/WidgetRow">
+            <TextView style="@style/WidgetLabel" android:text="げんき" />
+            <ProgressBar android:id="@+id/bar_energy" style="@style/WidgetBar" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_mood"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#FF6F9F"
+            android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>

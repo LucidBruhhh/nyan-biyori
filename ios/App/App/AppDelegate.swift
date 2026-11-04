@@ -42,3 +42,35 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return config
     }
 }
+
+// MARK: - Home-screen widget bridge
+// The game sends a stats snapshot and three mood portraits; the widget extension reads them from the shared App Group.
+import WidgetKit
+
+@objc(WidgetBridgePlugin)
+public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "WidgetBridgePlugin"
+    public let jsName = "WidgetBridge"
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "update", returnType: CAPPluginReturnPromise)]
+    static let appGroup = "group.com.lucidbruhhh.nyanbiyori"
+
+    @objc func update(_ call: CAPPluginCall) {
+        UserDefaults(suiteName: Self.appGroup)?.set(call.getString("json") ?? "", forKey: "cat")
+        if let images = call.getObject("images"),
+           let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroup) {
+            for (name, value) in images {
+                if let b64 = value as? String, let data = Data(base64Encoded: b64) {
+                    try? data.write(to: dir.appendingPathComponent("widget_\(name).png"))
+                }
+            }
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+        call.resolve()
+    }
+}
+
+class MainViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(WidgetBridgePlugin())
+    }
+}
