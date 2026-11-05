@@ -715,6 +715,8 @@
   }
   function updateCat(dt) {
     const s = catScale();
+    // turn side-on to walk, and back to face you when stopping
+    cat.sideK = U.damp(cat.sideK || 0, cat.act === 'walk' && !cat.perch ? 1 : 0, 12, dt);
     cat.actT += dt;
     cat.happyT = Math.max(0, cat.happyT - dt);
     cat.squash = U.damp(cat.squash, 0, 10, dt);
@@ -819,6 +821,7 @@
     p.blink = cat.blinkK;
     if (cat.grumpyT && T < cat.grumpyT && cat.act === 'idle') { p.blink = Math.min(p.blink, 0.45); p.earDroop = 0.2; p.mouth = 'flat'; }
     p.lookX = cat.look.x; p.lookY = cat.look.y;
+    p.side = cat.sideK || 0; if (p.side > 0.02) p.flip = cat.dir < 0 ? -1 : 1;
     p.tailPhase = T * (cat.happyT > 0 || cat.petK > 0.2 ? 5 : 1.7);
     p.earTwitchL = cat.twitchL; p.earTwitchR = cat.twitchR;
     p.blush = 0.35 + cat.petK * 0.6 + (cat.happyT > 0 ? 0.3 : 0);
@@ -839,6 +842,7 @@
         if (cat.chase === 'laser') { p.eyes = 'sparkle'; p.tailPhase = T * 10; p.sy -= 0.04; }
         p.bob = -Math.abs(Math.sin(k)) * 6; p.lean = Math.sin(k) * 0.03;
         p.pawLx = Math.sin(k) * 5; p.pawRx = -Math.sin(k) * 5; p.flip = cat.dir < 0 ? -1 : 1;
+        p.gait = k; p.lookX = 0.8; p.tailPhase = k * 0.5;
         break;
       }
       case 'groom': p.pawR = 0.62 + Math.sin(T * 7) * 0.08; p.pawRx = -24; p.headTilt = -0.14; p.tongue = (Math.sin(T * 10) + 1) / 2; p.eyes = 'closed'; break;
@@ -1390,7 +1394,7 @@
     updateBall(dt); updateBirds(dt); updateBugs(dt);
     const target = T - ptr.lastMove < 3 && ptr.x > -900 ? (ptr.x / W - 0.5) * 2 : Math.sin(T * 0.12) * 0.5;
     env.par = U.damp(env.par || 0, target, 1.5, dt);
-    if (env.home === 'tokyo' || L.painted) NB.Apartment.update(dt, () => { if (mode === 'room' || mode === 'play') { A.play('train'); if (quirk('trainchirp') && !cozy.on) { A.chirp(1.3); sayText('カカカッ', '*chirps at the passing train*', true); } } });
+    if (env.home === 'tokyo' || L.painted) (L.painted ? NB.Painted.update : NB.Apartment.update)(dt, () => { if (mode === 'room' || mode === 'play') { A.play('train'); if (quirk('trainchirp') && !cozy.on) { A.chirp(1.3); sayText('カカカッ', '*chirps at the passing train*', true); } } });
     else if (env.home === 'washitsu') NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
     const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
     if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }

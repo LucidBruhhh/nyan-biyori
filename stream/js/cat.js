@@ -132,12 +132,12 @@ NB.Cat = (() => {
     bodyPath(ctx, p); ctx.strokeStyle = F.line; ctx.lineWidth = LW; ctx.stroke();
     // fluffy fur along the sides
     const fluff = U.mix(F.base, F.shade, 0.55);
-    [[-1, 0.3], [-1, -0.25], [1, 0.35], [1, -0.2]].forEach(([s, th]) => {
+    if (!p.side) [[-1, 0.3], [-1, -0.25], [1, 0.35], [1, -0.2]].forEach(([s, th]) => {
       const px = s * w * Math.cos(th), py = -h - h * Math.sin(th);
       let nx = s * Math.cos(th) / w, ny = -Math.sin(th) / h; const l = Math.hypot(nx, ny); nx /= l; ny /= l;
       furTuft(ctx, F, px, py, nx, ny, 9, fluff);
     });
-    if (!look.acc || !look.acc.body) chestRuff(ctx, F, h);
+    if ((!look.acc || !look.acc.body) && !p.side) chestRuff(ctx, F, h);
   }
 
   function furTuft(ctx, F, x, y, nx, ny, size, fill) {
@@ -644,6 +644,45 @@ NB.Cat = (() => {
   }
 
   /* ---------- main ---------- */
+  /* ---------- walking, seen from the side ---------- */
+  // one leg: a soft rounded column swinging from the hip, the paw lifting as it comes forward
+  function sideLeg(ctx, F, hx, hy, len, ang, far) {
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(ang);
+    const w = 16;
+    U.rr(ctx, -w / 2, -6, w, len + 6, w / 2);
+    ctx.fillStyle = far ? F.shade : F.base; ctx.fill(); ctx.strokeStyle = F.line; ctx.lineWidth = LW; ctx.stroke();
+    U.ell(ctx, 3, len, 11, 7);
+    ctx.fillStyle = F.pattern === 'socks' ? F.mark : far ? F.shade : F.base; ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  function drawSide(ctx, F, p, look, t, bodyK, headK) {
+    const g = p.gait || 0, sw = (ph) => Math.sin(g + ph) * 0.42;
+    // a paw only lifts while it swings forward
+    const legLen = (ph) => 34 - p.bob - Math.max(0, Math.cos(g + ph)) * 7;
+    ctx.save(); ctx.scale(bodyK, bodyK);
+    // far legs, in shadow behind the body
+    sideLeg(ctx, F, 30, -34, legLen(Math.PI), sw(Math.PI), true);
+    sideLeg(ctx, F, -50, -34, legLen(0), sw(0), true);
+    // tail out behind, swaying as it walks
+    ctx.save(); ctx.translate(-30, -22); ctx.scale(-1, 1);
+    if (p.twin) { ctx.save(); ctx.translate(8, -6); drawTail(ctx, F, Object.assign({}, p, { tailPhase: p.tailPhase + 1.4 }), t, 0); ctx.restore(); }
+    drawTail(ctx, F, p, t, 0); ctx.restore();
+    // a longer, lower body
+    ctx.save(); ctx.translate(0, -16); ctx.scale(1.4, 0.8); drawBody(ctx, F, Object.assign({}, p, { loaf: 0, side: 1 }), look); ctx.restore();
+    // near legs, in front
+    sideLeg(ctx, F, -40, -30, legLen(Math.PI), sw(Math.PI), false);
+    sideLeg(ctx, F, 42, -30, legLen(0), sw(0), false);
+    if (look.acc && look.acc.neck) { ctx.save(); ctx.translate(46, 10); ctx.scale(0.85, 0.85); drawNeckAcc(ctx, look.acc.neck, p, t); ctx.restore(); }
+    ctx.restore();
+    // the head leads, a little forward and lower, looking where it's going
+    ctx.save();
+    ctx.translate(50 * bodyK, p.headY + 16 + 90 * (1 - bodyK) + Math.sin(g * 2) * 1.5);
+    ctx.translate(0, -90); ctx.rotate(p.headTilt + 0.05); ctx.scale(headK * 0.94, headK * 0.94); ctx.translate(0, 90);
+    drawHead(ctx, F, p, look, t);
+    if (look.acc && look.acc.head) drawHeadAcc(ctx, look.acc.head, p, t);
+    ctx.restore();
+  }
+
   function draw(ctx, look, p, t, x, y, s) {
     const F = FURS[look.fur] || FURS.shiro;
     ctx.save();
@@ -658,6 +697,8 @@ NB.Cat = (() => {
 
     // growing up: a kitten is mostly head on a small body; a grown cat has its full shape
     const age = look.age == null ? 1 : look.age, bodyK = 0.74 + 0.26 * age, headK = 1 + 0.2 * (1 - age);
+    if (p.side > 0.5) { ctx.scale(0.75 + 0.25 * (2 * p.side - 1), 1); drawSide(ctx, F, p, look, t, bodyK, headK); ctx.restore(); return; }
+    if (p.side > 0) ctx.scale(1 - 0.25 * (2 * p.side), 1);
     ctx.save(); ctx.scale(bodyK, bodyK);
     const tailFront = p.loaf > 0.5;
     if (!tailFront) {
