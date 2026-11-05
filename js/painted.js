@@ -7,7 +7,7 @@ NB.Painted = (function () {
   const SRC = 'art/apartment-night.webp', SIZE = 1024;
   const img = new Image();
   let ready = false;
-  img.onload = () => { ready = true; backdrop = null; };
+  img.onload = () => { ready = true; backdrop = null; trainArt = null; };
   img.src = SRC;
 
   // landmarks in the 1024px art
@@ -102,11 +102,64 @@ NB.Painted = (function () {
     ctx.closePath();
   }
 
+  /* ---------- the train outside: cut from the painting so it can come and go ---------- */
+  // in painting pixels: the band of glass the train fills, the window post, and the cushions in front of it
+  const TR = { x: 197, y: 526, w: 603, h: 77 };
+  const STILL = [[503, 526, 33, 77], [190, 560, 54, 43], [650, 565, 150, 38]];
+  let trainArt = null;
+  const train = { off: 0, dir: -1, wait: 0, speed: 16 };
+  function makeTrainArt() {
+    const cut = (x, y, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h); return c; };
+    // the train alone: patch over the window post and cushions with neighbouring carriages, so nothing static rides along
+    const car = cut(TR.x, TR.y, TR.w, TR.h), cx = car.getContext('2d');
+    const copy = (sx, sy, w, h, dx) => cx.drawImage(img, sx, sy, w, h, dx - TR.x, sy - TR.y, w, h);
+    copy(470, TR.y, 33, TR.h, 503);
+    copy(245, 556, 54, 47, 190);
+    copy(560, 560, 90, 43, 650); copy(590, 560, 60, 43, 740);
+    // soften both ends so it slides in and out of view
+    cx.globalCompositeOperation = 'destination-in';
+    const fade = cx.createLinearGradient(0, 0, TR.w, 0);
+    fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(0.07, '#000'); fade.addColorStop(0.93, '#000'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = fade; cx.fillRect(0, 0, TR.w, TR.h);
+    // the view with no train: the rooftops just above, carried down, settling into the dark of the viaduct
+    const empty = document.createElement('canvas'); empty.width = TR.w; empty.height = TR.h;
+    const ex = empty.getContext('2d'), band = 22;
+    for (let i = 0; i * band < TR.h; i++) {
+      ex.save(); ex.translate(0, i * band);
+      if (i % 2) { ex.translate(0, band); ex.scale(1, -1); }
+      ex.drawImage(img, TR.x, 504, TR.w, band, 0, 0, TR.w, band); ex.restore();
+    }
+    const dark = ex.createLinearGradient(0, 0, 0, TR.h);
+    dark.addColorStop(0, 'rgba(40,28,58,0.1)'); dark.addColorStop(0.75, 'rgba(40,28,58,0.45)'); dark.addColorStop(1, 'rgba(52,38,62,0.85)');
+    ex.fillStyle = dark; ex.fillRect(0, 0, TR.w, TR.h);
+    trainArt = { car, empty, still: STILL.map(([x, y, w, h]) => ({ c: cut(x, y, w, h), x, y, w, h })) };
+  }
+  // the train glides slowly across, out of sight, and returns a while later; onTrain fires as it arrives
+  function update(dt, onTrain) {
+    if (train.wait > 0) {
+      train.wait -= dt;
+      if (train.wait <= 0) { train.dir = Math.random() < 0.5 ? -1 : 1; train.off = -train.dir * TR.w; onTrain && onTrain(); }
+      return;
+    }
+    train.off += train.dir * train.speed * dt;
+    if (Math.abs(train.off) >= TR.w) train.wait = U.rand(25, 70);
+  }
+  function drawTrain(ctx, ox, oy, k) {
+    if (!trainArt) makeTrainArt();
+    const X = (x) => ox + x * k, Y = (y) => oy + y * k;
+    ctx.save(); ctx.beginPath(); ctx.rect(X(TR.x), Y(TR.y), TR.w * k, TR.h * k); ctx.clip();
+    ctx.drawImage(trainArt.empty, X(TR.x), Y(TR.y), TR.w * k, TR.h * k);
+    if (train.wait <= 0) ctx.drawImage(trainArt.car, X(TR.x + train.off), Y(TR.y), TR.w * k, TR.h * k);
+    ctx.restore();
+    trainArt.still.forEach((s) => ctx.drawImage(s.c, X(s.x), Y(s.y), s.w * k, s.h * k));
+  }
+
   function drawRoom(ctx, L, env, t) {
     const { W, H } = L, { k, ox, oy, iw } = L.painted;
     if (!ready) { ctx.fillStyle = '#3a2a40'; ctx.fillRect(0, 0, W, H); return; }
     if (iw < W) ctx.drawImage(getBackdrop(L), 0, 0, W, H);
     ctx.drawImage(img, ox, oy, iw, SIZE * k);
+    drawTrain(ctx, ox, oy, k);
     // continue the floor below the painting when it has slid up
     if (oy + SIZE * k < H) ctx.drawImage(img, 0, SIZE - 40, SIZE, 40, ox, oy + SIZE * k - 1, iw, H - (oy + SIZE * k) + 1);
     if (iw < W) {
@@ -207,5 +260,5 @@ NB.Painted = (function () {
     if (env.decor.maneki) NB.Scene.drawManeki(ctx, L.alcove.x + L.alcove.w * 0.75, L.alcove.y + L.alcove.h - 26, L.scale * 0.8, t);
   }
 
-  return { layout, drawRoom, ready: () => ready, ART, hit, spot, randomSpot };
+  return { layout, drawRoom, update, train, ready: () => ready, ART, hit, spot, randomSpot };
 })();

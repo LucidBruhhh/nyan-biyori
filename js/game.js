@@ -706,6 +706,8 @@
   }
   function updateCat(dt) {
     const s = catScale();
+    // turn side-on to walk, and back to face you when stopping
+    cat.sideK = U.damp(cat.sideK || 0, cat.act === 'walk' && !cat.perch ? 1 : 0, 12, dt);
     cat.actT += dt;
     cat.happyT = Math.max(0, cat.happyT - dt);
     cat.squash = U.damp(cat.squash, 0, 10, dt);
@@ -810,6 +812,7 @@
     p.blink = cat.blinkK;
     if (cat.grumpyT && T < cat.grumpyT && cat.act === 'idle') { p.blink = Math.min(p.blink, 0.45); p.earDroop = 0.2; p.mouth = 'flat'; }
     p.lookX = cat.look.x; p.lookY = cat.look.y;
+    p.side = cat.sideK || 0; if (p.side > 0.02) p.flip = cat.dir < 0 ? -1 : 1;
     p.tailPhase = T * (cat.happyT > 0 || cat.petK > 0.2 ? 5 : 1.7);
     p.earTwitchL = cat.twitchL; p.earTwitchR = cat.twitchR;
     p.blush = 0.35 + cat.petK * 0.6 + (cat.happyT > 0 ? 0.3 : 0);
@@ -830,6 +833,7 @@
         if (cat.chase === 'laser') { p.eyes = 'sparkle'; p.tailPhase = T * 10; p.sy -= 0.04; }
         p.bob = -Math.abs(Math.sin(k)) * 6; p.lean = Math.sin(k) * 0.03;
         p.pawLx = Math.sin(k) * 5; p.pawRx = -Math.sin(k) * 5; p.flip = cat.dir < 0 ? -1 : 1;
+        p.gait = k; p.lookX = 0.8; p.tailPhase = k * 0.5;
         break;
       }
       case 'groom': p.pawR = 0.62 + Math.sin(T * 7) * 0.08; p.pawRx = -24; p.headTilt = -0.14; p.tongue = (Math.sin(T * 10) + 1) / 2; p.eyes = 'closed'; break;
@@ -1381,7 +1385,7 @@
     updateBall(dt); updateBirds(dt); updateBugs(dt);
     const target = T - ptr.lastMove < 3 && ptr.x > -900 ? (ptr.x / W - 0.5) * 2 : Math.sin(T * 0.12) * 0.5;
     env.par = U.damp(env.par || 0, target, 1.5, dt);
-    if (env.home === 'tokyo' || L.painted) NB.Apartment.update(dt, () => { if (mode === 'room' || mode === 'play') { A.play('train'); if (quirk('trainchirp') && !cozy.on) { A.chirp(1.3); sayText('カカカッ', '*chirps at the passing train*', true); } } });
+    if (env.home === 'tokyo' || L.painted) (L.painted ? NB.Painted.update : NB.Apartment.update)(dt, () => { if (mode === 'room' || mode === 'play') { A.play('train'); if (quirk('trainchirp') && !cozy.on) { A.chirp(1.3); sayText('カカカッ', '*chirps at the passing train*', true); } } });
     else if (env.home === 'washitsu') NB.Habitat.update(dt, () => { if (mode === 'room' || mode === 'play') A.play('clack'); });
     const rainy = env.weather === 'rain' && mode !== 'title' && mode !== 'game';
     if (rainy !== !!env.rainOn) { env.rainOn = rainy; A.setRain(rainy); }
@@ -3569,6 +3573,61 @@
     });
   }
 
+  /* ---------- bug reports ---------- */
+  // where reports go: GitHub issues, plus an email address if one is set here
+  const SUPPORT_EMAIL = '';
+  const BUG_REPO = 'https://github.com/LucidBruhhh/nyan-biyori/issues/new';
+  // the last few errors, so a report can say what went wrong
+  const errLog = [];
+  const logErr = (m) => { errLog.push(new Date().toISOString().slice(11, 19) + ' ' + String(m).slice(0, 200)); if (errLog.length > 8) errLog.shift(); };
+  window.addEventListener('error', (e) => logErr(`${e.message} @ ${(e.filename || '').split('/').pop()}:${e.lineno}`));
+  window.addEventListener('unhandledrejection', (e) => logErr('promise: ' + ((e.reason && e.reason.message) || e.reason)));
+  let buildId = '';
+  fetch('sw.js').then((r) => r.text()).then((s) => { const m = /nyanbiyori-(v\d+)/.exec(s); if (m) buildId = m[1]; }).catch(() => {});
+  // game details for a report: nothing personal, no cat name, no save code
+  function bugDetails() {
+    const s = st ? st.settings : {};
+    const ti = A.trackInfo && A.trackInfo();
+    return [
+      `Build: ${buildId || 'unknown'} · ${NB.Native.isNative ? 'app' : 'web'}`,
+      `Device: ${navigator.userAgent}`,
+      `Screen: ${window.innerWidth}×${window.innerHeight} @${window.devicePixelRatio || 1}x`,
+      `Game: Lv ${st ? st.level : '-'} · day ${st ? daysTogether() : '-'} · mode ${mode}${cozy.on ? ' (cozy)' : ''} · ${env.season}, ${env.weather}, ${Math.floor(env.hour)}h`,
+      `Settings: music ${s.music !== false ? 'on' : 'off'} · sound ${s.sfx !== false ? 'on' : 'off'} · reduce motion ${s.calm ? 'on' : 'off'} · text ${s.textSize || 'normal'}`,
+      `Radio: ${env.radioOn ? (ti ? ti.file : 'on') : 'off'}`,
+      `Recent errors: ${errLog.length ? '\n  ' + errLog.join('\n  ') : 'none'}`,
+    ].join('\n');
+  }
+  function openBugReport() {
+    closeSheet();
+    modal(`<div class="bugrep"><h2>🐞 Report a bug</h2>
+      <p class="sub">Thank you! Tell us what happened and we'll look into it.</p>
+      <textarea class="txt" data-bug-text rows="4" maxlength="1500" placeholder="What happened? What were you doing just before?"></textarea>
+      <label class="row"><span>Include game details (no personal info)</span><input type="checkbox" class="switch" data-bug-details checked></label>
+      <pre class="bug-details">${U.esc ? U.esc(bugDetails()) : bugDetails().replace(/[<>&]/g, '')}</pre>
+      <div class="btnrow">
+        <button class="btn" data-bug="github">Send on GitHub</button>
+        ${SUPPORT_EMAIL ? '<button class="btn" data-bug="email">✉ Email</button>' : ''}
+        ${navigator.share ? '<button class="btn ghost" data-bug="share">Share…</button>' : ''}
+        <button class="btn ghost" data-bug="copy">📋 Copy</button>
+      </div>
+      <button class="btn ghost" data-ui="closemodal">Close</button></div>`, 'bugreport', {
+      onShow: (m) => {
+        const box = m.querySelector('[data-bug-details]'), pre = m.querySelector('.bug-details');
+        box.addEventListener('change', () => { pre.hidden = !box.checked; });
+        const report = () => { const txt = m.querySelector('[data-bug-text]').value.trim() || '(no description)'; return txt + (box.checked ? '\n\n---\n' + bugDetails() : ''); };
+        const title = () => 'Bug: ' + (m.querySelector('[data-bug-text]').value.trim().split('\n')[0].slice(0, 60) || 'something went wrong');
+        m.querySelectorAll('[data-bug]').forEach((b) => b.addEventListener('click', async () => {
+          const how = b.dataset.bug;
+          if (how === 'github') window.open(`${BUG_REPO}?title=${encodeURIComponent(title())}&body=${encodeURIComponent(report().slice(0, 3500))}&labels=bug`, '_blank', 'noopener');
+          else if (how === 'email') location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(title())}&body=${encodeURIComponent(report())}`;
+          else if (how === 'share') { try { await navigator.share({ title: title(), text: report() }); } catch (e) { /* cancelled */ } }
+          else { try { await navigator.clipboard.writeText(report()); toast('Report copied 📋'); } catch (e) { prompt('Copy this report:', report()); } }
+        }));
+      },
+    });
+  }
+
   /* ---------- Settings ---------- */
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
@@ -3589,6 +3648,7 @@
       <label class="row"><span><b>もじ</b> Text size</span><select data-set="textSize">${[['normal', 'Normal'], ['large', 'Large'], ['larger', 'Larger']].map(([v, l]) => `<option value="${v}" ${(s.textSize || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>しずか</b> Reduce motion (no zoom, shake or flashes)</span><input type="checkbox" class="switch" data-set="calm" ${s.calm ? 'checked' : ''}></label>
       <label class="row"><span><b>くっきり</b> Higher contrast</span><input type="checkbox" class="switch" data-set="contrast" ${s.contrast ? 'checked' : ''}></label>
+      <button class="btn ghost" data-ui="bugreport">🐞 Report a bug</button>
       ${NB.Native.isNative ? '' : `<button class="btn ghost" data-ui="fullscreen">⛶ Full screen${document.fullscreenElement ? ' · exit' : ''}</button>`}
       ${iosHint}
       ${installEvt ? '<button class="btn" data-ui="install">Install app 📲</button>' : ''}
@@ -3971,6 +4031,7 @@
       case 'sharepic': sharePic(cozy.lastPic, `${st.name}-photo.png`, `${st.name} · にゃん日和`); break;
       case 'sharecard': sharePic(cozy.lastPic, `${st.name}-card.png`, `Meet ${st.name} · にゃん日和`); break;
       case 'fullscreen': closeSheet(); toggleFullscreen(); break;
+      case 'bugreport': openBugReport(); break;
       case 'visitortreat': visitorTreat(); break;
       case 'capsule': spinCapsule(); break;
       case 'arrange': startArrange(); break;
@@ -4113,7 +4174,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { openAdopt, levelUp, luckyBeckon, spiritLights, groove, favSong, updateMusicFeel, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { openAdopt, openBugReport, bugDetails, levelUp, luckyBeckon, spiritLights, groove, favSong, updateMusicFeel, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
