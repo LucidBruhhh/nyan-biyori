@@ -1,0 +1,306 @@
+<title>Nyan Biyori Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&family=Yusei+Magic&display=swap">
+<style>
+/* Layout: the reels are the page. A shelf of phone-shaped clips up top, the one under review opens beside its caption,
+   then the posting calendar and the ideas waiting to be shot. Colours come from the game's own room. */
+:root {
+  --bg: #fff6f9; --panel: #ffffff; --panel-2: #fff0f5; --line: #f3d6e1;
+  --ink: #5b3a4a; --muted: #9a7488; --pink: #ff5c8d; --pink-soft: #ffc2d6;
+  --gold: #e9a800; --gold-bg: #fff4cc; --mint: #1f9c74; --mint-bg: #ddf6ec; --lav: #8b6fe0; --lav-bg: #efe8ff;
+  --warn: #c2571d; --warn-bg: #ffe7d6; --phone: #2a1f33;
+  --shadow: 0 4px 0 rgba(91, 58, 74, .08), 0 10px 26px rgba(91, 58, 74, .10);
+  --f-ui: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", system-ui, sans-serif;
+  --f-disp: "Yusei Magic", "M PLUS Rounded 1c", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #221a2b; --panel: #2f2439; --panel-2: #392b45; --line: #4a3a58;
+  --ink: #fbe9f1; --muted: #c4a9bd; --pink: #ff8fb1; --pink-soft: #6e3a55;
+  --gold: #ffd34e; --gold-bg: #4a3d1c; --mint: #8fdcc0; --mint-bg: #20403a; --lav: #c9b6ff; --lav-bg: #3a3160;
+  --warn: #ffb27a; --warn-bg: #4a2f22; --phone: #120d17;
+  --shadow: 0 4px 0 rgba(0, 0, 0, .2), 0 10px 26px rgba(0, 0, 0, .3); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #221a2b; --panel: #2f2439; --panel-2: #392b45; --line: #4a3a58;
+  --ink: #fbe9f1; --muted: #c4a9bd; --pink: #ff8fb1; --pink-soft: #6e3a55;
+  --gold: #ffd34e; --gold-bg: #4a3d1c; --mint: #8fdcc0; --mint-bg: #20403a; --lav: #c9b6ff; --lav-bg: #3a3160;
+  --warn: #ffb27a; --warn-bg: #4a2f22; --phone: #120d17;
+  --shadow: 0 4px 0 rgba(0, 0, 0, .2), 0 10px 26px rgba(0, 0, 0, .3); color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 15px; line-height: 1.55; font-weight: 500; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 36px; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 2px solid var(--line); background: var(--panel); border-radius: 999px; padding: 7px 14px; font-weight: 800; font-size: 14px; }
+button:hover { border-color: var(--pink); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--pink); border-color: var(--pink); color: #fff; }
+:root[data-theme="dark"] button.primary { color: #2a1f33; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #2a1f33; } }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font-size: 20px; font-weight: 900; }
+.sub { color: var(--muted); font-size: 13px; margin: 0; }
+.msg { color: var(--muted); margin: 0; }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 28px; }
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand .paw { width: 54px; height: 54px; flex: none; }
+.brand h1 { font-family: var(--f-disp); font-weight: 400; font-size: clamp(28px, 5vw, 42px); line-height: 1.05; }
+.brand h1 small { display: block; font-family: var(--f-ui); font-size: 13px; font-weight: 800; color: var(--muted); letter-spacing: .06em; margin-top: 4px; }
+.counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.counts span { background: var(--panel); border: 2px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.counts b { font-weight: 900; }
+
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 14px; }
+
+/* the shelf: every clip as a little phone */
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px; }
+.clip { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.clip:focus-visible .phone { outline: 3px solid var(--pink); outline-offset: 3px; }
+.phone { position: relative; aspect-ratio: 9 / 16; max-width: 100%; background: var(--phone); border-radius: 18px; overflow: hidden; border: 4px solid var(--phone); box-shadow: var(--shadow); transition: transform .18s ease; }
+.clip:hover .phone { transform: translateY(-3px); }
+.clip[aria-current="true"] .phone { border-color: var(--pink); }
+.phone video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.phone .dur { position: absolute; right: 6px; bottom: 6px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+.clip b { font-size: 14px; font-weight: 800; line-height: 1.3; }
+.pill { display: inline-block; font-size: 11px; font-weight: 900; letter-spacing: .03em; padding: 2px 9px; border-radius: 99px; background: var(--panel-2); color: var(--muted); }
+.pill.review { background: var(--gold-bg); color: var(--gold); }
+.pill.approved { background: var(--mint-bg); color: var(--mint); }
+.pill.changes { background: var(--warn-bg); color: var(--warn); }
+.pill.posted { background: var(--lav-bg); color: var(--lav); }
+.add-clip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 9 / 16; border: 3px dashed var(--line); border-radius: 18px; color: var(--muted); font-weight: 800; font-size: 13px; text-align: center; padding: 10px; cursor: pointer; }
+.add-clip:hover { border-color: var(--pink); color: var(--pink); }
+.add-clip input { display: none; }
+
+/* the review desk */
+.desk { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 28px; background: var(--panel); border-radius: 26px; padding: 22px; box-shadow: var(--shadow); }
+@media (max-width: 720px) { .desk { grid-template-columns: minmax(0, 1fr); } .desk .phone { max-width: 260px; margin: 0 auto; } }
+.desk .phone { width: 100%; }
+.fields { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.fields h3 { font-size: 22px; font-weight: 900; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label, .lbl { font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.field input, .field textarea, .field select { background: var(--panel-2); border: 2px solid var(--line); border-radius: 14px; padding: 9px 12px; width: 100%; box-sizing: border-box; }
+.field textarea { resize: vertical; line-height: 1.5; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 520px) { .two { grid-template-columns: 1fr; } }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button[aria-pressed="true"] { background: var(--pink); border-color: var(--pink); color: var(--bg); }
+.why { background: var(--panel-2); border-radius: 16px; padding: 10px 14px; font-size: 14px; }
+.why .lbl { display: block; margin-bottom: 2px; }
+.count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; align-self: flex-end; }
+.count.over { color: var(--warn); font-weight: 800; }
+.decide { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-top: 6px; border-top: 2px dashed var(--line); }
+.decide .saved { font-size: 13px; color: var(--muted); }
+.empty { text-align: center; padding: 30px 10px; color: var(--muted); }
+
+/* calendar */
+.weeks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.week { background: var(--panel); border-radius: 20px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.week h3 { font-size: 14px; font-weight: 900; }
+.slot { display: flex; gap: 10px; align-items: baseline; font-size: 14px; min-width: 0; }
+.slot time { font-weight: 900; color: var(--pink); font-variant-numeric: tabular-nums; flex: none; width: 74px; }
+.slot span { min-width: 0; overflow-wrap: anywhere; }
+.slot.none { color: var(--muted); }
+
+/* ideas */
+.ideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.idea { background: var(--panel); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.idea b { font-size: 16px; font-weight: 900; line-height: 1.3; }
+.idea p { margin: 0; font-size: 14px; }
+.idea .hook { font-size: 13px; color: var(--muted); }
+.idea .row { margin-top: auto; padding-top: 4px; }
+.idea.shoot { outline: 3px solid var(--mint); }
+.idea.skip { opacity: .55; }
+.addidea { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.addidea input { flex: 1 1 260px; min-width: 0; background: var(--panel); border: 2px solid var(--line); border-radius: 999px; padding: 8px 16px; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 18px; border-radius: 99px; font-weight: 800; font-size: 14px; z-index: 5; }
+@media (prefers-reduced-motion: reduce) { .phone { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg class="paw" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="var(--pink-soft)"/><ellipse cx="32" cy="40" rx="12" ry="10" fill="var(--pink)"/><circle cx="19" cy="27" r="5" fill="var(--pink)"/><circle cx="27" cy="20" r="5" fill="var(--pink)"/><circle cx="37" cy="20" r="5" fill="var(--pink)"/><circle cx="45" cy="27" r="5" fill="var(--pink)"/></svg>
+      <h1>にゃん日和 Studio<small>REELS · TIKTOK · SHORTS FOR NYAN BIYORI</small></h1>
+    </div>
+    <div class="counts" id="counts" aria-live="polite"><span>Loading the reels…</span></div>
+  </header>
+
+  <section aria-labelledby="shelfT">
+    <div class="sec-head"><h2 id="shelfT">Recorded clips</h2><p class="sub">Tap a clip to review its caption. Recorded straight from the game at 1080×1920.</p></div>
+    <div class="shelf" id="shelf"><p class="msg">Your clips appear here once the page has loaded.</p></div>
+  </section>
+
+  <section aria-labelledby="deskT">
+    <h2 id="deskT" class="sec-head" style="margin-bottom:14px">Review</h2>
+    <div id="desk" class="desk"><div class="empty" style="grid-column:1/-1">Pick a clip above to review its caption, hashtags and posting date.</div></div>
+  </section>
+
+  <section aria-labelledby="calT">
+    <div class="sec-head"><h2 id="calT">Posting calendar</h2><p class="sub">Approved clips with a date. Short-form does best at 3–4 posts a week.</p></div>
+    <div class="weeks" id="weeks"></div>
+  </section>
+
+  <section aria-labelledby="ideaT">
+    <div class="sec-head"><h2 id="ideaT">Ideas to shoot next</h2><p class="sub">Mark the ones you want, and Claude records them with the capture tool.</p></div>
+    <div class="ideas" id="ideas"><p class="msg">Ideas load with the page.</p></div>
+    <form class="addidea" id="addIdea"><input id="ideaText" placeholder="A moment worth filming, e.g. the cat chasing a firefly at 2am" aria-label="New idea"><button class="primary" type="submit">Add idea</button></form>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const g = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const STATUS = { review: "To review", approved: "Approved", changes: "Needs changes" };
+const PLATFORMS = ["TikTok", "Instagram Reels", "YouTube Shorts"];
+let db = null, assets = null, posts = [], ideas = [], currentId = null, loaded = false;
+
+let toastT = 0;
+function toast(t) { const el = g("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2200); }
+const pillOf = (p) => p.posted ? `<span class="pill posted">Posted</span>` : `<span class="pill ${esc(p.status || "review")}">${STATUS[p.status || "review"]}</span>`;
+const nice = (d) => { if (!d) return ""; const x = new Date(d + "T00:00"); return isNaN(x) ? d : x.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); };
+
+function renderCounts() {
+  if (!loaded) { g("counts").innerHTML = `<span>${db ? "Loading the reels…" : "Open signed in to claude.ai to load your reels."}</span>`; return; }
+  const n = posts.length, by = (f) => posts.filter(f).length;
+  g("counts").innerHTML = `<span><b>${by((p) => !p.posted && (p.status || "review") === "review")}</b> to review</span><span><b>${by((p) => !p.posted && p.status === "approved")}</b> approved</span><span><b>${by((p) => !p.posted && p.status === "changes")}</b> need changes</span><span><b>${by((p) => p.posted)}</b> posted</span><span>${n} clips</span>`;
+}
+
+function renderShelf() {
+  const wrap = g("shelf");
+  if (!loaded) return;
+  const list = [...posts].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const sig = list.map((p) => p.id + (p.video && p.video.url) + p.status + p.posted + p.title).join("|") + currentId;
+  if (wrap.dataset.sig === sig) return;
+  wrap.dataset.sig = sig;
+  wrap.innerHTML = list.map((p) => `<button type="button" class="clip" data-open="${esc(p.id)}" aria-current="${p.id === currentId}">
+      <div class="phone">${p.video && p.video.url ? `<video src="${esc(p.video.url)}#t=0.5" muted loop playsinline preload="metadata"></video>` : ""}${p.video && p.video.duration ? `<span class="dur">${esc(p.video.duration)}</span>` : ""}</div>
+      <b>${esc(p.title)}</b>${pillOf(p)}</button>`).join("")
+    + (assets ? `<label class="add-clip" tabindex="0"><input type="file" accept="video/mp4,video/webm" id="upload">＋ Add a clip<br><span style="font-weight:500">MP4, up to 20 MB</span></label>` : "");
+  if (!list.length && !assets) wrap.innerHTML = `<p class="msg">No clips yet. Claude adds each recorded reel here.</p>`;
+  wrap.querySelectorAll(".clip").forEach((b) => {
+    const v = b.querySelector("video");
+    if (v) { b.addEventListener("mouseenter", () => v.play().catch(() => {})); b.addEventListener("mouseleave", () => { v.pause(); }); }
+    b.addEventListener("click", () => { currentId = b.dataset.open; renderShelf(); renderDesk(true); g("deskT").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); });
+  });
+  const up = g("upload"); if (up) up.addEventListener("change", uploadClip);
+}
+
+async function uploadClip(e) {
+  const f = e.target.files && e.target.files[0]; if (!f || !assets || !db) return;
+  toast("Uploading " + f.name + "…");
+  try {
+    const a = await assets.upload(f);
+    const order = Math.max(0, ...posts.map((p) => p.order || 0)) + 1;
+    const ref = await db.collection("posts").add({ order, title: f.name.replace(/\.\w+$/, "").replace(/[-_]/g, " "), video: { url: a.url, id: a.id }, status: "review", posted: false, caption: "", tags: [], hook: "", alt: "", why: "", platforms: [...PLATFORMS], date: "" });
+    currentId = ref.id; toast("Clip added"); renderAll();
+  } catch (err) { toast("That clip couldn't upload. Check it's an MP4 under 20 MB."); }
+}
+
+function renderDesk(force) {
+  const desk = g("desk"), p = posts.find((x) => x.id === currentId);
+  if (!p) { desk.innerHTML = `<div class="empty" style="grid-column:1/-1">Pick a clip above to review its caption, hashtags and posting date.</div>`; return; }
+  // keep what's being typed: only redraw when a different clip opens
+  if (!force && desk.dataset.id === p.id) { desk.querySelector(".pill-slot").innerHTML = pillOf(p); return; }
+  desk.dataset.id = p.id;
+  const tags = (p.tags || []).join(" "), plats = p.platforms || PLATFORMS;
+  desk.innerHTML = `<div class="phone">${p.video && p.video.url ? `<video src="${esc(p.video.url)}" controls playsinline preload="metadata" aria-label="${esc(p.title)}"></video>` : ""}</div>
+    <div class="fields">
+      <div class="row"><h3>${esc(p.title)}</h3><span class="pill-slot">${pillOf(p)}</span></div>
+      ${p.why ? `<div class="why"><span class="lbl">Why it should work</span>${esc(p.why)}</div>` : ""}
+      ${p.note ? `<div class="why"><span class="lbl">Change requested</span>${esc(p.note)}</div>` : ""}
+      <div class="field"><label for="f-hook">On-screen text (first 2 seconds)</label><input id="f-hook" maxlength="80" value="${esc(p.hook)}"></div>
+      <div class="field"><label for="f-cap">Caption</label><textarea id="f-cap" rows="6">${esc(p.caption)}</textarea><span class="count" id="capCount"></span></div>
+      <div class="field"><label for="f-tags">Hashtags</label><input id="f-tags" value="${esc(tags)}"></div>
+      <div class="two">
+        <div class="field"><label for="f-date">Post on</label><input id="f-date" type="date" value="${esc(p.date)}"></div>
+        <div class="field"><span class="lbl">Platforms</span><div class="chips" id="plats">${PLATFORMS.map((x) => `<button type="button" aria-pressed="${plats.includes(x)}" data-plat="${esc(x)}">${esc(x)}</button>`).join("")}</div></div>
+      </div>
+      <div class="field"><label for="f-alt">Alt text</label><input id="f-alt" value="${esc(p.alt)}"></div>
+      <div class="decide">
+        <button type="button" class="primary" data-act="approved">Approve</button>
+        <button type="button" data-act="changes">Needs changes</button>
+        <button type="button" data-act="posted">${p.posted ? "Mark not posted" : "Mark posted"}</button>
+        <button type="button" data-act="copy">Copy caption + tags</button>
+        <span class="saved" id="saveMsg"></span>
+      </div>
+      <div class="field" id="noteBox" hidden><label for="f-note">What should change?</label><textarea id="f-note" rows="2" placeholder="e.g. start on the drop, cut the first 3 seconds">${esc(p.note)}</textarea><div class="row"><button type="button" class="primary" data-act="sendnote">Send to Claude</button></div></div>
+    </div>`;
+  const cap = g("f-cap"), cc = g("capCount");
+  const count = () => { const n = cap.value.length; cc.textContent = `${n} / 2,200 (Instagram's limit)`; cc.classList.toggle("over", n > 2200); };
+  cap.addEventListener("input", count); count();
+  g("plats").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")); });
+  desk.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => act(p, b.dataset.act)));
+}
+
+function readForm() {
+  return {
+    hook: g("f-hook").value.trim(), caption: g("f-cap").value, alt: g("f-alt").value.trim(), date: g("f-date").value,
+    tags: g("f-tags").value.split(/[\s,]+/).filter(Boolean).map((t) => t.startsWith("#") ? t : "#" + t),
+    platforms: [...g("plats").querySelectorAll('[aria-pressed="true"]')].map((b) => b.dataset.plat),
+  };
+}
+async function save(p, extra, label) {
+  if (!db) { g("saveMsg").textContent = "Open signed in to claude.ai to save."; return; }
+  try { await db.doc("posts/" + p.id).update({ ...readForm(), ...extra, reviewedAt: new Date().toISOString() }); g("saveMsg").textContent = label; }
+  catch (e) { g("saveMsg").textContent = "Couldn't save. Check your connection and tap again."; }
+}
+async function act(p, a) {
+  if (a === "copy") {
+    const f = readForm(), text = f.caption.trim() + "\n\n" + f.tags.join(" ");
+    try { await navigator.clipboard.writeText(text); toast("Caption copied"); } catch (e) { g("f-cap").select(); toast("Press Ctrl+C to copy"); }
+    return;
+  }
+  if (a === "changes") { g("noteBox").hidden = false; g("f-note").focus(); return; }
+  if (a === "sendnote") return save(p, { status: "changes", note: g("f-note").value.trim() }, "Sent. Claude will pick it up next session.");
+  if (a === "approved") return save(p, { status: "approved", note: "" }, "Approved ♡");
+  if (a === "posted") return save(p, { posted: !p.posted, postedAt: p.posted ? "" : new Date().toISOString() }, p.posted ? "Marked not posted" : "Marked posted 🎉");
+}
+
+function renderWeeks() {
+  const wrap = g("weeks"); if (!loaded) return;
+  const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const weeks = [];
+  for (let w = 0; w < 4; w++) {
+    const days = [];
+    for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(start.getDate() + w * 7 + i); days.push(key(d)); }
+    const items = posts.filter((p) => p.date && days.includes(p.date)).sort((a, b) => a.date.localeCompare(b.date));
+    const label = w === 0 ? "This week" : w === 1 ? "Next week" : "Week of " + nice(days[0]);
+    weeks.push(`<div class="week"><h3>${label}</h3>${items.length ? items.map((p) => `<div class="slot"><time datetime="${esc(p.date)}">${esc(nice(p.date))}</time><span>${esc(p.title)} ${pillOf(p)}</span></div>`).join("") : `<div class="slot none">Nothing scheduled yet.</div>`}</div>`);
+  }
+  wrap.innerHTML = weeks.join("");
+}
+
+function renderIdeas() {
+  const wrap = g("ideas"); if (!loaded) return;
+  if (!ideas.length) { wrap.innerHTML = `<p class="msg">No ideas yet. Add one below.</p>`; return; }
+  wrap.innerHTML = ideas.map((i) => `<div class="idea ${esc(i.status || "")}"><b>${esc(i.title)}</b>${i.premise ? `<p>${esc(i.premise)}</p>` : ""}${i.hook ? `<span class="hook">On screen: “${esc(i.hook)}”</span>` : ""}
+    <div class="row">${i.status === "shot" ? `<span class="pill approved">Recorded</span>` : `<button type="button" class="${i.status === "shoot" ? "primary" : ""}" data-idea="${esc(i.id)}" data-to="${i.status === "shoot" ? "" : "shoot"}">${i.status === "shoot" ? "✓ Shoot this" : "Shoot this"}</button><button type="button" data-idea="${esc(i.id)}" data-to="${i.status === "skip" ? "" : "skip"}">${i.status === "skip" ? "Bring back" : "Skip"}</button>`}</div></div>`).join("");
+  wrap.querySelectorAll("[data-idea]").forEach((b) => b.addEventListener("click", async () => {
+    if (!db) return; b.disabled = true;
+    try { await db.doc("ideas/" + b.dataset.idea).update({ status: b.dataset.to, decidedAt: new Date().toISOString() }); } catch (e) { b.disabled = false; toast("Couldn't save. Tap again."); }
+  }));
+}
+g("addIdea").addEventListener("submit", async (e) => {
+  e.preventDefault(); const t = g("ideaText").value.trim(); if (!t) return;
+  if (!db) { toast("Open signed in to claude.ai to add ideas."); return; }
+  try { await db.collection("ideas").add({ title: t, premise: "", status: "shoot", order: Math.max(0, ...ideas.map((i) => i.order || 0)) + 1, addedAt: new Date().toISOString() }); g("ideaText").value = ""; toast("Idea added"); }
+  catch (err) { toast("Couldn't add that idea. Try again."); }
+});
+
+function renderAll() { renderCounts(); renderShelf(); renderDesk(false); renderWeeks(); renderIdeas(); }
+renderAll();
+(async () => {
+  const c = window.claude;
+  db = c && c.use ? await c.use("db") : null;
+  if (!db) { renderCounts(); return; }
+  c.use("assets").then((a) => { assets = a; if (loaded) { g("shelf").dataset.sig = ""; renderShelf(); } });
+  const timer = setTimeout(() => { if (!loaded) g("counts").innerHTML = "<span>The reels are taking a while. Reload the page to try again.</span>"; }, 10000);
+  db.collection("posts").orderBy("order").onSnapshot((s) => { clearTimeout(timer); loaded = true; posts = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!currentId && posts.length) currentId = (posts.find((p) => (p.status || "review") === "review" && !p.posted) || posts[0]).id; renderAll(); }, () => { clearTimeout(timer); g("counts").innerHTML = "<span>The reels couldn't load. Reload the page to try again.</span>"; });
+  db.collection("ideas").orderBy("order").onSnapshot((s) => { ideas = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderIdeas(); }, () => {});
+})();
+</script>

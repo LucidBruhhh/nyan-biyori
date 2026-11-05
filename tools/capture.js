@@ -15,9 +15,9 @@ NB.Capture = (() => {
   document.querySelectorAll('body > div').forEach((el) => { if (/DEV/.test(el.textContent) && el.querySelector('a[href*="devices"]')) el.style.display = 'none'; });
 
   // sound on for recording; your own settings come back afterwards
-  const saved = { music: st.settings.music, sfx: st.settings.sfx, musicViz: st.settings.musicViz, level: st.level };
+  const saved = { music: st.settings.music, sfx: st.settings.sfx, musicViz: st.settings.musicViz, season: st.settings.season, level: st.level };
   function soundOn() { st.settings.music = true; st.settings.sfx = true; st.settings.musicViz = true; A.setMusic(true); A.setSfx(true); }
-  function restore() { Object.assign(st.settings, { music: saved.music, sfx: saved.sfx, musicViz: saved.musicViz }); A.setMusic(saved.music !== false); A.setSfx(saved.sfx !== false); st.level = saved.level; }
+  function restore() { Object.assign(st.settings, { music: saved.music, sfx: saved.sfx, musicViz: saved.musicViz, season: saved.season }); A.setMusic(saved.music !== false); A.setSfx(saved.sfx !== false); st.level = saved.level; window.__weather = null; }
   // the cat in the middle of the rug, free to react
   function centreCat() {
     const c = d.cat, L = d.L; c.perch = null; c.inBox = false;
@@ -47,16 +47,33 @@ NB.Capture = (() => {
     // 2am, rain on the glass, the train sliding past, the cat asleep
     night: {
       secs: 16,
-      setup() { window.__hour = 2; d.env.weather = 'rain'; radio('chill-dubstep-1.mp3', 0); centreCat(); d.setAct('nap', 30); const tr = NB.Painted.train; tr.wait = 0; tr.dir = -1; tr.speed = 48; tr.pos = 800; },
+      setup() { window.__hour = 2; window.__weather = 'rain'; radio('chill-dubstep-1.mp3', 0); centreCat(); d.setAct('nap', 30); const tr = NB.Painted.train; tr.wait = 0; tr.dir = -1; tr.speed = 48; tr.pos = 800; },
     },
-    // the same room through spring, summer, autumn and winter
+    // the same room through the year: each season at its best hour, the cat doing something seasonal.
+    // The game reads the season from settings every frame, so the setting is what changes here
     seasons: {
-      secs: 13,
-      setup() { window.__hour = 15; d.env.weather = 'clear'; radio('snowy-chillstep.mp3', 20); centreCat(); },
-      async run() { for (const s of ['spring', 'summer', 'autumn', 'winter']) { d.env.season = s; await wait(3200); } },
+      secs: 15,
+      setup() { window.__hour = 15; window.__weather = 'clear'; st.settings.season = 'spring'; radio('snowy-chillstep.mp3', 20); centreCat(); d.setAct('stretch', 3); NB.Painted.train.wait = 60; },
+      async run() {
+        const year = [
+          ['spring', 15, 'clear', 'stretch', '春', 'Spring ♡ cherry blossoms'],
+          ['summer', 21, 'clear', 'bat', '夏', 'Summer ✦ fireflies'],
+          ['autumn', 17.4, 'clear', 'groom', '秋', 'Autumn 🍁'],
+          ['winter', 21.5, 'snow', 'knead', '冬', 'Winter ❄ first snow'],
+        ];
+        for (const [s, h, w, act, jp, en] of year) {
+          st.settings.season = s; window.__hour = h; window.__weather = w;
+          centreCat(); d.setAct(act, 3.6); d.sayText(jp, en, true);
+          await wait(3700);
+        }
+      },
     },
-    // zoomies across the room
-    zoomies: { secs: 8, setup() { window.__hour = 20; d.env.weather = 'clear'; radio('chill-dubstep-5.mp3', 24); centreCat(); }, async run() { await wait(600); d.zoomies(); } },
+    // night zoomies: the cat tears from wall to wall and back
+    zoomies: {
+      secs: 10,
+      setup() { window.__hour = 22.5; window.__weather = 'clear'; radio('chill-dubstep-5.mp3', 24); centreCat(); d.setAct('stretch', 1); },
+      async run() { await wait(900); centreCat(); d.zoomies(); },
+    },
   };
 
   async function record(name, secs, during) {
