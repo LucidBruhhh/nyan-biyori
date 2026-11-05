@@ -8,6 +8,7 @@
   const LINK = (Q.get('link') || 'Alien Instinct · on all music platforms').slice(0, 60);
   const VIEWERS = Number(Q.get('viewers')) || 0;
   const PROGRESS_KEY = 'nyanbiyori.stream.progress.v1';
+  const MUTE_KEY = 'nyanbiyori.stream.mute';
   const G = () => NB.Game.stream;
   const FRIEND = 'a friend'; // what NB.NameFilter shows instead of a rude name
 
@@ -312,6 +313,17 @@
   const FAKE = ['Kyle', 'MochiFan', 'neko_ami', 'LofiLeo', 'Hana_88', 'pixelpaws', 'sh1tlord', 'RainyRen', 'yuzu_tea', 'StarlitSam', 'KoiKai', 'tofu_tom', 'MidnightMiu', 'BeanieBo', 'sakura_sky', 'Glowworm', 'ramen_rae', 'TanukiTed', 'PlumPip', 'Nori'];
   let fakeN = 0;
   const fake = (cmd) => { const n = U.pick(FAKE); command(`${n.toLowerCase()}_${fakeN++}`, n, '!' + cmd); };
+  // development mute: ?mute=1, the switch in the test panel, or the M key in test mode; remembered in this browser
+  function setMute(on) {
+    NB.Audio.setMute(on);
+    try { localStorage.setItem(MUTE_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+    const sw = $('#mute-switch'); if (sw) sw.checked = on;
+  }
+  function initMute() {
+    let on = Q.get('mute') === '1';
+    if (!on && Q.get('mute') !== '0') { try { on = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* private mode */ } }
+    setMute(on);
+  }
   function testPad() {
     const pad = document.createElement('div'); pad.id = 'testpad';
     const keys = Object.keys(CMDS);
@@ -322,10 +334,16 @@
     const burst = document.createElement('button'); burst.className = 'alt'; burst.textContent = '×30 !pet'; burst.onclick = () => { for (let i = 0; i < 30; i++) fake('pet'); }; pad.append(burst);
     const spam = document.createElement('button'); spam.className = 'alt'; spam.textContent = 'spam ×10'; spam.onclick = () => { for (let i = 0; i < 10; i++) command('spammer', 'Spammer', '!pet'); }; pad.append(spam);
     const win = document.createElement('button'); win.className = 'alt'; win.textContent = 'finish goal'; win.onclick = () => { const gl = pg.goal; if (gl && !gl.doneAt) { gl.count = gl.target - 1; count(gl.cmd === 'any' ? 'pet' : gl.cmd); } }; pad.append(win);
+    const mute = document.createElement('label'); mute.className = 'mute-toggle';
+    mute.innerHTML = '<input type="checkbox" id="mute-switch"><span></span>Mute (M)';
+    mute.querySelector('input').checked = NB.Audio.muted;
+    mute.querySelector('input').addEventListener('change', (e) => setMute(e.target.checked));
+    pad.append(mute);
     document.body.append(pad);
     window.addEventListener('keydown', (e) => {
       const i = Number(e.code.replace(/^Digit/, '')) - 1;
       if (keys[i]) { if (e.shiftKey) for (let k = 0; k < 30; k++) fake(keys[i]); else fake(keys[i]); }
+      if (e.code === 'KeyM') setMute(!NB.Audio.muted);
       if (e.code === 'KeyS') for (let k = 0; k < 10; k++) command('spammer', 'Spammer', '!pet');
     });
     NB.StreamTest = { command, fake, get progress() { return pg; }, pending };
@@ -342,6 +360,7 @@
     setInterval(() => { pump(); tuneGoal(); }, 100);
     const music = () => { renderMusic(); requestAnimationFrame(music); };
     requestAnimationFrame(music);
+    initMute();
     if (TEST) testPad();
     connect();
   }

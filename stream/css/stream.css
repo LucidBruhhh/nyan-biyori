@@ -102,3 +102,10 @@ body.paused .disc { animation-play-state: paused; }
 #testpad button.alt { background: #c9b6ff; }
 /* the helper feed takes whatever height is left and never pushes past the frame */
 #feed-card { flex: 1; min-height: 0; overflow: hidden; }
+#testpad .mute-toggle { width: 100%; display: flex; align-items: center; gap: 10px; cursor: pointer; font: 800 14px var(--font); }
+#testpad .mute-toggle input { position: absolute; opacity: 0; }
+#testpad .mute-toggle span { position: relative; width: 44px; height: 24px; border-radius: 12px; background: rgba(255, 255, 255, 0.25); transition: background 0.2s; }
+#testpad .mute-toggle span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+#testpad .mute-toggle input:checked + span { background: #ff5c8d; }
+#testpad .mute-toggle input:checked + span::after { transform: translateX(20px); }
+#testpad .mute-toggle input:focus-visible + span { outline: 2px solid #fff; outline-offset: 2px; }

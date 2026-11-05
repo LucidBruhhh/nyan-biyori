@@ -30,12 +30,14 @@ NB.Audio = (() => {
   };
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+  // stream dev mute: silences the output only, so songs keep playing and the visualiser keeps moving
+  let muted = false;
   function init() {
     if (ac) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ac = new AC();
-    master = ac.createGain(); master.gain.value = 0.85;
+    master = ac.createGain(); master.gain.value = muted ? 0 : 0.85;
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     master.connect(comp); comp.connect(ac.destination);
     musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master);
@@ -554,6 +556,8 @@ NB.Audio = (() => {
     now() { return ac ? ac.currentTime : 0; },
     koto: (f, t, v, len) => ac && musicOn && koto(f, t, v, musicBus, len), mtof,
     don: (t, v) => ac && sfxOn && taikoDon(t, v), ka: (t, v) => ac && sfxOn && taikoKa(t, v),
+    setMute(on) { muted = !!on; if (master) master.gain.setTargetAtTime(muted ? 0 : 0.85, ac.currentTime, 0.05); },
+    get muted() { return muted; },
     get ctx() { return ac; },
   };
 })();
