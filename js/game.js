@@ -841,7 +841,7 @@
         else if (cat.trick === 'hifive') { p.pawL = sk; p.pawR = sk; p.eyes = k > 0.4 && k < 0.7 ? 'closed' : 'sparkle'; p.mouthOpen = 0.5; }
         break;
       }
-      case 'dance': { const k = T * 6; p.headTilt = Math.sin(k) * 0.18; p.bob = -Math.abs(Math.sin(k)) * 7; p.eyes = 'happy'; p.mouthOpen = 0.35; p.pawL = Math.max(0, Math.sin(k)) * 0.75; p.pawR = Math.max(0, -Math.sin(k)) * 0.75; p.tailPhase = T * 6; p.lean = Math.sin(T * 3) * 0.05; break; }
+      case 'dance': { const k = env.music && env.music.on && env.music.bpm ? env.music.beats * Math.PI : T * 6; p.headTilt = Math.sin(k) * 0.18; p.bob = -Math.abs(Math.sin(k)) * 7; p.eyes = 'happy'; p.mouthOpen = 0.35; p.pawL = Math.max(0, Math.sin(k)) * 0.75; p.pawR = Math.max(0, -Math.sin(k)) * 0.75; p.tailPhase = T * 6; p.lean = Math.sin(T * 3) * 0.05; break; }
       case 'flop': p.eyes = cat.petK > 0.2 ? 'closed' : 'happy'; p.blush = 0.95; p.mouth = 'w'; p.pawL = 0.5 + Math.sin(T * 1.7) * 0.12; p.pawR = 0.5 - Math.sin(T * 1.7) * 0.12; p.tailPhase = T * 1.4; p.headTilt = Math.sin(T * 0.8) * 0.08; break;
       case 'trap': p.eyes = 'sparkle'; p.mouthOpen = 0.55; p.pawL = 0.6 + Math.abs(Math.sin(T * 22)) * 0.4; p.pawR = 0.6 + Math.abs(Math.cos(T * 22)) * 0.4; p.bob = Math.sin(T * 30) * 3; p.tailPhase = T * 10; p.earDroop = 0.25; break;
       case 'wait': p.eyes = Math.sin(T * 0.7) > 0.6 ? 'sparkle' : 'open'; p.tailPhase = T * 2.4; p.headTilt = Math.sin(T * 0.9) * 0.08; p.mouthOpen = Math.sin(T * 0.5) > 0.9 ? 0.4 : 0; break;
@@ -882,6 +882,16 @@
     }
     // tail sways to the radio; whiskers twitch when your finger comes near
     if (st && radioPlaying() && cat.act === 'idle') p.tailPhase = T * 4.2;
+    const mf = env.music;
+    if (mf && mf.on && cat.act === 'idle' && mode === 'room') {
+      // a little nod on every beat, the tail swinging in time
+      const hit = Math.pow(1 - (mf.beats % 1), 4);
+      p.headY = (p.headY || 0) + hit * (1.5 + 3 * mf.energy); p.tailPhase = mf.beats * Math.PI;
+      // the quiet parts: eyes closed, swaying, lost in the music
+      if (mf.calm > 0.6) { p.eyes = 'closed'; p.blush = Math.max(p.blush || 0, 0.6); p.headTilt = Math.sin(mf.beats * Math.PI / 2) * 0.1; }
+      // a drop is coming: ears up, eyes wide, a little crouch
+      if (mf.soon > 0) { p.eyes = 'sparkle'; p.earDroop = 0; p.sy = (p.sy || 1) * (1 - 0.035 * mf.soon); p.lookX = 0; }
+    }
     { const near = Math.hypot(ptr.x - cat.x, ptr.y - (cat.y - 110 * cs())); p.whisk = T - ptr.lastMove < 1 && near < 160 * cs() ? 1 - near / (160 * cs()) : 0; }
     cat.pose = p;
   }
@@ -1332,6 +1342,7 @@
     const nightK = S.nightness(env.hour);
     env.fog = U.damp(env.fog || 0, (env.weather === 'rain' || env.season === 'winter') && nightK > 0.4 ? 1 : 0, 0.3, dt);
     env.radioOn = !!radioPlaying();
+    updateMusicFeel(dt);
     if (env.weather === 'rain' && nightK > 0.5 && mode !== 'game') {
       env.boltT = (env.boltT == null ? U.rand(20, 60) : env.boltT) - dt;
       if (env.boltT <= 0) { env.boltT = U.rand(45, 120); env.flash = 1; setTimeout(() => { env.flash = 0.6; }, 160); setTimeout(() => A.play('thunder'), U.rand(900, 2200)); if (mode === 'room' && cat.act === 'idle' && !cozy.on) { cat.twitchL = cat.twitchR = 1; } }
@@ -2230,7 +2241,7 @@
     const cur = st.radio || 'off', v = Math.round(radioVol() * 100);
     const html = `<p class="sub">Pick a station for ${st.name}'s room.</p>
       <div class="stations">${STATIONS.map(([id, label]) => `<button class="station ${cur === id ? 'on' : ''}" data-station="${id}"><span>${id === 'off' ? '⏹' : cur === id ? '🔊' : '▶'}</span><b>${label}</b></button>`).join('')}</div>
-      ${cur === 'dubstep' && A.trackInfo() ? `<div class="sleep-row"><span>🎧 Track <b data-track-no>${A.trackInfo().i + 1}</b> of ${A.trackInfo().n}</span><button class="pill ghost" data-next-track>⏭ Next song</button></div>` : ''}
+      ${cur === 'dubstep' && A.trackInfo() ? `<div class="sleep-row"><span>🎧 Track <b data-track-no>${A.trackInfo().i + 1}</b> of ${A.trackInfo().n}${A.trackInfo().file === favSong() ? ` <span class="fav-song">♥ ${st.name}'s favourite</span>` : ''}</span><button class="pill ghost" data-next-track>⏭ Next song</button></div>` : ''}
       <div class="sleep-row"><span>💤 Sleep timer</span>${[0, 15, 30, 60].map((m) => `<button class="pill ${(m === 0 && !radioSleep.end) || (radioSleep.mins === m && radioSleep.end) ? 'on' : 'ghost'}" data-sleep="${m}">${m ? m + ' min' : 'Off'}</button>`).join('')}</div>
       <label class="row vol"><span><b>おとのおおきさ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${v}" data-radio-vol aria-label="Radio volume"><output>${v}%</output></label>
       ${st.settings.music ? '' : '<p class="sub center">Music is muted. Turn it on with the sound button or in Settings.</p>'}`;
@@ -2239,7 +2250,7 @@
       r.addEventListener('input', () => { st.settings.radioVol = r.value / 100; o.textContent = r.value + '%'; A.setRadio(!!(st.radio && st.radio !== 'off'), st.settings.radioVol); });
       r.addEventListener('change', save);
       const nx = sh.querySelector('[data-next-track]');
-      if (nx) nx.addEventListener('click', () => { A.nextTrack(); A.play('tap'); sh.querySelector('[data-track-no]').textContent = A.trackInfo().i + 1; });
+      if (nx) nx.addEventListener('click', () => { A.nextTrack(); A.play('tap'); openRadio(); });
     });
   }
   function pickStation(id) {
@@ -2253,6 +2264,43 @@
     const r = NB.Painted.spot(L, 'radio');
     for (let k = 0; k < 4; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-20, 20), y: r.y - 20, vx: U.rand(-20, 20), vy: -60 - k * 10, life: 1.6, size: 9, color: '#c591ea' });
     if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox && Math.random() < 0.7) setTimeout(startDance, 700);
+  }
+  /* ---------- the room listens to the radio ---------- */
+  const groove = { bar: 0, danceT: -99, file: '' };
+  function updateMusicFeel(dt) {
+    const on = st && env.radioOn && st.settings.musicViz !== false && mode !== 'game';
+    const mf = env.music = on ? A.listen() : null;
+    env.flare = Math.max(0, (env.flare || 0) - dt * 1.4);
+    env.rings = (env.rings || []).filter((r) => T - r.t < 1.2);
+    if (!mf || !mf.on) return;
+    if (mf.beat && !RM && env.rings.length < 6) env.rings.push({ t: T, s: 0.4 + 0.6 * mf.bass });
+    // a note floats up from the radio on each new bar
+    const bar = Math.floor(mf.beats / 4);
+    if (bar !== groove.bar) {
+      groove.bar = bar;
+      if (L.painted && mode === 'room' && !RM && mf.energy > 0.25) { const r = NB.Painted.spot(L, 'radio'); S.emit({ type: 'note', ch: U.pick(['♪', '♫']), x: r.x + U.rand(-24, 24), y: r.y - 30, vx: U.rand(-14, 14), vy: -46, life: 1.8, size: 8, color: U.pick(['#c591ea', '#ff8fb1', '#7fc8ff']) }); }
+    }
+    // the drop: the lights flare and the cat can't help dancing
+    if (mf.drop && mode === 'room') {
+      env.flare = RM ? 0.3 : 1;
+      if (cat.act === 'idle' && !cat.perch && !cat.inBox && !cozy.on && T - groove.danceT > 40) {
+        groove.danceT = T; cat.dir = 1; setAct('dance', Math.min(9, 16 * 60 / (mf.bpm || 110))); discover('dance'); HL.exercise(st.health, 1);
+        sayText('♪♪ にゃーん！ ♪♪', '*the beat drops and so does the cat*', true);
+      }
+      if (L.painted && !RM) { const r = NB.Painted.spot(L, 'radio'); for (let k = 0; k < 6; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-30, 30), y: r.y - 20, vx: U.rand(-70, 30), vy: U.rand(-110, -60), life: 1.8, size: U.rand(8, 12), color: U.pick(['#c591ea', '#ff8fb1', '#ffd36e', '#7fc8ff']) }); }
+    }
+    // its favourite song comes on
+    const ti = A.trackInfo(), f = ti ? ti.file : '';
+    if (f !== groove.file) {
+      groove.file = f;
+      if (f && f === favSong() && mode === 'room' && cat.act !== 'sleep') setTimeout(() => { if (cat.act === 'idle') { sayText('♪ このきょく！', 'Oh! This is my favourite song!', true); cat.happyT = 2; A.chirp && A.chirp(); } }, 1500);
+    }
+  }
+  // every cat has one song it loves, chosen by who it is
+  function favSong() {
+    const songs = [].concat(...STATIONS.filter((s) => s[3]).map((s) => s[3])).map((u) => u.split('/').pop());
+    let h = 0; for (const ch of st.name + st.created) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return songs[h % songs.length];
   }
   function startDance() {
     if (mode !== 'room' || cat.perch || cat.inBox || !['idle', 'walk'].includes(cat.act)) return;
@@ -3485,7 +3533,7 @@
       <label class="row"><span><b>かたむけ</b> Tilt your phone to roll the temari ball</span><input type="checkbox" class="switch" data-set="tilt" ${s.tilt === true ? 'checked' : ''}></label>
       <h3>まったり <small>Cozy mode</small></h3>
       ${tog('cozyAuto', 'Start cozy mode after 5 quiet minutes', 'じどう')}${tog('clock', 'Show a clock in cozy mode', 'とけい')}${tog('nudges', 'Gentle reminders: water, eye rest, posture', 'リマインド')}
-      <p class="sub">Cozy ambience mixer</p>${[['rain', '🌧 Rain on the window'], ['heater', '🔥 Crackling heater'], ['city', '🌃 Quiet city night'], ['birds', '🐦 Forest birds and stream']].map(([k, l]) => `<label class="row vol"><span>${l}</span><input type="range" min="0" max="100" step="1" value="${ambMix()[k] || 0}" data-amb="${k}" aria-label="${l}"></label>`).join('')}${tog('sleepPurr', 'Purr softly while the cat sleeps', 'ごろごろ')}
+      <p class="sub">Cozy ambience mixer</p>${[['rain', '🌧 Rain on the window'], ['heater', '🔥 Crackling heater'], ['city', '🌃 Quiet city night'], ['birds', '🐦 Forest birds and stream']].map(([k, l]) => `<label class="row vol"><span>${l}</span><input type="range" min="0" max="100" step="1" value="${ambMix()[k] || 0}" data-amb="${k}" aria-label="${l}"></label>`).join('')}${tog('sleepPurr', 'Purr softly while the cat sleeps', 'ごろごろ')}${tog('musicViz', 'The room and your cat react to the radio', 'リズム')}
       ${tog('music', 'Music', 'おんがく')}<label class="row vol"><span><b>ラジオ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${Math.round(radioVol() * 100)}" data-radio-vol aria-label="Radio volume"><output>${Math.round(radioVol() * 100)}%</output></label>${tog('sfx', 'Sound effects', 'こうかおん')}${tog('haptics', 'Vibration', 'しんどう')}${NB.Native.isNative ? tog('notify', 'Notes from your cat', 'おしらせ') : ''}${tog('english', 'Show English subtitles', 'えいご')}
       <label class="row"><span><b>おうち</b> Home</span><select data-set="home">${[['painted', 'えのへや Painted apartment'], ['tokyo', 'とうきょう Drawn apartment'], ['washitsu', 'わしつ Japanese room']].map(([v, l]) => `<option value="${v}" ${homeId() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="row"><span><b>きせつ</b> Season</span><select data-set="season">${['auto', 'spring', 'summer', 'autumn', 'winter'].map((x) => `<option value="${x}" ${s.season === x ? 'selected' : ''}>${{ auto: 'Auto (real date)', spring: '春 Spring', summer: '夏 Summer', autumn: '秋 Autumn', winter: '冬 Winter' }[x]}</option>`).join('')}</select></label>
@@ -4013,7 +4061,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { openAdopt, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { openAdopt, groove, favSong, updateMusicFeel, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

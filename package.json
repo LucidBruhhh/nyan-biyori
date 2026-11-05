@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node tools/server.js",
     "build": "node tools/build-web.js",
+    "music": "node tools/analyse-music.js",
     "sync": "npm run build && npx cap sync",
     "android": "npm run sync && npx cap open android",
     "ios": "npm run sync && npx cap open ios"

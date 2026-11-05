@@ -93,6 +93,20 @@ NB.Painted = (function () {
     }
     ctx.restore();
   }
+  // a soft equaliser of light along the skyline: bass in the middle, highs at the edges
+  function cityLights(ctx, x, base, w, k, mf, night) {
+    const n = mf.spec.length, cols = n * 2, cw = w / cols;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let c = 0; c < cols; c++) {
+      const i = Math.abs(c - (cols - 1) / 2) / ((cols - 1) / 2) * (n - 1), v = mf.spec[Math.round(i)];
+      const h = (8 + 210 * v * (0.4 + 0.6 * mf.level)) * k, cx = x + (c + 0.5) * cw;
+      const g = ctx.createLinearGradient(0, base, 0, base - h);
+      const hue = c % 3 === 0 ? '255,150,200' : c % 3 === 1 ? '255,205,140' : '160,200,255';
+      g.addColorStop(0, `rgba(${hue},${(0.05 + 0.22 * night) * v * 1.4})`); g.addColorStop(1, `rgba(${hue},0)`);
+      ctx.fillStyle = g; ctx.fillRect(cx - cw * 0.36, base - h, cw * 0.72, h);
+    }
+    ctx.restore();
+  }
   function glassPath(ctx, L) {
     const { k, ox, oy } = L.painted;
     ctx.beginPath();
@@ -122,6 +136,8 @@ NB.Painted = (function () {
     const gb = ART.glassBox;
     const glassL = Object.assign({}, L, { win: { x: ox + gb.x * k, y: oy + gb.y * k, w: gb.w * k, h: gb.h * k } });
     if (day > 0.02) dayLight(ctx, ox + gb.x * k, oy + gb.y * k, gb.w * k, gb.h * k, day, env);
+    const mf = env.music && env.music.on ? env.music : null;
+    if (mf) cityLights(ctx, ox + gb.x * k, oy + 566 * k, gb.w * k, k, mf, night);
     if (env.weather === 'rain') {
       ctx.strokeStyle = 'rgba(210,220,255,0.35)'; ctx.lineWidth = 1.2;
       const g2 = glassL.win;
@@ -151,7 +167,9 @@ NB.Painted = (function () {
     ctx.restore();
     // the radio's little light pulses while it plays
     if (env.radioOn) {
-      const rx = ox + 1000 * k, ry = oy + 548 * k, a = 0.55 + 0.45 * Math.sin(t * 4.2);
+      const mf2 = env.music && env.music.on ? env.music : null;
+      const rx = ox + 1000 * k, ry = oy + 548 * k, a = mf2 ? 0.3 + 0.7 * Math.max(mf2.level, mf2.beatK) : 0.55 + 0.45 * Math.sin(t * 4.2);
+      (env.rings || []).forEach((r) => { const age = t - r.t, cx = ox + 955 * k, cy = oy + 565 * k; ctx.strokeStyle = `rgba(255,170,210,${0.4 * r.s * (1 - age / 1.2)})`; ctx.lineWidth = 2.5 * k; U.ell(ctx, cx, cy, (50 + age * 150) * k, (34 + age * 100) * k); ctx.stroke(); });
       const g = ctx.createRadialGradient(rx, ry, 1, rx, ry, 14 * k); g.addColorStop(0, `rgba(255,120,170,${a})`); g.addColorStop(1, 'rgba(255,120,170,0)');
       ctx.fillStyle = g; U.ell(ctx, rx, ry, 14 * k, 14 * k); ctx.fill();
       ctx.fillStyle = `rgba(255,220,235,${a})`; U.ell(ctx, rx, ry, 3 * k, 3 * k); ctx.fill();
@@ -173,13 +191,17 @@ NB.Painted = (function () {
       ctx.fillStyle = g; ctx.fillRect(ox + 120 * k, oy + 70 * k, 780 * k, 120 * k);
     }
     // a gentle twinkle on the painted fairy lights
-    if (night > 0.3 && !env.lightsOff && !env.fairyOff) {
+    const mfl = env.music && env.music.on ? env.music : null;
+    if ((night > 0.3 || mfl) && !env.lightsOff && !env.fairyOff) {
       for (let i = 0; i < 9; i++) {
-        const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k, a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
+        let a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
+        if (mfl) { const wave = Math.max(0, 1 - Math.abs(i - mfl.since * 20) / 1.6); a = (0.35 + 0.65 * night) * (0.1 + 0.3 * mfl.bass + 0.5 * wave * (0.4 + 0.6 * mfl.energy)) + 0.4 * (env.flare || 0); }
+        const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k;
         const g = ctx.createRadialGradient(px, py, 1, px, py, 22 * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
         ctx.fillStyle = g; U.ell(ctx, px, py, 22 * k, 22 * k); ctx.fill();
       }
     }
+    if (env.flare > 0.01) { const g = ctx.createRadialGradient(ox + 512 * k, oy + 420 * k, 40 * k, ox + 512 * k, oy + 420 * k, 620 * k); g.addColorStop(0, `rgba(255,180,215,${0.2 * env.flare})`); g.addColorStop(1, 'rgba(255,180,215,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
     if (env.decor.furin) NB.Scene.drawFurin(ctx, L.win.x + L.win.w * 0.3, L.win.y + 8, t, env.windT || 0);
     if (env.decor.maneki) NB.Scene.drawManeki(ctx, L.alcove.x + L.alcove.w * 0.75, L.alcove.y + L.alcove.h - 26, L.scale * 0.8, t);
   }

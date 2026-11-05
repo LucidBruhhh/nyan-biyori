@@ -39,6 +39,7 @@ NB.Audio = (() => {
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     master.connect(comp); comp.connect(ac.destination);
     musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master);
+    ana = ac.createAnalyser(); ana.fftSize = 2048; ana.smoothingTimeConstant = 0.45; ana.minDecibels = -105; ana.maxDecibels = -40; musicBus.connect(ana); fbuf = new Uint8Array(ana.frequencyBinCount);
     sfxBus = ac.createGain(); sfxBus.gain.value = sfxOn ? 0.7 : 0; sfxBus.connect(master);
     // generated hall reverb
     verb = ac.createConvolver();
@@ -76,14 +77,78 @@ NB.Audio = (() => {
     const pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
     if (pan) { pan.pan.value = 0.35; src.connect(g); g.connect(pan); pan.connect(musicBus); } else { src.connect(g); g.connect(musicBus); }
     track = { el, src, g, url: key, list, i };
+    applyProfile();
     el.play().catch(() => {});
   }
   function nextTrack() {
     if (!track || track.list.length < 2) return;
     track.i = (track.i + 1) % track.list.length;
-    track.el.src = track.list[track.i]; track.el.play().catch(() => {});
+    track.el.src = track.list[track.i]; track.el.play().catch(() => {}); applyProfile();
   }
-  const trackInfo = () => (track ? { i: track.i, n: track.list.length } : null);
+  const trackInfo = () => (track ? { i: track.i, n: track.list.length, file: track.list[track.i].split('/').pop() } : null);
+
+  /* ---------- listening to the music: bands, beats, tempo and drops ---------- */
+  // audio/tracks.json (made by tools/analyse-music.js) evens out loudness and knows each song's tempo and drops;
+  // songs without a profile, and the generated stations, are read live
+  let ana = null, fbuf = null, profiles = null;
+  fetch('audio/tracks.json').then((r) => r.json()).then((j) => { profiles = j; applyProfile(); }).catch(() => {});
+  const profileNow = () => (track && profiles ? profiles[track.list[track.i].split('/').pop()] : null);
+  function applyProfile() { const p = profileNow(); if (track && ac) track.g.gain.setTargetAtTime(1.6 * (p ? p.gain : 1), ac.currentTime, 0.2); }
+  const SPEC = 12;
+  const M = { on: false, level: 0, bass: 0, mid: 0, high: 0, beat: false, beatK: 0, since: 9, beats: 0, bpm: 0, energy: 0, calm: 0, soon: 0, drop: false, spec: new Float32Array(SPEC) };
+  const rng = {}, fluxes = [], ibis = [];
+  let lastT = 0, lastBass = 0, lastBeat = -9, shortE = 0, longE = 0, quietT = 0, lastDrop = -99, lastTrackT = 0;
+  // each band is judged against its own recent range, so quiet and loud songs both move the room
+  function norm(k, v, dt) {
+    const r = rng[k] || (rng[k] = { lo: v, hi: v + 0.05 });
+    r.lo = v < r.lo ? v : r.lo + (v - r.lo) * dt * 0.05; r.hi = v > r.hi ? v : r.hi + (v - r.hi) * dt * 0.08;
+    return Math.max(0, Math.min(1, (v - r.lo) / Math.max(0.06, r.hi - r.lo)));
+  }
+  function listen() {
+    M.beat = false; M.drop = false;
+    if (!ana) { M.on = false; return M; }
+    const now = ac.currentTime, dt = Math.min(0.1, Math.max(0.001, now - lastT)); lastT = now;
+    ana.getByteFrequencyData(fbuf);
+    const hz = ac.sampleRate / ana.fftSize;
+    const band = (a, b) => { let s = 0, n = 0; for (let i = Math.max(1, Math.floor(a / hz)); i <= Math.ceil(b / hz); i++) { s += fbuf[i]; n++; } return s / n / 255; };
+    const bassRaw = band(30, 150), levelRaw = band(30, 9000);
+    M.on = bassRaw > 0.1 || levelRaw > 0.02;
+    const fade = (v) => v * Math.max(0, 1 - dt * 4);
+    if (!M.on) { M.level = fade(M.level); M.bass = fade(M.bass); M.beatK = fade(M.beatK); M.spec.forEach((v, i) => { M.spec[i] = fade(v); }); return M; }
+    M.level = norm('level', levelRaw, dt); M.bass = norm('bass', bassRaw, dt);
+    M.mid = norm('mid', band(250, 2000), dt); M.high = norm('high', band(2500, 9000), dt);
+    for (let i = 0; i < SPEC; i++) { const a = 60 * Math.pow(8000 / 60, i / SPEC), b = 60 * Math.pow(8000 / 60, (i + 1) / SPEC); M.spec[i] = norm('s' + i, band(a, b), dt); }
+    // beats: the bass jumps well above its recent jumps
+    const flux = Math.max(0, bassRaw - lastBass); lastBass = bassRaw;
+    fluxes.push(flux); if (fluxes.length > 45) fluxes.shift();
+    const mean = fluxes.reduce((s, v) => s + v, 0) / fluxes.length, sd = Math.sqrt(fluxes.reduce((s, v) => s + (v - mean) * (v - mean), 0) / fluxes.length);
+    const p = profileNow();
+    if (flux > mean + 2 * sd && flux > 0.015 && now - lastBeat > 0.34) {
+      const ibi = now - lastBeat; lastBeat = now; M.beat = true; M.beatK = 1;
+      if (ibi < 2) { ibis.push(ibi); if (ibis.length > 16) ibis.shift(); }
+      // nudge the beat clock towards what was heard
+      const off = M.beats - Math.round(M.beats); M.beats -= off * 0.35;
+    }
+    M.since = now - lastBeat; M.beatK = Math.max(0, M.beatK - dt * 3.2);
+    // tempo: from the song's profile, otherwise from the gaps between heard beats
+    if (p) M.bpm = p.bpm;
+    else if (ibis.length > 4) { let b = 60 / ibis.slice().sort((x, y) => x - y)[ibis.length >> 1]; while (b > 140) b /= 2; while (b < 70) b *= 2; M.bpm = b; }
+    M.beats += dt * (M.bpm || 100) / 60;
+    // energy over a second and over eight seconds; long quiet stretches are the calm parts
+    const e = 0.6 * M.bass + 0.4 * M.level;
+    shortE += (e - shortE) * Math.min(1, dt * 1.2); longE += (e - longE) * Math.min(1, dt / 8);
+    M.energy = longE;
+    quietT = shortE < 0.32 ? quietT + dt : Math.max(0, quietT - dt * 3);
+    M.calm = Math.min(1, quietT / 5);
+    // drops: known from the profile (felt a few seconds early), or heard as a sudden surge
+    M.soon = 0;
+    if (p && track) {
+      const t = track.el.currentTime;
+      for (const d of p.drops) { if (t < d && d - t < 3) M.soon = 1 - (d - t) / 3; if (lastTrackT < d && t >= d && t - lastTrackT < 1) M.drop = true; }
+      lastTrackT = t;
+    } else if (shortE > Math.max(0.55, longE * 1.6) && now - lastDrop > 20) { M.drop = true; lastDrop = now; }
+    return M;
+  }
   function stopTrack() {
     if (!track) return;
     track.el.pause();
@@ -478,7 +543,7 @@ NB.Audio = (() => {
     onSound(fn) { onPlay = fn; }, sleepPurr,
     setVoice(v) { if (v) voice = { pitch: v.pitch || 1, sig: v.sig || 0 }; },
     setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
-    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, nextTrack, trackInfo, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
+    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, nextTrack, trackInfo, listen, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; setStream(m === 'nature'); } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.2); },
