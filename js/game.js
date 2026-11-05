@@ -2218,7 +2218,7 @@
   }
 
   /* ================= ROOM TOYS ================= */
-  const STATIONS = [['snowy', 'Snowy Chillstep · Alien Instinct', 'none', 'audio/snowy-chillstep.mp3'], ['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['piano', 'Rainy Piano', 'piano'], ['nature', 'Forest Stream', 'nature'], ['off', 'Radio off', 'none']];
+  const STATIONS = [['snowy', 'Snowy Chillstep · Alien Instinct', 'none', 'audio/snowy-chillstep.mp3'], ['dubstep', 'Chill Dubstep · Alien Instinct', 'none', ['audio/chill-dubstep-1.mp3', 'audio/chill-dubstep-2.mp3', 'audio/chill-dubstep-3.mp3', 'audio/chill-dubstep-4.mp3', 'audio/chill-dubstep-5.mp3', 'audio/chill-dubstep-6.mp3']], ['lofi', 'Lo-fi Neko Radio', 'lofi'], ['koto', 'Koto Café', 'day'], ['piano', 'Rainy Piano', 'piano'], ['nature', 'Forest Stream', 'nature'], ['off', 'Radio off', 'none']];
   const radioPlaying = () => st && st.radio && st.radio !== 'off' && st.settings.music;
   const laser = { on: false, x: 0, y: 0, pounceT: 0 };
   const radioVol = () => (st.settings.radioVol == null ? 0.8 : st.settings.radioVol);
@@ -2230,6 +2230,7 @@
     const cur = st.radio || 'off', v = Math.round(radioVol() * 100);
     const html = `<p class="sub">Pick a station for ${st.name}'s room.</p>
       <div class="stations">${STATIONS.map(([id, label]) => `<button class="station ${cur === id ? 'on' : ''}" data-station="${id}"><span>${id === 'off' ? '⏹' : cur === id ? '🔊' : '▶'}</span><b>${label}</b></button>`).join('')}</div>
+      ${cur === 'dubstep' && A.trackInfo() ? `<div class="sleep-row"><span>🎧 Track <b data-track-no>${A.trackInfo().i + 1}</b> of ${A.trackInfo().n}</span><button class="pill ghost" data-next-track>⏭ Next song</button></div>` : ''}
       <div class="sleep-row"><span>💤 Sleep timer</span>${[0, 15, 30, 60].map((m) => `<button class="pill ${(m === 0 && !radioSleep.end) || (radioSleep.mins === m && radioSleep.end) ? 'on' : 'ghost'}" data-sleep="${m}">${m ? m + ' min' : 'Off'}</button>`).join('')}</div>
       <label class="row vol"><span><b>おとのおおきさ</b> Radio volume</span><input type="range" min="0" max="100" step="1" value="${v}" data-radio-vol aria-label="Radio volume"><output>${v}%</output></label>
       ${st.settings.music ? '' : '<p class="sub center">Music is muted. Turn it on with the sound button or in Settings.</p>'}`;
@@ -2237,6 +2238,8 @@
       const r = sh.querySelector('[data-radio-vol]'), o = sh.querySelector('.vol output');
       r.addEventListener('input', () => { st.settings.radioVol = r.value / 100; o.textContent = r.value + '%'; A.setRadio(!!(st.radio && st.radio !== 'off'), st.settings.radioVol); });
       r.addEventListener('change', save);
+      const nx = sh.querySelector('[data-next-track]');
+      if (nx) nx.addEventListener('click', () => { A.nextTrack(); A.play('tap'); sh.querySelector('[data-track-no]').textContent = A.trackInfo().i + 1; });
     });
   }
   function pickStation(id) {
@@ -3499,7 +3502,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="export">Copy backup code</button><button class="btn ghost" data-ui="import">Restore from code</button></div>
       <button class="btn danger" data-ui="reset">Start over…</button>
       ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button><button class="btn ghost" data-ui="dev-gift">Gift</button><button class="btn ghost" data-ui="dev-day">Next day</button></div>' : ''}
-      <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” by Alien Instinct. No ads, no tracking.</p>`;
+      <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” and the Chill Dubstep station by Alien Instinct. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
       sh.querySelectorAll('[data-amb]').forEach((r) => r.addEventListener('input', () => { const m = Object.assign({}, ambMix()); m[r.dataset.amb] = +r.value; st.settings.amb = m; if (cozy.on) A.setAmbience(m); }));
       sh.querySelectorAll('[data-amb]').forEach((r) => r.addEventListener('change', save));

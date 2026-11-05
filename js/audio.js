@@ -63,17 +63,27 @@ NB.Audio = (() => {
 
   /* ---------- radio songs: streamed through the music bus so the music switch still applies ---------- */
   let track = null;
+  // a single song loops; a list of songs plays through in order from a random start
   function playTrack(url) {
     if (!ac) return;
-    if (track && track.url === url) { if (track.el.paused) track.el.play().catch(() => {}); return; }
+    const list = Array.isArray(url) ? url : [url], key = list.join('|');
+    if (track && track.url === key) { if (track.el.paused) track.el.play().catch(() => {}); return; }
     stopTrack();
-    const el = new Audio(); el.src = url; el.loop = true; el.preload = 'auto';
+    const i = list.length > 1 ? Math.floor(Math.random() * list.length) : 0;
+    const el = new Audio(); el.src = list[i]; el.loop = list.length === 1; el.preload = 'auto';
+    if (list.length > 1) el.addEventListener('ended', () => nextTrack());
     const src = ac.createMediaElementSource(el), g = ac.createGain(); g.gain.value = 1.6;
     const pan = ac.createStereoPanner ? ac.createStereoPanner() : null;
     if (pan) { pan.pan.value = 0.35; src.connect(g); g.connect(pan); pan.connect(musicBus); } else { src.connect(g); g.connect(musicBus); }
-    track = { el, src, g, url };
+    track = { el, src, g, url: key, list, i };
     el.play().catch(() => {});
   }
+  function nextTrack() {
+    if (!track || track.list.length < 2) return;
+    track.i = (track.i + 1) % track.list.length;
+    track.el.src = track.list[track.i]; track.el.play().catch(() => {});
+  }
+  const trackInfo = () => (track ? { i: track.i, n: track.list.length } : null);
   function stopTrack() {
     if (!track) return;
     track.el.pause();
@@ -468,7 +478,7 @@ NB.Audio = (() => {
     onSound(fn) { onPlay = fn; }, sleepPurr,
     setVoice(v) { if (v) voice = { pitch: v.pitch || 1, sig: v.sig || 0 }; },
     setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
-    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
+    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, nextTrack, trackInfo, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; setStream(m === 'nature'); } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.2); },

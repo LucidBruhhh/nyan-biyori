@@ -13,3 +13,4 @@ All three recordings are from [BigSoundBank](https://bigsoundbank.com) by Joseph
 | File | Track | Artist |
 |---|---|---|
 | `snowy-chillstep.mp3` | Snowy Chillstep | Alien Instinct |
+| `chill-dubstep-1.mp3` to `chill-dubstep-6.mp3` | Chill Dubstep (six tracks) | Alien Instinct |
