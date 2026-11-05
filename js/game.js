@@ -2271,6 +2271,12 @@
   function updateMusicFeel(dt) {
     const on = st && env.radioOn && st.settings.musicViz !== false && mode !== 'game';
     const mf = env.music = on ? A.listen() : null;
+    // the weather follows the music: snow and rain float in the quiet parts and hurry in the loud ones; dust hops on the bass
+    const pace = mf && mf.on && !RM ? 0.5 + 1.0 * mf.energy : 1;
+    env.pace = (env.pace || 1) + (pace - (env.pace || 1)) * Math.min(1, dt * 1.5);
+    env.rainT = (env.rainT || 0) + dt * env.pace;
+    S.groove.pace = env.pace;
+    S.groove.bob = mf && mf.on && !RM ? Math.pow(mf.beatK, 2) * (0.3 + 0.7 * mf.bass) * (0.2 + 0.8 * mf.energy) : 0;
     env.flare = Math.max(0, (env.flare || 0) - dt * 1.4);
     env.rings = (env.rings || []).filter((r) => T - r.t < 1.2);
     if (!mf || !mf.on) return;
@@ -2290,6 +2296,10 @@
       if (big && cat.act === 'idle' && !cat.perch && !cat.inBox && !cozy.on && T - groove.danceT > 40) {
         groove.danceT = T; cat.dir = 1; setAct('dance', Math.min(9, 16 * 60 / (mf.bpm || 110))); discover('dance'); HL.exercise(st.health, 1);
         if (groove.spoke !== groove.file) { groove.spoke = groove.file; sayText('♪♪ にゃーん！ ♪♪', '*the beat drops and so does the cat*', true); }
+      }
+      if (!RM) {
+        const cx = L.win.x + L.win.w / 2, cy = L.win.y + L.win.h / 2;
+        [S.parts, S.outside].forEach((list) => list.forEach((q) => { if (q.weather || q.dust) { const dx = q.x - cx, dy = q.y - cy, d = Math.hypot(dx, dy) || 1; q.kx = dx / d * 90 * mf.dropK; q.ky = dy / d * 60 * mf.dropK - 30 * mf.dropK; } }));
       }
       if (big && L.painted && !RM) { const r = NB.Painted.spot(L, 'radio'); for (let k = 0; k < 6; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-30, 30), y: r.y - 20, vx: U.rand(-70, 30), vy: U.rand(-110, -60), life: 1.8, size: U.rand(8, 12), color: U.pick(['#c591ea', '#ff8fb1', '#ffd36e', '#7fc8ff']) }); }
     }
@@ -3016,16 +3026,20 @@
     ambientT = 0.12 / lim;
     if (env.sun && Math.random() < 0.5) {
       const k = Math.random();
-      S.emit({ type: 'snow', x: U.lerp(L.win.x + L.win.w * 0.5, env.sun.cx, k) + U.rand(-0.3, 0.3) * L.win.w, y: U.lerp(L.win.y + L.win.h * 0.5, env.sun.cy, k), vx: U.rand(-5, 5), vy: U.rand(-4, 3), life: 4, size: U.rand(3, 5), alpha: 0.55, sway: 6 });
+      S.emit({ type: 'snow', x: U.lerp(L.win.x + L.win.w * 0.5, env.sun.cx, k) + U.rand(-0.3, 0.3) * L.win.w, y: U.lerp(L.win.y + L.win.h * 0.5, env.sun.cy, k), vx: U.rand(-5, 5), vy: U.rand(-4, 3), life: 4, size: U.rand(3, 5), alpha: 0.55, sway: 6, dust: true });
+    }
+    if (L.painted && L.lamp && night > 0.4 && !env.lampOff && !env.lightsOff && Math.random() < 0.3) {
+      const lp = L.lamp, kk = L.H / 1000;
+      S.emit({ type: 'snow', x: lp.x + U.rand(-90, 10) * kk, y: lp.y + U.rand(20, 150) * kk, vx: U.rand(-4, 4), vy: U.rand(-3, 3), life: 5, size: U.rand(2.5, 4), alpha: 0.5, sway: 4, dust: true, color: '#ffe6b8' });
     }
     if (sea === 'spring') {
-      if (Math.random() < 0.25) S.emit({ type: 'petal', x: U.rand(-20, W), y: -10, vx: U.rand(20, 60), vy: U.rand(30, 60), life: 12, size: U.rand(6, 10), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 40 });
-      if (Math.random() < 0.4) S.emit({ type: 'petal', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(20, 40), life: 8, size: 5, rot: 1, vr: 2, color: '#ffc7da', sway: 30 }, S.outside);
+      if (Math.random() < 0.25) S.emit({ type: 'petal', x: U.rand(-20, W), y: -10, vx: U.rand(20, 60), vy: U.rand(30, 60), life: 12, size: U.rand(6, 10), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 40, weather: true });
+      if (Math.random() < 0.4) S.emit({ type: 'petal', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(20, 40), life: 8, size: 5, rot: 1, vr: 2, color: '#ffc7da', sway: 30, weather: true }, S.outside);
     } else if (sea === 'autumn') {
-      if (Math.random() < 0.08) S.emit({ type: 'leaf', x: U.rand(-20, W), y: -10, vx: U.rand(10, 50), vy: U.rand(30, 55), life: 14, size: U.rand(7, 11), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ff8a4c', '#e8463c', '#ffb347']), sway: 40 });
-      if (Math.random() < 0.4) S.emit({ type: 'leaf', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(25, 45), life: 9, size: 5, rot: 1, vr: 2, color: U.pick(['#ff8a4c', '#e8463c']), sway: 30 }, S.outside);
+      if (Math.random() < 0.08) S.emit({ type: 'leaf', x: U.rand(-20, W), y: -10, vx: U.rand(10, 50), vy: U.rand(30, 55), life: 14, size: U.rand(7, 11), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ff8a4c', '#e8463c', '#ffb347']), sway: 40, weather: true });
+      if (Math.random() < 0.4) S.emit({ type: 'leaf', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(25, 45), life: 9, size: 5, rot: 1, vr: 2, color: U.pick(['#ff8a4c', '#e8463c']), sway: 30, weather: true }, S.outside);
     } else if (sea === 'winter') {
-      for (let i = 0; i < 2; i++) S.emit({ type: 'snow', x: U.rand(w.x - 20, w.x + w.w), y: w.y, vx: U.rand(-5, 15), vy: U.rand(25, 50), life: 10, size: U.rand(4, 8), sway: 20 }, S.outside);
+      for (let i = 0; i < 2; i++) S.emit({ type: 'snow', x: U.rand(w.x - 20, w.x + w.w), y: w.y, vx: U.rand(-5, 15), vy: U.rand(25, 50), life: 10, size: U.rand(4, 8), sway: 20, weather: true }, S.outside);
     } else if (sea === 'summer') {
       if (night > 0.3 && Math.random() < 0.15) S.emit({ type: 'firefly', x: U.rand(w.x, w.x + w.w), y: U.rand(w.y + w.h * 0.5, w.y + w.h), vx: U.rand(-15, 15), vy: U.rand(-12, 4), life: 5, size: U.rand(3, 5), sway: 25 }, S.outside);
       if (shown('furin') && Math.random() < 0.004) { env.windT = 0; A.play('chime'); }

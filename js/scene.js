@@ -535,6 +535,8 @@ NB.Scene = (() => {
       emit(Object.assign({ type, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: U.rand(0.6, 1.2), size: U.rand(6, 12), rot: U.rand(0, TAU), vr: U.rand(-4, 4), g: 0, drag: 1.5 }, opts.p || {}));
     }
   }
+  // set by the game from the radio: how fast the weather drifts, and how high the dust hops on each beat
+  const groove = { pace: 1, bob: 0 };
   function updateList(list, dt) {
     for (let i = list.length - 1; i >= 0; i--) {
       const q = list[i];
@@ -543,15 +545,17 @@ NB.Scene = (() => {
       q.vy += q.g * dt;
       if (q.drag) { q.vx *= Math.exp(-q.drag * dt); q.vy *= Math.exp(-q.drag * dt); }
       if (q.sway) q.vx += Math.sin(q.life * 3 + q.size) * q.sway * dt;
-      q.x += q.vx * dt; q.y += q.vy * dt; q.rot += q.vr * dt;
+      const sp = q.weather ? groove.pace : 1;
+      q.x += q.vx * dt * sp; q.y += q.vy * dt * sp; q.rot += q.vr * dt * sp;
+      if (q.kx || q.ky) { q.x += q.kx * dt; q.y += q.ky * dt; const f = Math.exp(-2.2 * dt); q.kx *= f; q.ky *= f; }
       if (q.floor && q.y > q.floor) { q.y = q.floor; q.vy = 0; q.vx *= 0.9; q.vr = 0; }
     }
   }
   function drawList(ctx, list, t) {
     list.forEach((q) => {
       const k = q.life / q.max;
-      const a = Math.min(1, k * 3) * (q.alpha == null ? 1 : q.alpha);
-      ctx.save(); ctx.globalAlpha = a; ctx.translate(q.x, q.y); ctx.rotate(q.rot);
+      const a = Math.min(1, k * 3) * (q.alpha == null ? 1 : q.alpha) * (q.dust ? 1 + 0.8 * groove.bob : 1);
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(q.x, q.y - (q.dust ? 7 * groove.bob * (0.6 + 0.4 * Math.sin(q.size * 9)) : 0)); ctx.rotate(q.rot);
       const s = q.size;
       switch (q.type) {
         case 'fur': ctx.strokeStyle = q.color; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, s, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); break;
@@ -570,7 +574,7 @@ NB.Scene = (() => {
         }
         case 'petal': ctx.fillStyle = q.color; ctx.beginPath(); ctx.ellipse(0, 0, s * 0.6, s * 0.38, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.4)'; U.ell(ctx, -s * 0.2, 0, s * 0.2, s * 0.12); ctx.fill(); break;
         case 'leaf': drawMomiji(ctx, 0, 0, s, q.color, 0); break;
-        case 'snow': ctx.fillStyle = '#ffffff'; U.ell(ctx, 0, 0, s * 0.4, s * 0.4); ctx.fill(); break;
+        case 'snow': ctx.fillStyle = q.color || '#ffffff'; U.ell(ctx, 0, 0, s * 0.4, s * 0.4); ctx.fill(); break;
         case 'firefly': {
           const fl = 0.5 + 0.5 * Math.sin(t * 4 + q.size * 10);
           const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 2);
@@ -605,7 +609,7 @@ NB.Scene = (() => {
   return {
     layout, skyAt, nightness, seasonOf, SEASON_KANJI,
     drawRoom, drawKoinobori, drawIkebana, drawZabuton, drawDaruma, drawBamboo, drawPoop, drawFood, drawManeki, drawChochin, drawFurin, drawBonsai, drawMomiji,
-    parts, outside, emit, burst,
+    parts, outside, emit, burst, groove,
     update(dt) { updateList(parts, dt); updateList(outside, dt); },
     drawParts(ctx, t) { drawList(ctx, parts, t); },
     drawOutsideParts(ctx, t) { drawList(ctx, outside, t); },

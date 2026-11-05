@@ -127,7 +127,13 @@ NB.Painted = (function () {
     if (env.weather === 'rain') {
       ctx.strokeStyle = 'rgba(210,220,255,0.35)'; ctx.lineWidth = 1.2;
       const g2 = glassL.win;
-      for (let i = 0; i < 50; i++) { const q = (i * 0.618) % 1, px = g2.x + ((q * g2.w + t * 40) % g2.w), py = g2.y + (((i * 0.37) % 1) * g2.h + t * 420 * (0.8 + q * 0.4)) % g2.h; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3, py + 12); ctx.stroke(); }
+      for (let i = 0; i < 50; i++) { const q = (i * 0.618) % 1, rt = env.rainT || t, px = g2.x + ((q * g2.w + rt * 40) % g2.w), py = g2.y + (((i * 0.37) % 1) * g2.h + rt * 420 * (0.8 + q * 0.4)) % g2.h; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3, py + 12); ctx.stroke(); }
+    }
+    const mfw = env.music && env.music.on ? env.music : null;
+    if (mfw) {
+      const br = mfw.energy - 0.45, gx0 = ox + gb.x * k, gy0 = oy + gb.y * k;
+      if (br > 0) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,190,225,${0.16 * br})`; ctx.fillRect(gx0, gy0, gb.w * k, gb.h * k); ctx.restore(); }
+      else { ctx.fillStyle = `rgba(25,15,50,${-0.3 * br})`; ctx.fillRect(gx0, gy0, gb.w * k, gb.h * k); }
     }
     env.drawOutsideParticles && env.drawOutsideParticles(ctx);
     // rain beads sliding down the glass
