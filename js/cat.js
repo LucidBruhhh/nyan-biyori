@@ -656,6 +656,9 @@ NB.Cat = (() => {
     ctx.rotate(p.lean);
     if (p.glow > 0) drawHitodama(ctx, t);
 
+    // growing up: a kitten is mostly head on a small body; a grown cat has its full shape
+    const age = look.age == null ? 1 : look.age, bodyK = 0.74 + 0.26 * age, headK = 1 + 0.2 * (1 - age);
+    ctx.save(); ctx.scale(bodyK, bodyK);
     const tailFront = p.loaf > 0.5;
     if (!tailFront) {
       if (p.twin) drawTail(ctx, F, p, t, 1);
@@ -675,11 +678,12 @@ NB.Cat = (() => {
       if (raise < 0.08) drawFoot(ctx, F, sd * 18 + (sd < 0 ? p.pawLx : p.pawRx), -11 + p.loaf * 3, 14, 11);
     });
     if (look.acc && look.acc.neck) drawNeckAcc(ctx, look.acc.neck, p, t);
+    ctx.restore();
 
     // head group
     ctx.save();
-    ctx.translate(0, p.headY + p.loaf * 26 - br * 60);
-    ctx.translate(0, -90); ctx.rotate(p.headTilt); ctx.translate(0, 90);
+    ctx.translate(0, p.headY + p.loaf * 26 - br * 60 + 90 * (1 - bodyK));
+    ctx.translate(0, -90); ctx.rotate(p.headTilt); ctx.scale(headK, headK); ctx.translate(0, 90);
     drawHead(ctx, F, p, look, t);
     if (look.acc && look.acc.head) drawHeadAcc(ctx, look.acc.head, p, t);
     ctx.restore();

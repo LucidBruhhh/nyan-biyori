@@ -91,6 +91,14 @@ NB.Data = {
   TITLES: [
     [1, 'こねこ', 'Kitten'], [5, 'わかねこ', 'Young Cat'], [10, 'おとなねこ', 'Grown Cat'], [15, 'まねきねこ', 'Lucky Cat'], [20, 'ねこまた', 'Nekomata ✦'],
   ],
+  // what each stage brings, shown when your cat grows into it and in the album
+  GROWTH: [
+    'Big head, tiny paws. Trips over its own feet and chases its tail.',
+    'Lanky and full of beans. Watch out for zoomies!',
+    'All grown up: calm, graceful, and happy to sit with you.',
+    'Beckons good fortune. Once a day its wave brings you a little luck.',
+    'Twin tails, and little spirit lights that drift around it at night.',
+  ],
   NAMES: ['Mochi', 'Kinako', 'Azuki', 'Kiki', 'Hana', 'Momo', 'Sora', 'Yuzu', 'Daifuku', 'Nori', 'Ume', 'Miso', 'Tofu', 'Hime', 'Kuri', 'Dango', 'Sushi', 'Pon', 'Chibi', 'Koharu'],
   PHRASES: {
     greet: [['おかえり！', 'Welcome back!'], ['にゃ〜ん♪', 'Nyaa~n♪'], ['あいたかった！', 'I missed you!']],

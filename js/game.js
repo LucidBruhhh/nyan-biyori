@@ -113,8 +113,11 @@
   }
   function look() {
     if (!st) return { fur: 'mike', eye: 'amber', acc: {} };
-    return { fur: st.look.fur, eye: st.look.eye, acc: st.wear };
+    return { fur: st.look.fur, eye: st.look.eye, acc: st.wear, age: ageAt(st.level) };
   }
+  // how grown-up the body looks: 0 a new kitten, 1 fully grown by Lv 10
+  const ageAt = (lv) => U.clamp((lv - 1) / 9, 0, 1);
+  const stageAt = (lv) => [5, 10, 15, 20].filter((x) => lv >= x).length;
 
   /* ================= RESIZE ================= */
   const PREVIEW_DEVICE = new URLSearchParams(location.search).get('device');
@@ -670,6 +673,12 @@
       if (need === 'energy') setAct('yawn', 1.6), A.play('yawn');
       return;
     }
+    const stg = stageAt(st.level);
+    if (stg === 0 && Math.random() < 0.1) { setAct('dizzy', 1.4); sayText('にゃ…？', '*chases its own tail round and round*', true); return; }
+    if (stg === 1 && T - cat.zoomiesT > 150 && Math.random() < 0.08) { zoomies(); return; }
+    if (stg === 2 && Math.random() < 0.1) { setAct('groom', U.rand(2.5, 3.5)); HL.groom(st.health, 0.5); return; }
+    if (stg === 3 && Math.random() < 0.14) { luckyBeckon(); return; }
+    if (stg >= 4 && S.nightness(env.hour) > 0.5 && Math.random() < 0.12) { spiritLights(); return; }
     if (Math.random() < 0.45) { startExplore(); return; }
     if (r < 0.38) { const band = L.catY - L.floorY; goTo(U.rand(L.minX, L.maxX), null, false, U.rand(L.floorY + band * 0.3, L.catY)); }
     else if (r < 0.52) { setAct('groom', U.rand(2, 3.2)); HL.groom(st.health, 0.5); }
@@ -680,6 +689,21 @@
     else { cat.lookTarget = { x: U.rand(-1, 1), y: U.rand(-0.6, 0.4) }; cat.lookT = 2; }
   }
 
+  // a Lucky Cat's wave brings a little luck, once a day
+  function luckyBeckon() {
+    setAct('beckon', 2.6);
+    const p = { x: cat.x, y: cat.y }; S.burst('sparkle', p.x + 20 * catScale(), p.y - 150 * catScale(), 5, { p: { color: '#ffd34e', size: 7 } });
+    const key = U.dayKey();
+    if (st.luckyDay !== key) { st.luckyDay = key; setTimeout(() => { addCoins(20, p.x, p.y - 160 * catScale()); sayText('まねき〜', '*beckons a little luck your way* +20', true); }, 1200); }
+    else sayText('まねき〜', '*does the lucky-cat wave*', true);
+  }
+  // a Nekomata at night: little spirit lights drift up around it
+  function spiritLights() {
+    setAct('nod', 2.2);
+    const p = { x: cat.x, y: cat.y }, s = catScale();
+    if (!RM) for (let i = 0; i < 5; i++) S.emit({ type: 'firefly', x: p.x + U.rand(-70, 70) * s, y: p.y - U.rand(40, 140) * s, vx: U.rand(-8, 8), vy: U.rand(-20, -8), life: 4, size: U.rand(4, 6), sway: 12 });
+    sayText('ふふ…', '*its twin tails glow softly*', true);
+  }
   function updateCat(dt) {
     const s = catScale();
     cat.actT += dt;
@@ -3033,10 +3057,8 @@
       S.emit({ type: 'snow', x: lp.x + U.rand(-90, 10) * kk, y: lp.y + U.rand(20, 150) * kk, vx: U.rand(-4, 4), vy: U.rand(-3, 3), life: 5, size: U.rand(2.5, 4), alpha: 0.5, sway: 4, dust: true, color: '#ffe6b8' });
     }
     if (sea === 'spring') {
-      if (Math.random() < 0.25) S.emit({ type: 'petal', x: U.rand(-20, W), y: -10, vx: U.rand(20, 60), vy: U.rand(30, 60), life: 12, size: U.rand(6, 10), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 40, weather: true });
       if (Math.random() < 0.4) S.emit({ type: 'petal', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(20, 40), life: 8, size: 5, rot: 1, vr: 2, color: '#ffc7da', sway: 30, weather: true }, S.outside);
     } else if (sea === 'autumn') {
-      if (Math.random() < 0.08) S.emit({ type: 'leaf', x: U.rand(-20, W), y: -10, vx: U.rand(10, 50), vy: U.rand(30, 55), life: 14, size: U.rand(7, 11), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ff8a4c', '#e8463c', '#ffb347']), sway: 40, weather: true });
       if (Math.random() < 0.4) S.emit({ type: 'leaf', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(25, 45), life: 9, size: 5, rot: 1, vr: 2, color: U.pick(['#ff8a4c', '#e8463c']), sway: 30, weather: true }, S.outside);
     } else if (sea === 'winter') {
       for (let i = 0; i < 2; i++) S.emit({ type: 'snow', x: U.rand(w.x - 20, w.x + w.w), y: w.y, vx: U.rand(-5, 15), vy: U.rand(25, 50), life: 10, size: U.rand(4, 8), sway: 20, weather: true }, S.outside);
@@ -3516,6 +3538,8 @@
       ${nextT ? `<li class="next">Next: <b>${nextT[1]}</b> ${nextT[2]} at Lv ${nextT[0]}</li>` : '<li class="next">Fully grown ✦ Legendary Nekomata</li>'}</ul></div></div>
       ${bondHTML()}
       ${personaHTML()}
+      <h3>そだち <small>Growing up</small></h3>
+      <div class="grow-strip">${D.TITLES.map(([lv, jp, en], i) => `<div class="gs ${st.level >= lv ? 'got' : ''}"><canvas data-gs="${i}" width="112" height="112"></canvas><b>${jp}</b><small>${st.level >= lv ? en : `Lv ${lv}`}</small><em>${st.level >= lv ? D.GROWTH[i] : '？？？'}</em></div>`).join('')}</div>
       ${albumPhotosHTML()}
       <div class="btnrow"><button class="btn ghost" data-ui="letter">✉ Write to ${st.name}</button></div>
       ${diaryHTML()}
@@ -3534,6 +3558,11 @@
         else el.appendChild(decorIcon(id, 52));
       });
       sh.querySelectorAll('[data-gift-icon]').forEach((el) => el.prepend(giftIcon(el.dataset.giftIcon, 46)));
+      sh.querySelectorAll('[data-gs]').forEach((cv) => {
+        const i = +cv.dataset.gs, lv = D.TITLES[i][0], lk = Object.assign(look(), { age: ageAt(lv) });
+        C.portrait(cv, lk, { zoom: 0.9, full: true, pose: { eyes: st.level >= lv ? 'happy' : 'closed', blush: 0.6, twin: lv >= 20, glow: lv >= 20 ? 1 : 0 } });
+        if (st.level < lv) { const x = cv.getContext('2d'); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(120,100,140,0.85)'; x.fillRect(0, 0, cv.width, cv.height); }
+      });
       const road = sh.querySelector('.road .next'); if (road) road.scrollIntoView({ inline: 'center', block: 'nearest' });
       const c = sh.querySelector('#albumcat');
       C.portrait(c, look(), { zoom: 0.92, full: true, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'sparkle', blush: 0.8, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0, pawR: 0.8 } });
@@ -3627,11 +3656,16 @@
     setTimeout(() => {
       modal(`<div class="lvup"><div class="burst"></div><canvas id="lvcat" width="260" height="260"></canvas><h2>Lv ${st.level}!</h2>
         <p>${grew ? `<b>${st.name}</b> grew into a <b>${t[1]}</b> (${t[2]})!` : `<b>${st.name}</b>'s bond with you grew stronger!`}</p>
+        ${grew ? `<div class="grow-then"><canvas id="lvthen" width="120" height="120"></canvas><small>${D.TITLES[stageAt(st.level) - 1][1]}<br>then</small><span>→</span><small>now</small></div><p class="sub">${D.GROWTH[stageAt(st.level)]}</p>` : ''}
         ${st.level === 20 ? '<p class="sub">✦ Legend says a cat who is truly loved grows a second tail… ✦</p>' : ''}
         <p class="reward">+${bonus} <i class="koban"></i></p>
         ${gained.map((r) => { const l = roadLabel(r); return `<div class="road-gift"><span class="mini-hanko">絆</span><span><b>Kizuna Road · Lv ${r.lv}</b><br>${l.kind === 'coins' ? `+${l.en}` : `Unlocked <b>${l.jp}</b> ${l.en}${l.kind === 'acc' ? ' (in Shop › Fashion)' : ' (placed in your room)'}`}</span></div>`; }).join('')}
         <button class="btn" data-ui="closemodal">やったー！</button></div>`, 'levelup', {
-        onShow: (m) => C.portrait(m.querySelector('#lvcat'), look(), { zoom: 0.95, full: true, pose: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.6, pawR: 0.9, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } }),
+        onShow: (m) => {
+          C.portrait(m.querySelector('#lvcat'), look(), { zoom: 0.95, full: true, pose: { eyes: 'sparkle', blush: 0.9, mouthOpen: 0.6, pawR: 0.9, twin: st.level >= 20, glow: st.level >= 20 ? 1 : 0 } });
+          const then = m.querySelector('#lvthen'), prev = D.TITLES[stageAt(st.level) - 1];
+          if (then && prev) C.portrait(then, Object.assign(look(), { age: ageAt(prev[0]) }), { zoom: 0.95, full: true, pose: { eyes: 'happy', blush: 0.6 } });
+        },
       });
     }, 500);
     say('levelup', true);
@@ -3764,7 +3798,7 @@
     checkAch();
   }
 
-  let adoptLook = { fur: 'mike', eye: 'amber', acc: {} }, adoptRaf = 0, adoptIntroSeen = false;
+  let adoptLook = { fur: 'mike', eye: 'amber', acc: {}, age: 0 }, adoptRaf = 0, adoptIntroSeen = false;
   const INTRO = 3.6;
   function adoptIntro(ctx, c, p, at, s) {
     const cx = c.width / 2, base = c.height * 0.93;
@@ -4079,7 +4113,7 @@
   }
   NB.Game = { toast, hint, get state() { return st; }, ICON, foodIcon };
   A.onSound((n) => { if (['train', 'thunder', 'chime', 'pop', 'bounce', 'thunk', 'coin'].includes(n)) cat[Math.random() < 0.5 ? 'twitchL' : 'twitchR'] = 1; });
-  if (DEV) NB.Game.dbg = { openAdopt, groove, favSong, updateMusicFeel, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
+  if (DEV) NB.Game.dbg = { openAdopt, levelUp, luckyBeckon, spiritLights, groove, favSong, updateMusicFeel, celebrate, onThisDay, keepPhoto, openLetter, sendLetter, star, makeWish, fullMoon, updateMagic, well, startBreathing, askMood, setMood, focusWeek, shareFocusWeek, updateWellbeing, radioSleep, ambMix, cam, catCode, readCode, addFriendCat, vget, photo, startPhoto, setPose, takePhoto, shareCard, shareDiaryPage, personalityInfo, focus, startFocus, stopFocus, updateFocus, reveal, feel, dream, performRitual, traitMoment, cozy, enterCozy, exitCozy, cozyThink, openRadio, pickStation, throwBall, checkBoxShot, boxDims, visitor, spawnVisitor, openVisitor, visitorTreat, checkChapters, todaysPicks, spinCapsule, startArrange, arrange, arrangeDown, arrangeMove, endArrange, train, openTricks, startTrain, trainGesture, readGesture, doTrick, showOff, trickStars, morningCard, dayNo, unlocked, newUnlocks, openHealth, pushWidget, hide, startHide, hideSpots, hideTap, seasonPts, openSeason, buyProduct, grantProduct, laser, tapRadio, startDance, tapPlant, tapPillow, tapLights, openPhoto, flop, trap, zoomies, playerBlink, hitCat, ptr, openDiary, diaryRoll, placeGift, collectGift, presentGift, arrive, greet, waitForMeal, think, cat, ball, birds, bugs, startExplore, startExploreBox, env, modal, closeModal, spawnBird, spawnBug, sillSpot, tokoSpot, hopTo, goTo, getDown, kickBall, setAct, get L() { return L; },
     step(sec) { const dt = 1 / 60; for (let i = 0; i < sec * 60; i++) { T += dt; env.windT += dt; if (st) tickNeeds(dt); updateCat(dt); if (st) updateWorld(dt); S.update(dt); } frame(); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
