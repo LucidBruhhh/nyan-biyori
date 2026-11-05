@@ -77,10 +77,10 @@ function profile(file) {
   for (let i = win * 4; i < N - win; i += Math.round(FPS / 4)) {
     const now = avg(bass, i + win, win), before = avg(bass, i, win * 4), loud = avg(rms, i + win, win);
     const t = +(i / FPS).toFixed(1);
-    if (now > before * 1.7 && loud > peak * 0.45 && (!drops.length || t - drops[drops.length - 1][0] > 20)) drops.push([t, now / before, loud / peak]);
+    if (now > before * 1.7 && loud > peak * 0.45 && (!drops.length || t - drops[drops.length - 1][0] > 20)) drops.push([t, now, loud / peak]);
   }
-  // the big moments are the strongest lifts; the rest are just the beat coming back in
-  const score = (d) => Math.min(d[1], 4) * d[2];
+  // the peak is the drop where the music is fullest; the rest are smaller lifts
+  const score = (d) => d[1] * d[2];
   const top = Math.max(0, ...drops.map(score));
   const out = drops.map((d) => [snap(d[0]), +(score(d) / top).toFixed(2)]);
   // how full the song is, second by second (0–1), so the calm parts are known before they arrive
@@ -96,12 +96,12 @@ const files = fs.readdirSync(DIR).filter((f) => /\.(mp3|m4a|ogg|wav)$/i.test(f) 
 const out = {};
 for (const f of files) {
   const full = path.join(DIR, f), mtime = fs.statSync(full).mtimeMs;
-  if (old[f] && old[f].mtime === mtime && old[f].v === 6) { out[f] = old[f]; continue; }
+  if (old[f] && old[f].mtime === mtime && old[f].v === 7) { out[f] = old[f]; continue; }
   const lufs = loudness(full), p = profile(full);
   const gain = lufs == null ? 1 : +Math.min(2, Math.max(0.4, Math.pow(10, (TARGET_LUFS - lufs) / 20))).toFixed(3);
-  out[f] = Object.assign({ lufs, gain }, p, { mtime, v: 6 });
+  out[f] = Object.assign({ lufs, gain }, p, { mtime, v: 7 });
   const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-  console.log(`${f}: ${lufs} LUFS → gain ${gain} · ${p.bpm} BPM · ${mmss(p.duration)} · ${p.beats.length} beats · drops ${p.drops.map((d) => mmss(d[0]) + (d[1] > 0.6 ? '!' : '')).join(', ') || 'none'}`);
+  console.log(`${f}: ${lufs} LUFS → gain ${gain} · ${p.bpm} BPM · ${mmss(p.duration)} · ${p.beats.length} beats · drops ${p.drops.map((d) => mmss(d[0]) + (d[1] >= 0.9 ? '!' : '')).join(', ') || 'none'}`);
 }
 fs.writeFileSync(OUT, JSON.stringify(out) + '\n');
 console.log(`wrote ${path.relative(process.cwd(), OUT)} (${files.length} tracks)`);

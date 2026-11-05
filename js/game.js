@@ -887,7 +887,7 @@
       // a little nod on every beat, the tail swinging in time
       // in the quiet parts the nod slows to every other beat
       const ph = mf.calm > 0.6 ? ((mf.beats / 2) % 1 + 1) % 1 : ((mf.beats % 1) + 1) % 1, hit = Math.pow(1 - ph, 4);
-      p.headY = (p.headY || 0) + hit * (0.8 + 2.7 * mf.energy); p.tailPhase = mf.beats * Math.PI;
+      p.headY = (p.headY || 0) + hit * (0.6 + 1.2 * mf.energy); p.tailPhase = mf.beats * Math.PI;
       // the quiet parts: eyes closed, swaying, lost in the music
       if (mf.calm > 0.6) { p.eyes = 'closed'; p.blush = Math.max(p.blush || 0, 0.6); p.headTilt = Math.sin(mf.beats * Math.PI / 2) * 0.1; }
       // a drop is coming: ears up, eyes wide, a little crouch
@@ -2283,10 +2283,10 @@
       if (L.painted && mode === 'room' && !RM && mf.energy > 0.4) { const r = NB.Painted.spot(L, 'radio'); S.emit({ type: 'note', ch: U.pick(['♪', '♫']), x: r.x + U.rand(-24, 24), y: r.y - 30, vx: U.rand(-14, 14), vy: -46, life: 1.8, size: 8, color: U.pick(['#c591ea', '#ff8fb1', '#7fc8ff']) }); }
     }
     // the drop: the lights flare and the cat can't help dancing
-    // a small lift just brightens the lights; a big drop makes the cat dance
+    // a small lift just brightens the lights; only the song's peak drop makes the cat dance
     if (mf.drop && mode === 'room') {
       env.flare = (RM ? 0.3 : 1) * (0.35 + 0.65 * mf.dropK);
-      const big = mf.dropK >= 0.6;
+      const big = mf.dropK >= 0.9;
       if (big && cat.act === 'idle' && !cat.perch && !cat.inBox && !cozy.on && T - groove.danceT > 40) {
         groove.danceT = T; cat.dir = 1; setAct('dance', Math.min(9, 16 * 60 / (mf.bpm || 110))); discover('dance'); HL.exercise(st.health, 1);
         if (groove.spoke !== groove.file) { groove.spoke = groove.file; sayText('♪♪ にゃーん！ ♪♪', '*the beat drops and so does the cat*', true); }

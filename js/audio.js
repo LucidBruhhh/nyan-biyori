@@ -156,7 +156,7 @@ NB.Audio = (() => {
     // drops: known from the profile with how big each is (the big ones are felt a few seconds early), or heard as a surge
     M.soon = 0; M.dropK = 0;
     if (tt >= 0) {
-      for (const [d, k] of p.drops) { if (k >= 0.6 && tt < d && d - tt < 3) M.soon = 1 - (d - tt) / 3; if (lastTrackT < d && tt >= d && tt - lastTrackT < 1) { M.drop = true; M.dropK = k; } }
+      for (const [d, k] of p.drops) { if (k >= 0.9 && tt < d && d - tt < 3) M.soon = 1 - (d - tt) / 3; if (lastTrackT < d && tt >= d && tt - lastTrackT < 1) { M.drop = true; M.dropK = k; } }
       lastTrackT = tt;
     } else if (shortE > Math.max(0.55, longE * 1.6) && now - lastDrop > 20) { M.drop = true; M.dropK = 1; lastDrop = now; }
     return M;

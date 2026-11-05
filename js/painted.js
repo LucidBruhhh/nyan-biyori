@@ -93,20 +93,6 @@ NB.Painted = (function () {
     }
     ctx.restore();
   }
-  // a soft equaliser of light along the skyline: bass in the middle, highs at the edges
-  function cityLights(ctx, x, base, w, k, mf, night) {
-    const n = mf.spec.length, cols = n * 2, cw = w / cols;
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    for (let c = 0; c < cols; c++) {
-      const i = Math.abs(c - (cols - 1) / 2) / ((cols - 1) / 2) * (n - 1), v = mf.spec[Math.round(i)];
-      const h = (8 + 210 * v * (0.4 + 0.6 * mf.level)) * k, cx = x + (c + 0.5) * cw;
-      const g = ctx.createLinearGradient(0, base, 0, base - h);
-      const hue = c % 3 === 0 ? '255,150,200' : c % 3 === 1 ? '255,205,140' : '160,200,255';
-      g.addColorStop(0, `rgba(${hue},${(0.05 + 0.22 * night) * v * 1.4})`); g.addColorStop(1, `rgba(${hue},0)`);
-      ctx.fillStyle = g; ctx.fillRect(cx - cw * 0.36, base - h, cw * 0.72, h);
-    }
-    ctx.restore();
-  }
   function glassPath(ctx, L) {
     const { k, ox, oy } = L.painted;
     ctx.beginPath();
@@ -136,8 +122,6 @@ NB.Painted = (function () {
     const gb = ART.glassBox;
     const glassL = Object.assign({}, L, { win: { x: ox + gb.x * k, y: oy + gb.y * k, w: gb.w * k, h: gb.h * k } });
     if (day > 0.02) dayLight(ctx, ox + gb.x * k, oy + gb.y * k, gb.w * k, gb.h * k, day, env);
-    const mf = env.music && env.music.on ? env.music : null;
-    if (mf) cityLights(ctx, ox + gb.x * k, oy + 566 * k, gb.w * k, k, mf, night);
     if (env.weather === 'rain') {
       ctx.strokeStyle = 'rgba(210,220,255,0.35)'; ctx.lineWidth = 1.2;
       const g2 = glassL.win;
@@ -195,10 +179,14 @@ NB.Painted = (function () {
     if ((night > 0.3 || mfl) && !env.lightsOff && !env.fairyOff) {
       for (let i = 0; i < 9; i++) {
         let a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
-        if (mfl) { const wave = Math.max(0, 1 - Math.abs(i - mfl.since * 20) / 1.6); a = (0.25 + 0.75 * night) * (0.1 + 0.3 * mfl.bass + 0.5 * wave * (0.4 + 0.6 * mfl.energy)) + 0.4 * (env.flare || 0); }
+        let r = 22;
+        if (mfl) {
+          const n = Math.floor(mfl.beats), lit = (i + n) % 2 ? 0.45 : 1, pulse = Math.pow(mfl.beatK, 1.4) * lit * ((n % 4 + 4) % 4 === 0 ? 1 : 0.7);
+          a = (0.3 + 0.7 * night) * (0.14 + 0.15 * mfl.bass + 0.85 * pulse * (0.5 + 0.5 * mfl.energy)) + 0.35 * (env.flare || 0); r = 22 + 16 * pulse;
+        }
         const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k;
-        const g = ctx.createRadialGradient(px, py, 1, px, py, 22 * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
-        ctx.fillStyle = g; U.ell(ctx, px, py, 22 * k, 22 * k); ctx.fill();
+        const g = ctx.createRadialGradient(px, py, 1, px, py, r * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
+        ctx.fillStyle = g; U.ell(ctx, px, py, r * k, r * k); ctx.fill();
       }
     }
     if (env.flare > 0.01) { const g = ctx.createRadialGradient(ox + 512 * k, oy + 420 * k, 40 * k, ox + 512 * k, oy + 420 * k, 620 * k); g.addColorStop(0, `rgba(255,180,215,${0.14 * env.flare})`); g.addColorStop(1, 'rgba(255,180,215,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
