@@ -95,7 +95,7 @@ NB.Audio = (() => {
   const profileNow = () => (track && profiles ? profiles[track.list[track.i].split('/').pop()] : null);
   function applyProfile() { const p = profileNow(); if (track && ac) track.g.gain.setTargetAtTime(1.6 * (p ? p.gain : 1), ac.currentTime, 0.2); }
   const SPEC = 12;
-  const M = { on: false, level: 0, bass: 0, mid: 0, high: 0, beat: false, beatK: 0, since: 9, beats: 0, bpm: 0, energy: 0, calm: 0, soon: 0, drop: false, spec: new Float32Array(SPEC) };
+  const M = { on: false, level: 0, bass: 0, mid: 0, high: 0, beat: false, downbeat: false, beatK: 0, since: 9, beats: 0, bpm: 0, energy: 0, calm: 0, soon: 0, drop: false, dropK: 0, spec: new Float32Array(SPEC) };
   const rng = {}, fluxes = [], ibis = [];
   let lastT = 0, lastBass = 0, lastBeat = -9, shortE = 0, longE = 0, quietT = 0, lastDrop = -99, lastTrackT = 0;
   // each band is judged against its own recent range, so quiet and loud songs both move the room
@@ -118,35 +118,47 @@ NB.Audio = (() => {
     M.level = norm('level', levelRaw, dt); M.bass = norm('bass', bassRaw, dt);
     M.mid = norm('mid', band(250, 2000), dt); M.high = norm('high', band(2500, 9000), dt);
     for (let i = 0; i < SPEC; i++) { const a = 60 * Math.pow(8000 / 60, i / SPEC), b = 60 * Math.pow(8000 / 60, (i + 1) / SPEC); M.spec[i] = norm('s' + i, band(a, b), dt); }
-    // beats: the bass jumps well above its recent jumps
-    const flux = Math.max(0, bassRaw - lastBass); lastBass = bassRaw;
-    fluxes.push(flux); if (fluxes.length > 45) fluxes.shift();
-    const mean = fluxes.reduce((s, v) => s + v, 0) / fluxes.length, sd = Math.sqrt(fluxes.reduce((s, v) => s + (v - mean) * (v - mean), 0) / fluxes.length);
-    const p = profileNow();
-    if (flux > mean + 2 * sd && flux > 0.015 && now - lastBeat > 0.34) {
-      const ibi = now - lastBeat; lastBeat = now; M.beat = true; M.beatK = 1;
-      if (ibi < 2) { ibis.push(ibi); if (ibis.length > 16) ibis.shift(); }
-      // nudge the beat clock towards what was heard
-      const off = M.beats - Math.round(M.beats); M.beats -= off * 0.35;
+    const p = profileNow(), tt = p && p.beats && track ? track.el.currentTime : -1, prev = M.beats;
+    if (tt >= 0) {
+      // a mapped song: the beat clock reads straight from the song's own beat map, bar lines on multiples of 4
+      const bt = p.beats, per = 60 / p.bpm; let lo = 0, hi = bt.length - 1;
+      if (tt <= bt[0]) M.beats = (tt - bt[0]) / per;
+      else if (tt >= bt[hi]) M.beats = hi + (tt - bt[hi]) / per;
+      else { while (hi - lo > 1) { const m = (lo + hi) >> 1; if (bt[m] <= tt) lo = m; else hi = m; } M.beats = lo + (tt - bt[lo]) / (bt[hi] - bt[lo]); }
+      M.beats -= p.one; M.bpm = p.bpm;
+    } else {
+      // a song we can only hear: kicks steer a steady beat clock, and stray hits off the beat are ignored
+      const flux = Math.max(0, bassRaw - lastBass); lastBass = bassRaw;
+      fluxes.push(flux); if (fluxes.length > 45) fluxes.shift();
+      const mean = fluxes.reduce((s, v) => s + v, 0) / fluxes.length, sd = Math.sqrt(fluxes.reduce((s, v) => s + (v - mean) * (v - mean), 0) / fluxes.length);
+      if (flux > mean + 2 * sd && flux > 0.015 && now - lastBeat > 0.34) {
+        const ibi = now - lastBeat; lastBeat = now;
+        if (ibi < 2) { ibis.push(ibi); if (ibis.length > 16) ibis.shift(); }
+        const off = M.beats - Math.round(M.beats); if (Math.abs(off) < 0.3 || ibis.length < 6) M.beats -= off * 0.35;
+      }
+      if (ibis.length > 4) { let b = 60 / ibis.slice().sort((x, y) => x - y)[ibis.length >> 1]; while (b > 140) b /= 2; while (b < 70) b *= 2; M.bpm = M.bpm ? M.bpm + (b - M.bpm) * 0.1 : b; }
+      M.beats += dt * (M.bpm || 100) / 60;
     }
-    M.since = now - lastBeat; M.beatK = Math.max(0, M.beatK - dt * 3.2);
-    // tempo: from the song's profile, otherwise from the gaps between heard beats
-    if (p) M.bpm = p.bpm;
-    else if (ibis.length > 4) { let b = 60 / ibis.slice().sort((x, y) => x - y)[ibis.length >> 1]; while (b > 140) b /= 2; while (b < 70) b *= 2; M.bpm = b; }
-    M.beats += dt * (M.bpm || 100) / 60;
-    // energy over a second and over eight seconds; long quiet stretches are the calm parts
+    // a beat lands as the clock passes a whole number (not when it jumps, as when the song changes)
+    M.beat = Math.floor(M.beats) !== Math.floor(prev) && Math.abs(M.beats - prev) < 1;
+    M.downbeat = M.beat && ((Math.floor(M.beats) % 4) + 4) % 4 === 0;
+    if (M.beat) M.beatK = 1;
+    M.since = (((M.beats % 1) + 1) % 1) * 60 / (M.bpm || 100); M.beatK = Math.max(0, M.beatK - dt * 3.2);
+    // how full the music is: from the song's energy map (so a quiet part is known as it starts), otherwise as heard
     const e = 0.6 * M.bass + 0.4 * M.level;
     shortE += (e - shortE) * Math.min(1, dt * 1.2); longE += (e - longE) * Math.min(1, dt / 8);
-    M.energy = longE;
-    quietT = shortE < 0.32 ? quietT + dt : Math.max(0, quietT - dt * 3);
-    M.calm = Math.min(1, quietT / 5);
-    // drops: known from the profile (felt a few seconds early), or heard as a sudden surge
-    M.soon = 0;
-    if (p && track) {
-      const t = track.el.currentTime;
-      for (const d of p.drops) { if (t < d && d - t < 3) M.soon = 1 - (d - t) / 3; if (lastTrackT < d && t >= d && t - lastTrackT < 1) M.drop = true; }
-      lastTrackT = t;
-    } else if (shortE > Math.max(0.55, longE * 1.6) && now - lastDrop > 20) { M.drop = true; lastDrop = now; }
+    if (tt >= 0 && p.energy) {
+      const en = (s) => p.energy[Math.max(0, Math.min(p.energy.length - 1, Math.floor(s)))], f0 = tt % 1;
+      M.energy = en(tt) * (1 - f0) + en(tt + 1) * f0;
+      quietT = Math.max(M.energy, en(tt + 1), en(tt + 2)) < 0.3 ? quietT + dt : Math.max(0, quietT - dt * 3);
+    } else { M.energy = longE; quietT = shortE < 0.32 ? quietT + dt : Math.max(0, quietT - dt * 3); }
+    M.calm = Math.min(1, quietT / 4);
+    // drops: known from the profile with how big each is (the big ones are felt a few seconds early), or heard as a surge
+    M.soon = 0; M.dropK = 0;
+    if (tt >= 0) {
+      for (const [d, k] of p.drops) { if (k >= 0.6 && tt < d && d - tt < 3) M.soon = 1 - (d - tt) / 3; if (lastTrackT < d && tt >= d && tt - lastTrackT < 1) { M.drop = true; M.dropK = k; } }
+      lastTrackT = tt;
+    } else if (shortE > Math.max(0.55, longE * 1.6) && now - lastDrop > 20) { M.drop = true; M.dropK = 1; lastDrop = now; }
     return M;
   }
   function stopTrack() {

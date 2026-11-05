@@ -841,7 +841,7 @@
         else if (cat.trick === 'hifive') { p.pawL = sk; p.pawR = sk; p.eyes = k > 0.4 && k < 0.7 ? 'closed' : 'sparkle'; p.mouthOpen = 0.5; }
         break;
       }
-      case 'dance': { const k = env.music && env.music.on && env.music.bpm ? env.music.beats * Math.PI : T * 6; p.headTilt = Math.sin(k) * 0.18; p.bob = -Math.abs(Math.sin(k)) * 7; p.eyes = 'happy'; p.mouthOpen = 0.35; p.pawL = Math.max(0, Math.sin(k)) * 0.75; p.pawR = Math.max(0, -Math.sin(k)) * 0.75; p.tailPhase = T * 6; p.lean = Math.sin(T * 3) * 0.05; break; }
+      case 'dance': { const k = env.music && env.music.on && env.music.bpm ? env.music.beats * Math.PI : T * 6; p.headTilt = Math.sin(k) * 0.18; p.bob = -Math.abs(Math.sin(k)) * 7; p.eyes = 'happy'; p.mouthOpen = 0.35; p.pawL = Math.max(0, Math.sin(k)) * 0.75; p.pawR = Math.max(0, -Math.sin(k)) * 0.75; p.tailPhase = env.music && env.music.on ? k : T * 6; p.lean = Math.sin(k / 2) * 0.05; break; }
       case 'flop': p.eyes = cat.petK > 0.2 ? 'closed' : 'happy'; p.blush = 0.95; p.mouth = 'w'; p.pawL = 0.5 + Math.sin(T * 1.7) * 0.12; p.pawR = 0.5 - Math.sin(T * 1.7) * 0.12; p.tailPhase = T * 1.4; p.headTilt = Math.sin(T * 0.8) * 0.08; break;
       case 'trap': p.eyes = 'sparkle'; p.mouthOpen = 0.55; p.pawL = 0.6 + Math.abs(Math.sin(T * 22)) * 0.4; p.pawR = 0.6 + Math.abs(Math.cos(T * 22)) * 0.4; p.bob = Math.sin(T * 30) * 3; p.tailPhase = T * 10; p.earDroop = 0.25; break;
       case 'wait': p.eyes = Math.sin(T * 0.7) > 0.6 ? 'sparkle' : 'open'; p.tailPhase = T * 2.4; p.headTilt = Math.sin(T * 0.9) * 0.08; p.mouthOpen = Math.sin(T * 0.5) > 0.9 ? 0.4 : 0; break;
@@ -885,8 +885,9 @@
     const mf = env.music;
     if (mf && mf.on && cat.act === 'idle' && mode === 'room') {
       // a little nod on every beat, the tail swinging in time
-      const hit = Math.pow(1 - (mf.beats % 1), 4);
-      p.headY = (p.headY || 0) + hit * (1.5 + 3 * mf.energy); p.tailPhase = mf.beats * Math.PI;
+      // in the quiet parts the nod slows to every other beat
+      const ph = mf.calm > 0.6 ? ((mf.beats / 2) % 1 + 1) % 1 : ((mf.beats % 1) + 1) % 1, hit = Math.pow(1 - ph, 4);
+      p.headY = (p.headY || 0) + hit * (0.8 + 2.7 * mf.energy); p.tailPhase = mf.beats * Math.PI;
       // the quiet parts: eyes closed, swaying, lost in the music
       if (mf.calm > 0.6) { p.eyes = 'closed'; p.blush = Math.max(p.blush || 0, 0.6); p.headTilt = Math.sin(mf.beats * Math.PI / 2) * 0.1; }
       // a drop is coming: ears up, eyes wide, a little crouch
@@ -2266,28 +2267,31 @@
     if (mode === 'room' && cat.act === 'idle' && !cat.perch && !cat.inBox && Math.random() < 0.7) setTimeout(startDance, 700);
   }
   /* ---------- the room listens to the radio ---------- */
-  const groove = { bar: 0, danceT: -99, file: '' };
+  const groove = { phrase: 0, danceT: -99, file: '', spoke: '' };
   function updateMusicFeel(dt) {
     const on = st && env.radioOn && st.settings.musicViz !== false && mode !== 'game';
     const mf = env.music = on ? A.listen() : null;
     env.flare = Math.max(0, (env.flare || 0) - dt * 1.4);
     env.rings = (env.rings || []).filter((r) => T - r.t < 1.2);
     if (!mf || !mf.on) return;
-    if (mf.beat && !RM && env.rings.length < 6) env.rings.push({ t: T, s: 0.4 + 0.6 * mf.bass });
-    // a note floats up from the radio on each new bar
-    const bar = Math.floor(mf.beats / 4);
-    if (bar !== groove.bar) {
-      groove.bar = bar;
-      if (L.painted && mode === 'room' && !RM && mf.energy > 0.25) { const r = NB.Painted.spot(L, 'radio'); S.emit({ type: 'note', ch: U.pick(['♪', '♫']), x: r.x + U.rand(-24, 24), y: r.y - 30, vx: U.rand(-14, 14), vy: -46, life: 1.8, size: 8, color: U.pick(['#c591ea', '#ff8fb1', '#7fc8ff']) }); }
+    // a ring of sound on the first beat of each bar, when there's a beat to feel
+    if (mf.downbeat && !RM && mf.energy > 0.3 && env.rings.length < 4) env.rings.push({ t: T, s: 0.3 + 0.7 * mf.energy });
+    // a note floats up from the radio every four bars
+    const phrase = Math.floor(mf.beats / 16);
+    if (phrase !== groove.phrase) {
+      groove.phrase = phrase;
+      if (L.painted && mode === 'room' && !RM && mf.energy > 0.4) { const r = NB.Painted.spot(L, 'radio'); S.emit({ type: 'note', ch: U.pick(['♪', '♫']), x: r.x + U.rand(-24, 24), y: r.y - 30, vx: U.rand(-14, 14), vy: -46, life: 1.8, size: 8, color: U.pick(['#c591ea', '#ff8fb1', '#7fc8ff']) }); }
     }
     // the drop: the lights flare and the cat can't help dancing
+    // a small lift just brightens the lights; a big drop makes the cat dance
     if (mf.drop && mode === 'room') {
-      env.flare = RM ? 0.3 : 1;
-      if (cat.act === 'idle' && !cat.perch && !cat.inBox && !cozy.on && T - groove.danceT > 40) {
+      env.flare = (RM ? 0.3 : 1) * (0.35 + 0.65 * mf.dropK);
+      const big = mf.dropK >= 0.6;
+      if (big && cat.act === 'idle' && !cat.perch && !cat.inBox && !cozy.on && T - groove.danceT > 40) {
         groove.danceT = T; cat.dir = 1; setAct('dance', Math.min(9, 16 * 60 / (mf.bpm || 110))); discover('dance'); HL.exercise(st.health, 1);
-        sayText('♪♪ にゃーん！ ♪♪', '*the beat drops and so does the cat*', true);
+        if (groove.spoke !== groove.file) { groove.spoke = groove.file; sayText('♪♪ にゃーん！ ♪♪', '*the beat drops and so does the cat*', true); }
       }
-      if (L.painted && !RM) { const r = NB.Painted.spot(L, 'radio'); for (let k = 0; k < 6; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-30, 30), y: r.y - 20, vx: U.rand(-70, 30), vy: U.rand(-110, -60), life: 1.8, size: U.rand(8, 12), color: U.pick(['#c591ea', '#ff8fb1', '#ffd36e', '#7fc8ff']) }); }
+      if (big && L.painted && !RM) { const r = NB.Painted.spot(L, 'radio'); for (let k = 0; k < 6; k++) S.emit({ type: 'note', ch: k % 2 ? '♫' : '♪', x: r.x + U.rand(-30, 30), y: r.y - 20, vx: U.rand(-70, 30), vy: U.rand(-110, -60), life: 1.8, size: U.rand(8, 12), color: U.pick(['#c591ea', '#ff8fb1', '#ffd36e', '#7fc8ff']) }); }
     }
     // its favourite song comes on
     const ti = A.trackInfo(), f = ti ? ti.file : '';

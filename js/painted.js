@@ -195,13 +195,13 @@ NB.Painted = (function () {
     if ((night > 0.3 || mfl) && !env.lightsOff && !env.fairyOff) {
       for (let i = 0; i < 9; i++) {
         let a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
-        if (mfl) { const wave = Math.max(0, 1 - Math.abs(i - mfl.since * 20) / 1.6); a = (0.35 + 0.65 * night) * (0.1 + 0.3 * mfl.bass + 0.5 * wave * (0.4 + 0.6 * mfl.energy)) + 0.4 * (env.flare || 0); }
+        if (mfl) { const wave = Math.max(0, 1 - Math.abs(i - mfl.since * 20) / 1.6); a = (0.25 + 0.75 * night) * (0.1 + 0.3 * mfl.bass + 0.5 * wave * (0.4 + 0.6 * mfl.energy)) + 0.4 * (env.flare || 0); }
         const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k;
         const g = ctx.createRadialGradient(px, py, 1, px, py, 22 * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
         ctx.fillStyle = g; U.ell(ctx, px, py, 22 * k, 22 * k); ctx.fill();
       }
     }
-    if (env.flare > 0.01) { const g = ctx.createRadialGradient(ox + 512 * k, oy + 420 * k, 40 * k, ox + 512 * k, oy + 420 * k, 620 * k); g.addColorStop(0, `rgba(255,180,215,${0.2 * env.flare})`); g.addColorStop(1, 'rgba(255,180,215,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+    if (env.flare > 0.01) { const g = ctx.createRadialGradient(ox + 512 * k, oy + 420 * k, 40 * k, ox + 512 * k, oy + 420 * k, 620 * k); g.addColorStop(0, `rgba(255,180,215,${0.14 * env.flare})`); g.addColorStop(1, 'rgba(255,180,215,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
     if (env.decor.furin) NB.Scene.drawFurin(ctx, L.win.x + L.win.w * 0.3, L.win.y + 8, t, env.windT || 0);
     if (env.decor.maneki) NB.Scene.drawManeki(ctx, L.alcove.x + L.alcove.w * 0.75, L.alcove.y + L.alcove.h - 26, L.scale * 0.8, t);
   }
