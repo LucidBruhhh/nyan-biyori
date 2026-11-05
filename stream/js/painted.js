@@ -103,55 +103,108 @@ NB.Painted = (function () {
   }
 
   /* ---------- the train outside: cut from the painting so it can come and go ---------- */
-  // in painting pixels: the band of glass the train fills, the window post, and the cushions in front of it
-  const TR = { x: 197, y: 526, w: 603, h: 77 };
-  const STILL = [[503, 526, 33, 77], [190, 560, 54, 43], [650, 565, 150, 38]];
+  // in painting pixels: the band of glass the train fills. art/train-mask.png (tools/train-mask.js) marks
+  // what sits in front of it (cushions, box, window post), which stays put while the train slides behind
+  const TR = { x: 197, y: 545, w: 603, h: 58 }, CAB = 64, PAD = 40;
+  const maskImg = new Image();
+  maskImg.onload = () => { trainArt = null; };
+  maskImg.src = 'art/train-mask.png';
   let trainArt = null;
-  const train = { off: 0, dir: -1, wait: 0, speed: 16 };
+  const train = { pos: TR.x, dir: -1, wait: 0, speed: 16 };
+  const SPRITE_W = TR.w + 2 * CAB + 2 * PAD;
+  // a cab in the painting's colours: sloped windscreen, the maroon stripe, a headlight (or tail lights at the back)
+  function drawCab(c, front) {
+    c.save();
+    const shape = () => { c.beginPath(); c.moveTo(CAB + 1, 1); c.lineTo(28, 1); c.quadraticCurveTo(9, 2, 4, 21); c.lineTo(1.5, 45); c.quadraticCurveTo(1, 57, 12, 57); c.lineTo(CAB + 1, 57); c.closePath(); };
+    shape();
+    const body = c.createLinearGradient(0, 0, 0, 58);
+    body.addColorStop(0, 'rgb(104,88,110)'); body.addColorStop(0.16, 'rgb(140,132,138)'); body.addColorStop(0.6, 'rgb(128,120,124)'); body.addColorStop(1, 'rgb(112,94,106)');
+    c.fillStyle = body; c.fill();
+    c.save(); shape(); c.clip();
+    c.fillStyle = 'rgb(116,80,96)'; c.fillRect(0, 35, CAB + 2, 9);
+    c.fillStyle = 'rgb(80,64,70)'; c.fillRect(0, 45, CAB + 2, 2);
+    // windscreen, catching a little of the city light
+    c.beginPath(); c.moveTo(25, 6); c.lineTo(42, 6); c.lineTo(42, 29); c.lineTo(8, 29); c.quadraticCurveTo(11, 9, 25, 6); c.closePath();
+    const glass = c.createLinearGradient(8, 6, 42, 29);
+    glass.addColorStop(0, front ? 'rgb(58,64,98)' : 'rgb(48,50,78)'); glass.addColorStop(1, front ? 'rgb(92,104,140)' : 'rgb(70,76,108)');
+    c.fillStyle = glass; c.fill(); c.strokeStyle = 'rgb(70,56,74)'; c.lineWidth = 1.2; c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.28)'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(20, 26); c.lineTo(31, 9); c.stroke();
+    // a lit side window and the door seam, like the carriages
+    c.fillStyle = 'rgb(222,226,196)'; c.fillRect(48, 10, 11, 20); c.strokeStyle = 'rgb(96,90,104)'; c.lineWidth = 1; c.strokeRect(48, 10, 11, 20);
+    c.strokeStyle = 'rgba(70,56,74,0.6)'; c.beginPath(); c.moveTo(45, 4); c.lineTo(45, 56); c.stroke();
+    c.restore();
+    shape(); c.strokeStyle = 'rgb(66,52,70)'; c.lineWidth = 1.4; c.stroke();
+    // lights: a warm headlight in front, two red tail lights behind
+    const lamp = (x, y, r, col, glow) => { const g = c.createRadialGradient(x, y, 0, x, y, glow); g.addColorStop(0, col.replace('A', '0.9')); g.addColorStop(1, col.replace('A', '0')); c.fillStyle = g; c.beginPath(); c.arc(x, y, glow, 0, Math.PI * 2); c.fill(); c.fillStyle = col.replace('A', '1'); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
+    if (front) { lamp(6, 40, 2.6, 'rgba(255,244,200,A)', 11); }
+    else { lamp(5, 39, 2, 'rgba(255,80,90,A)', 7); lamp(5, 50, 1.6, 'rgba(255,80,90,A)', 5); }
+    c.restore();
+  }
   function makeTrainArt() {
-    const cut = (x, y, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h); return c; };
-    // the train alone: patch over the window post and cushions with neighbouring carriages, so nothing static rides along
-    const car = cut(TR.x, TR.y, TR.w, TR.h), cx = car.getContext('2d');
-    const copy = (sx, sy, w, h, dx) => cx.drawImage(img, sx, sy, w, h, dx - TR.x, sy - TR.y, w, h);
-    copy(470, TR.y, 33, TR.h, 503);
-    copy(245, 556, 54, 47, 190);
-    copy(560, 560, 90, 43, 650); copy(590, 560, 60, 43, 740);
-    // soften both ends so it slides in and out of view
-    cx.globalCompositeOperation = 'destination-in';
-    const fade = cx.createLinearGradient(0, 0, TR.w, 0);
-    fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(0.07, '#000'); fade.addColorStop(0.93, '#000'); fade.addColorStop(1, 'rgba(0,0,0,0)');
-    cx.fillStyle = fade; cx.fillRect(0, 0, TR.w, TR.h);
+    const strip = (src) => { const c = document.createElement('canvas'); c.width = TR.w; c.height = TR.h; c.getContext('2d').drawImage(src, TR.x, TR.y, TR.w, TR.h, 0, 0, TR.w, TR.h); return c; };
+    const hasMask = maskImg.complete && maskImg.naturalWidth;
+    // the carriages alone: wherever something sits in front, borrow the carriage from a little further along
+    const car = strip(img), cx = car.getContext('2d'), d = cx.getImageData(0, 0, TR.w, TR.h);
+    if (hasMask) {
+      const mc = document.createElement('canvas'); mc.width = TR.w; mc.height = TR.h;
+      const mx = mc.getContext('2d'); mx.drawImage(maskImg, 0, 0); const m = mx.getImageData(0, 0, TR.w, TR.h).data;
+      const still = (x, y) => m[(y * TR.w + x) * 4 + 3] > 0;
+      for (let y = 0; y < TR.h; y++) for (let x = 0; x < TR.w; x++) {
+        if (!still(x, y)) continue;
+        let sx = x; for (let n = 0; n < 12 && (sx < 0 || still(sx, y)); n++) sx = x < TR.w / 2 ? sx + 61 : sx - 61;
+        sx = Math.max(0, Math.min(TR.w - 1, sx));
+        const a = (y * TR.w + x) * 4, b = (y * TR.w + sx) * 4;
+        for (let k = 0; k < 4; k++) d.data[a + k] = d.data[b + k];
+      }
+      cx.putImageData(d, 0, 0);
+    }
+    // the whole train, front cab on the left: it runs leftwards, and is mirrored to run right
+    const sprite = document.createElement('canvas'); sprite.width = SPRITE_W; sprite.height = TR.h;
+    const sx = sprite.getContext('2d');
+    sx.drawImage(car, PAD + CAB, 0);
+    sx.save(); sx.translate(PAD, 0); drawCab(sx, true); sx.restore();
+    sx.save(); sx.translate(PAD + CAB * 2 + TR.w, 0); sx.scale(-1, 1); drawCab(sx, false); sx.restore();
+    // a soft pool of headlight on the track ahead
+    const beam = sx.createRadialGradient(PAD + 2, 44, 2, PAD + 2, 44, PAD);
+    beam.addColorStop(0, 'rgba(255,238,190,0.35)'); beam.addColorStop(1, 'rgba(255,238,190,0)');
+    sx.fillStyle = beam; sx.fillRect(0, 20, PAD + 4, TR.h - 20);
     // the view with no train: the rooftops just above, carried down, settling into the dark of the viaduct
     const empty = document.createElement('canvas'); empty.width = TR.w; empty.height = TR.h;
-    const ex = empty.getContext('2d'), band = 22;
+    const ex = empty.getContext('2d'), band = 19;
     for (let i = 0; i * band < TR.h; i++) {
       ex.save(); ex.translate(0, i * band);
       if (i % 2) { ex.translate(0, band); ex.scale(1, -1); }
-      ex.drawImage(img, TR.x, 504, TR.w, band, 0, 0, TR.w, band); ex.restore();
+      ex.drawImage(img, TR.x, TR.y - band, TR.w, band, 0, 0, TR.w, band); ex.restore();
     }
     const dark = ex.createLinearGradient(0, 0, 0, TR.h);
-    dark.addColorStop(0, 'rgba(40,28,58,0.1)'); dark.addColorStop(0.75, 'rgba(40,28,58,0.45)'); dark.addColorStop(1, 'rgba(52,38,62,0.85)');
+    dark.addColorStop(0, 'rgba(40,28,58,0.1)'); dark.addColorStop(0.7, 'rgba(40,28,58,0.45)'); dark.addColorStop(1, 'rgba(52,38,62,0.85)');
     ex.fillStyle = dark; ex.fillRect(0, 0, TR.w, TR.h);
-    trainArt = { car, empty, still: STILL.map(([x, y, w, h]) => ({ c: cut(x, y, w, h), x, y, w, h })) };
+    // what sits in front, cut to its own outline
+    let front = null;
+    if (hasMask) { front = strip(img); const fx = front.getContext('2d'); fx.globalCompositeOperation = 'destination-in'; fx.drawImage(maskImg, 0, 0); }
+    trainArt = { sprite, empty, front };
   }
   // the train glides slowly across, out of sight, and returns a while later; onTrain fires as it arrives
   function update(dt, onTrain) {
     if (train.wait > 0) {
       train.wait -= dt;
-      if (train.wait <= 0) { train.dir = Math.random() < 0.5 ? -1 : 1; train.off = -train.dir * TR.w; onTrain && onTrain(); }
+      if (train.wait <= 0) { train.dir = Math.random() < 0.5 ? -1 : 1; train.pos = train.dir < 0 ? TR.x + TR.w : TR.x - SPRITE_W; onTrain && onTrain(); }
       return;
     }
-    train.off += train.dir * train.speed * dt;
-    if (Math.abs(train.off) >= TR.w) train.wait = U.rand(25, 70);
+    train.pos += train.dir * train.speed * dt;
+    if (train.dir < 0 ? train.pos + SPRITE_W < TR.x : train.pos > TR.x + TR.w) train.wait = U.rand(25, 70);
   }
   function drawTrain(ctx, ox, oy, k) {
     if (!trainArt) makeTrainArt();
     const X = (x) => ox + x * k, Y = (y) => oy + y * k;
     ctx.save(); ctx.beginPath(); ctx.rect(X(TR.x), Y(TR.y), TR.w * k, TR.h * k); ctx.clip();
     ctx.drawImage(trainArt.empty, X(TR.x), Y(TR.y), TR.w * k, TR.h * k);
-    if (train.wait <= 0) ctx.drawImage(trainArt.car, X(TR.x + train.off), Y(TR.y), TR.w * k, TR.h * k);
+    if (train.wait <= 0) {
+      ctx.save(); ctx.translate(X(train.pos) + (train.dir > 0 ? SPRITE_W * k : 0), Y(TR.y)); if (train.dir > 0) ctx.scale(-1, 1);
+      ctx.drawImage(trainArt.sprite, 0, 0, SPRITE_W * k, TR.h * k); ctx.restore();
+    }
     ctx.restore();
-    trainArt.still.forEach((s) => ctx.drawImage(s.c, X(s.x), Y(s.y), s.w * k, s.h * k));
+    if (trainArt.front) ctx.drawImage(trainArt.front, X(TR.x), Y(TR.y), TR.w * k, TR.h * k);
   }
 
   function drawRoom(ctx, L, env, t) {
