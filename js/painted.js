@@ -70,6 +70,29 @@ NB.Painted = (function () {
     return c;
   }
 
+  // daylight over the night painting: lift the shadows, turn the sky blue, warm it at sunset
+  function dayLight(ctx, x, y, w, h, day, env) {
+    const hr = env.hour, dusk = U.clamp(1 - Math.abs(hr - 17.6) / 1.6, 0, 1) + U.clamp(1 - Math.abs(hr - 6.4) / 1.2, 0, 1) * 0.6;
+    const grey = env.weather === 'rain' || env.weather === 'snow' ? 0.5 : 0;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = day * (0.62 - grey * 0.2);
+    const lift = ctx.createLinearGradient(0, y, 0, y + h);
+    lift.addColorStop(0, grey ? '#9aa3b3' : '#7fa9e0'); lift.addColorStop(0.6, grey ? '#8e95a3' : '#8fb0d6'); lift.addColorStop(1, '#6f7a8e');
+    ctx.fillStyle = lift; ctx.fillRect(x, y, w, h);
+    ctx.globalCompositeOperation = 'color';
+    ctx.globalAlpha = day * (0.55 - grey * 0.35) * (1 - dusk * 0.7);
+    const sky = ctx.createLinearGradient(0, y, 0, y + h * 0.7);
+    sky.addColorStop(0, '#4f9be8'); sky.addColorStop(1, '#a7cdf0');
+    ctx.fillStyle = sky; ctx.fillRect(x, y, w, h * 0.7);
+    if (dusk > 0.02) {
+      ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = day * dusk * 0.8;
+      const sun = ctx.createLinearGradient(0, y, 0, y + h);
+      sun.addColorStop(0, '#ff9a5c'); sun.addColorStop(0.7, '#ffc48a'); sun.addColorStop(1, '#ff8f6b');
+      ctx.fillStyle = sun; ctx.fillRect(x, y, w, h);
+    }
+    ctx.restore();
+  }
   function glassPath(ctx, L) {
     const { k, ox, oy } = L.painted;
     ctx.beginPath();
@@ -94,18 +117,12 @@ NB.Painted = (function () {
     }
     const night = env.lightsOff ? 1 : NB.Scene.nightness(env.hour), day = 1 - night;
 
-    // the window is live: daylight fades in the drawn city over the painted night view
+    // the window is live: the painted skyline stays, lit for the time of day
     ctx.save(); glassPath(ctx, L); ctx.clip();
     const gb = ART.glassBox;
     const glassL = Object.assign({}, L, { win: { x: ox + gb.x * k, y: oy + gb.y * k, w: gb.w * k, h: gb.h * k } });
-    if (day > 0.02) {
-      ctx.globalAlpha = Math.min(1, day * 1.15);
-      NB.Apartment.drawOutside(ctx, glassL, env, t);
-      ctx.fillStyle = '#4e3f4f';
-      ctx.fillRect(ox + ART.mullion.x * k, oy + gb.y * k, ART.mullion.w * k, gb.h * k);
-      ctx.fillRect(ox + gb.x * k, oy + ART.rail.y * k, gb.w * k, ART.rail.h * k);
-      ctx.globalAlpha = 1;
-    } else if (env.weather === 'rain') {
+    if (day > 0.02) dayLight(ctx, ox + gb.x * k, oy + gb.y * k, gb.w * k, gb.h * k, day, env);
+    if (env.weather === 'rain') {
       ctx.strokeStyle = 'rgba(210,220,255,0.35)'; ctx.lineWidth = 1.2;
       const g2 = glassL.win;
       for (let i = 0; i < 50; i++) { const q = (i * 0.618) % 1, px = g2.x + ((q * g2.w + t * 40) % g2.w), py = g2.y + (((i * 0.37) % 1) * g2.h + t * 420 * (0.8 + q * 0.4)) % g2.h; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3, py + 12); ctx.stroke(); }
