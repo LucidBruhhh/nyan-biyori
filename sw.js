@@ -1,5 +1,5 @@
 /* にゃん日和 — offline cache */
-const VERSION = 'nyanbiyori-v45';
+const VERSION = 'nyanbiyori-v46';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest',
   './audio/kitten-mew.mp3', './audio/cat-mew.mp3', './audio/cat-purr.mp3', './js/util.js', './js/native.js', './js/data.js', './js/audio.js', './js/cat.js', './js/scene.js', './js/habitat.js', './js/apartment.js', './js/painted.js', './art/apartment-night.webp', './js/personality.js', './js/health.js', './js/bond.js', './js/diary.js', './js/season.js', './js/share.js', './js/store.js', './js/capsule.js', './js/visitors.js', './js/minigames.js', './js/game.js',
@@ -26,6 +26,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (url.origin !== location.origin) return;
+  // the live-stream overlay in /stream/ is a separate copy: never cache it or answer it with the game
+  if (url.pathname.includes('/stream/')) return;
   // app shell: network-first (fresh updates), fall back to cache offline
   e.respondWith(fetch(req).then((r) => {
     const copy = r.clone();

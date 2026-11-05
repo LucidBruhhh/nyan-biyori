@@ -1,0 +1,104 @@
+/* にゃん日和 stream overlay: a fixed 1920×1080 stage, scaled to fit any window */
+:root {
+  --night: rgba(30, 20, 48, 0.8);
+  --night-line: rgba(255, 179, 210, 0.32);
+  --text: #fff4f8;
+  --text-soft: #e7c9dc;
+  --pink-glow: #ff8fb1;
+  --amber: #ffd36e;
+}
+html, body { background: #120c1e; }
+body.stream { position: fixed; inset: 0; overflow: hidden; color: var(--text); }
+#game-ui { display: none !important; }
+
+#stage {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
+  transform-origin: 0 0; display: grid; grid-template-columns: 420px 1080px 420px;
+  overflow: hidden; background: #120c1e;
+}
+/* the painting, blurred and dimmed, fills the space either side of the room */
+#stage::before {
+  content: ""; position: absolute; inset: -80px; z-index: 0;
+  background: url(../art/apartment-night.webp) center / cover;
+  filter: blur(46px) brightness(0.42) saturate(1.2);
+}
+#room { position: relative; z-index: 1; width: 1080px; height: 1080px; overflow: hidden; box-shadow: 0 0 80px rgba(0, 0, 0, 0.55); }
+#room #scene { position: absolute; inset: 0; width: 1080px; height: 1080px; }
+
+.panel-col { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 28px; padding: 56px 30px; }
+#left { justify-content: flex-start; }
+#right { justify-content: flex-start; }
+.sc {
+  background: var(--night); border: 2px solid var(--night-line); border-radius: 30px;
+  padding: 28px 30px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+}
+.sc h2 { margin: 0; font-size: 44px; line-height: 1.12; font-weight: 900; letter-spacing: 0.01em; }
+.sc h3 { margin: 0 0 14px; font-size: 26px; font-weight: 800; color: var(--text-soft); }
+
+/* now playing */
+.np-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.np-label { font-size: 26px; font-weight: 800; color: var(--pink-glow); }
+.disc {
+  width: 46px; height: 46px; border-radius: 50%; flex: none;
+  background: radial-gradient(circle, var(--amber) 0 18%, #2a1a3a 19% 30%, #40284f 31% 60%, #2a1a3a 61%);
+  box-shadow: 0 0 0 3px var(--night-line); animation: spin 4s linear infinite;
+}
+body.paused .disc { animation-play-state: paused; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.np-artist { margin: 8px 0 18px; font-size: 32px; font-weight: 800; color: var(--amber); }
+.np-eq { display: flex; align-items: flex-end; gap: 6px; height: 54px; margin-bottom: 16px; }
+.np-eq i { flex: 1; border-radius: 6px 6px 3px 3px; background: linear-gradient(var(--pink-glow), #c591ea); height: 8%; transition: height 0.08s linear; }
+.np-time { display: flex; align-items: center; gap: 14px; }
+.np-bar { flex: 1; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.np-bar i { display: block; height: 100%; width: 0; background: var(--pink-glow); border-radius: 6px; }
+.np-time small { font-size: 22px; font-weight: 700; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.np-link { margin: 18px 0 0; font-size: 24px; font-weight: 700; color: var(--text-soft); word-break: break-word; }
+.np.pulse { animation: pulse 1.2s ease-out; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 143, 177, 0.8); } 100% { box-shadow: 0 0 0 26px rgba(255, 143, 177, 0); } }
+
+/* helper feed: names and what they did, never chat text */
+#feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#feed li { font-size: 25px; font-weight: 700; line-height: 1.25; animation: pop 0.45s cubic-bezier(.2, 1.6, .4, 1); }
+#feed li b { color: var(--pink-glow); font-weight: 900; }
+#feed li.old { opacity: 0.55; }
+#feed li.empty { color: var(--text-soft); font-weight: 600; animation: none; }
+@keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* goal and room XP */
+.goal-label { margin: 0 0 6px; font-size: 26px; font-weight: 800; color: var(--pink-glow); }
+.goal-label b { color: var(--amber); }
+.goal-sub { margin: 14px 0 0; font-size: 24px; font-weight: 700; color: var(--text-soft); }
+.bar { position: relative; height: 26px; border-radius: 14px; background: rgba(255, 255, 255, 0.14); overflow: hidden; margin-top: 14px; }
+.bar.big { height: 54px; border-radius: 27px; }
+.bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, #ff8fb1, #ffb36e); transition: width 0.6s cubic-bezier(.2, .9, .3, 1); }
+#xp-fill { background: linear-gradient(90deg, #8fdcc0, #7fc8ff); }
+.bar b { position: relative; display: block; text-align: center; line-height: 54px; font-size: 30px; font-weight: 900; color: #fff; text-shadow: 0 2px 4px rgba(60, 20, 50, 0.6); font-variant-numeric: tabular-nums; }
+.goal.bump .bar.big { animation: bump 0.35s ease-out; }
+@keyframes bump { 40% { transform: scale(1.04); } }
+.goal.done { border-color: var(--amber); box-shadow: 0 0 40px rgba(255, 211, 110, 0.5); }
+.goal.done h2::after { content: " ✓"; color: var(--amber); }
+
+/* the rotating hint */
+.tip #tip { margin: 0; font-size: 34px; font-weight: 800; line-height: 1.25; transition: opacity 0.6s; }
+.tip #tip b { color: var(--amber); }
+.tip #tip.fade { opacity: 0; }
+.tip .cmds { margin: 16px 0 0; font-size: 21px; font-weight: 700; color: var(--text-soft); line-height: 1.5; }
+
+/* recap / connect messages over the room */
+#connect {
+  position: absolute; left: 50%; top: 40px; transform: translateX(-50%); z-index: 3;
+  background: var(--night); border: 2px solid var(--night-line); border-radius: 22px; padding: 14px 26px;
+  font-size: 24px; font-weight: 800; white-space: nowrap;
+}
+
+/* ?test=1: fake chat */
+#testpad {
+  position: fixed; left: 12px; bottom: 12px; z-index: 50; display: flex; flex-wrap: wrap; gap: 6px; max-width: 400px;
+  background: rgba(20, 12, 30, 0.92); border: 2px solid var(--night-line); border-radius: 16px; padding: 10px; font: 700 14px var(--font); color: var(--text);
+}
+#testpad b { width: 100%; font-size: 13px; color: var(--text-soft); }
+#testpad button { font: 800 14px var(--font); border: 0; border-radius: 10px; padding: 7px 10px; background: #ffb3cb; color: #4a2238; cursor: pointer; }
+#testpad button.alt { background: #c9b6ff; }
+/* the helper feed takes whatever height is left and never pushes past the frame */
+#feed-card { flex: 1; min-height: 0; overflow: hidden; }

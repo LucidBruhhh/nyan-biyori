@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>にゃん日和 · Stream</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&family=Yusei+Magic&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/stream.css">
+</head>
+<body data-mode="room" class="stream">
+  <!-- 1920×1080 overlay for an OBS Browser Source: now playing · the room · the community goal -->
+  <div id="stage">
+    <aside id="left" class="panel-col">
+      <section class="sc np" id="np">
+        <div class="np-head"><span class="disc" aria-hidden="true"></span><span class="np-label">♪ Now playing</span></div>
+        <h2 id="np-title">Chill Dubstep</h2>
+        <p class="np-artist">Alien Instinct</p>
+        <div class="np-eq" id="np-eq" aria-hidden="true"></div>
+        <div class="np-time"><span class="np-bar"><i id="np-prog"></i></span><small id="np-clock">0:00</small></div>
+        <p class="np-link" id="np-link"></p>
+      </section>
+      <section class="sc feed" id="feed-card">
+        <h3>Helping Sushi tonight</h3>
+        <ul id="feed"></ul>
+      </section>
+    </aside>
+    <main id="room">
+      <div id="connect" hidden></div>
+      <canvas id="scene" aria-label="Your kitty's room. Stroke the cat to pet it."></canvas>
+    </main>
+    <aside id="right" class="panel-col">
+      <section class="sc goal" id="goal-card">
+        <p class="goal-label">Tonight's goal</p>
+        <h2 id="goal-title">300 pets</h2>
+        <div class="bar big"><i id="goal-fill"></i><b id="goal-num">0 / 300</b></div>
+        <p class="goal-sub" id="goal-sub">Every !pet counts ♡</p>
+      </section>
+      <section class="sc xp" id="xp-card">
+        <p class="goal-label">Sushi's room · <b id="xp-lvl">Lv 1</b></p>
+        <div class="bar"><i id="xp-fill"></i></div>
+        <p class="goal-sub" id="xp-sub">Shared by everyone who stops by</p>
+      </section>
+      <section class="sc tip" id="tip-card">
+        <p id="tip">Type <b>!pet</b> to pet Sushi ♡</p>
+        <p class="cmds">!pet · !treat · !ball · !brush · !dance · !nap · !song · !goals</p>
+      </section>
+    </aside>
+  </div>
+  <div id="game-ui" hidden>
+<div id="cozy-clock" hidden><b></b><small></small><em hidden></em></div>
+  <div id="cozy-bar"><span><b>まったり</b> Cozy mode</span><button class="pill ghost" data-ui="focus">⏱ Focus</button><button class="pill ghost" data-ui="cozyphoto">📸</button><button class="pill" data-ui="cozyexit">Exit 🌙</button></div>
+  <div id="focus-panel" hidden></div>
+  <div id="photo-bar" hidden></div>
+  <div id="flash"></div>
+  <div id="focus-banner" hidden></div>
+  <div id="breathe" hidden><i></i><b></b><span></span></div>
+  
+  <!-- HUD -->
+  <header id="hud" hidden>
+    <div class="hud-row">
+      <button class="profile-chip" data-ui="album" aria-label="Album and profile">
+        <span class="avatar-wrap"><span id="xpring"></span><canvas id="avatar" width="96" height="96"></canvas><span class="lvl">Lv<b id="lvl">1</b></span></span>
+        <span class="who"><b id="petname">Mochi</b><small id="pettitle">こねこ</small><span id="bond" class="bond-h"></span></span>
+      </button>
+      <div class="hud-right">
+        <div class="coins" aria-label="Koban coins"><i class="koban"></i><b id="coins">0</b></div>
+        <button class="round" id="btn-daily" data-ui="daily" aria-label="Daily missions" data-icon-name="daily"></button>
+        <button class="round" id="btn-omikuji" data-ui="omikuji" aria-label="Daily omikuji fortune" data-icon-name="omikuji"></button>
+        <button class="round" id="btn-cozy" data-ui="cozy" aria-label="Cozy mode" data-icon-name="cozy"></button>
+        <button class="round" id="btn-sound" data-ui="sound" aria-label="Toggle sound" data-icon-name="sound"></button>
+        <button class="round" data-ui="settings" aria-label="Settings" data-icon-name="settings"></button>
+      </div>
+    </div>
+    <div class="meters" data-ui="health" role="button" tabindex="0" aria-label="Open health card">
+      <div class="meter" data-k="hunger" role="meter" aria-label="Hunger" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="hunger"></i><span class="bar"><span></span></span><small>おなか</small></div>
+      <div class="meter" data-k="fun" role="meter" aria-label="Happiness" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="fun"></i><span class="bar"><span></span></span><small>ごきげん</small></div>
+      <div class="meter" data-k="clean" role="meter" aria-label="Cleanliness" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="clean"></i><span class="bar"><span></span></span><small>きれい</small></div>
+      <div class="meter" data-k="energy" role="meter" aria-label="Energy" aria-valuemin="0" aria-valuemax="100"><i data-icon-name="energy"></i><span class="bar"><span></span></span><small>げんき</small></div>
+    </div>
+  </header>
+
+  <div id="hint" role="status" aria-live="polite"></div>
+  <div id="modebar" hidden></div>
+
+  <nav id="actions" hidden aria-label="Actions">
+    <button data-act="feed"><i data-icon-name="feed"></i><b>ごはん</b><small>Feed</small></button>
+    <button data-act="play"><i data-icon-name="play"></i><b>あそぶ</b><small>Play</small></button>
+    <button data-act="bath"><i data-icon-name="bath"></i><b>おふろ</b><small>Bath</small></button>
+    <button data-act="sleep"><i data-icon-name="sleep"></i><b>ねる</b><small>Sleep</small></button>
+    <button data-act="games"><i data-icon-name="games"></i><b>ゲーム</b><small>Games</small></button>
+    <button data-act="shop"><i data-icon-name="shop"></i><b>おみせ</b><small>Shop</small></button>
+  </nav>
+
+  <!-- Title -->
+  <section id="title" hidden>
+    <div class="petals" aria-hidden="true"></div>
+    <div class="logo">
+      <div class="logo-sub">〜 a kawaii kitty life 〜</div>
+      <h1><span class="l1">にゃん</span><span class="l2">日和</span></h1>
+      <div class="romaji">NYAN BIYORI</div>
+    </div>
+    <button class="start" data-ui="start"><span>タップしてはじめる</span><small>Tap to start</small></button>
+    <p class="foot">🎧 Best with sound · No ads · Works offline</p>
+  </section>
+
+  <section id="adopt" hidden></section>
+  <div id="sheet" class="sheet" hidden></div>
+  <div id="modal" class="modal" hidden></div>
+  <div id="mg" hidden></div>
+  <div id="toasts" aria-live="polite"></div>
+
+    </div>
+
+  <script src="js/util.js"></script>
+  <script src="js/native.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/cat.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/habitat.js"></script>
+  <script src="js/apartment.js"></script>
+  <script src="js/painted.js"></script>
+  <script src="js/personality.js"></script>
+  <script src="js/health.js"></script>
+  <script src="js/bond.js"></script>
+  <script src="js/diary.js"></script>
+  <script src="js/season.js"></script>
+  <script src="js/share.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/capsule.js"></script>
+  <script src="js/visitors.js"></script>
+  <script src="js/minigames.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/namefilter.js"></script>
+  <script src="js/stream.js"></script>
+</body>
+</html>
