@@ -109,3 +109,43 @@ body.paused .disc { animation-play-state: paused; }
 #testpad .mute-toggle input:checked + span { background: #ff5c8d; }
 #testpad .mute-toggle input:checked + span::after { transform: translateX(20px); }
 #testpad .mute-toggle input:focus-visible + span { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* stage 2: cards over the room (a viewer's level and stickers, the history wall, the recap) */
+.room-card {
+  position: absolute; left: 50%; top: 70px; z-index: 4; width: 660px; transform: translate(-50%, -20px) scale(0.96); opacity: 0;
+  transition: opacity 0.35s, transform 0.45s cubic-bezier(.2, 1.4, .4, 1);
+  background: var(--night); border: 2px solid var(--night-line); border-radius: 30px; padding: 26px 32px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.45); color: var(--text); backdrop-filter: blur(8px);
+}
+.room-card.show { opacity: 1; transform: translate(-50%, 0); }
+.room-card.k-recap { width: 820px; top: 60px; }
+.room-card h2 { margin: 0 0 8px; font-size: 38px; font-weight: 900; line-height: 1.15; }
+.vc-head { display: flex; align-items: center; gap: 18px; }
+.vc-head canvas { width: 132px; height: 132px; border-radius: 24px; background: rgba(255, 255, 255, 0.08); flex: none; }
+.vc-lv { margin: 0; font-size: 26px; font-weight: 800; color: var(--pink-glow); }
+.vc-sub, .vc-stats, .vc-next, .vc-album, .vc-names { margin: 10px 0 0; font-size: 22px; font-weight: 700; color: var(--text-soft); line-height: 1.35; }
+.vc-stats { color: var(--text); }
+.vc-next { color: var(--amber); }
+.vc-album { color: var(--pink-glow); font-weight: 800; }
+.stickers { display: grid; grid-template-columns: repeat(15, 1fr); gap: 6px; margin-top: 10px; }
+.stickers.big { grid-template-columns: repeat(8, 1fr); gap: 10px; }
+.stickers span { display: grid; place-items: center; aspect-ratio: 1; border-radius: 12px; background: rgba(255, 255, 255, 0.08); font-size: 22px; font-weight: 900; color: rgba(255, 255, 255, 0.3); }
+.stickers.big span { font-size: 38px; border-radius: 16px; }
+.stickers span.got { background: rgba(255, 211, 110, 0.18); color: var(--text); box-shadow: inset 0 0 0 2px rgba(255, 211, 110, 0.5); }
+.hist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hist li { display: flex; gap: 16px; font-size: 24px; font-weight: 700; line-height: 1.3; }
+.hist small { flex: none; width: 82px; font-size: 20px; color: var(--pink-glow); font-weight: 800; padding-top: 2px; }
+.recap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+.recap-grid div { background: rgba(255, 255, 255, 0.07); border-radius: 18px; padding: 14px 16px; }
+.recap-grid b { display: block; font-size: 38px; font-weight: 900; color: var(--amber); font-variant-numeric: tabular-nums; }
+.recap-grid small { font-size: 20px; font-weight: 700; color: var(--text-soft); }
+.thanks { margin: 16px 0 0; font-size: 22px; font-weight: 700; line-height: 1.45; color: var(--text); }
+
+/* the room vote, in place of the hint */
+#vote .vote-title { margin: 0 0 12px; font-size: 32px; font-weight: 900; color: var(--amber); }
+.vote-row { position: relative; display: flex; align-items: center; gap: 14px; padding: 10px 14px; margin-bottom: 8px; border-radius: 14px; background: rgba(255, 255, 255, 0.08); overflow: hidden; font-size: 25px; font-weight: 800; }
+.vote-row i { position: absolute; inset: 0 auto 0 0; background: rgba(255, 143, 177, 0.35); transition: width 0.4s; }
+.vote-row b, .vote-row span { position: relative; }
+.vote-row b { color: var(--pink-glow); }
+.vote-time { margin: 6px 0 0; font-size: 21px; font-weight: 700; color: var(--text-soft); }
+#testpad .save-state { width: 100%; font-size: 12px; color: var(--text-soft); }

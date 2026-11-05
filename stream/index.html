@@ -31,6 +31,7 @@
     </aside>
     <main id="room">
       <div id="connect" hidden></div>
+      <div id="card" class="room-card" hidden></div>
       <canvas id="scene" aria-label="Your kitty's room. Stroke the cat to pet it."></canvas>
     </main>
     <aside id="right" class="panel-col">
@@ -47,7 +48,8 @@
       </section>
       <section class="sc tip" id="tip-card">
         <p id="tip">Type <b>!pet</b> to pet Sushi ♡</p>
-        <p class="cmds">!pet · !treat · !ball · !brush · !dance · !nap · !song · !goals</p>
+        <div id="vote" hidden></div>
+        <p class="cmds">!pet · !treat · !ball · !brush · !dance · !nap · !song · !goals · !level · !stickers · !history</p>
       </section>
     </aside>
   </div>
@@ -137,6 +139,7 @@
   <script src="js/minigames.js"></script>
   <script src="js/game.js"></script>
   <script src="js/namefilter.js"></script>
+  <script src="js/save.js"></script>
   <script src="js/stream.js"></script>
 </body>
 </html>

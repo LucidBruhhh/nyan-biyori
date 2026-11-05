@@ -1,0 +1,9 @@
+# Only needed if you deploy with the Wrangler command line instead of the Cloudflare dashboard.
+# Replace the id below with your KV namespace's id, then: npx wrangler deploy && npx wrangler secret put SAVE_KEY
+name = "nyan-stream-save"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[[kv_namespaces]]
+binding = "SAVES"
+id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"

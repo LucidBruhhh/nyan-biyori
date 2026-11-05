@@ -115,8 +115,11 @@
   }
   function look() {
     if (!st) return { fur: 'mike', eye: 'amber', acc: {} };
-    return { fur: st.look.fur, eye: st.look.eye, acc: st.wear };
+    return { fur: st.look.fur, eye: st.look.eye, acc: st.wear, age: ageAt(st.level) };
   }
+  // how grown-up the body looks: 0 a new kitten, 1 fully grown by Lv 10
+  const ageAt = (lv) => U.clamp((lv - 1) / 9, 0, 1);
+  const stageAt = (lv) => [5, 10, 15, 20].filter((x) => lv >= x).length;
 
   /* ================= RESIZE ================= */
   const PREVIEW_DEVICE = new URLSearchParams(location.search).get('device');
@@ -473,7 +476,7 @@
   /* ================= XP / LEVEL ================= */
   const xpNeed = (lv) => 40 + lv * 25;
   function addXP(n) {
-    if (!st) return;
+    if (!st || STREAM) return;
     st.xp += n;
     const from = st.level;
     while (st.xp >= xpNeed(st.level)) { st.xp -= xpNeed(st.level); st.level++; }
@@ -681,6 +684,12 @@
       if (need === 'energy') setAct('yawn', 1.6), A.play('yawn');
       return;
     }
+    const stg = stageAt(st.level);
+    if (stg === 0 && Math.random() < 0.1) { setAct('dizzy', 1.4); sayText('にゃ…？', '*chases its own tail round and round*', true); return; }
+    if (stg === 1 && T - cat.zoomiesT > 150 && Math.random() < 0.08) { zoomies(); return; }
+    if (stg === 2 && Math.random() < 0.1) { setAct('groom', U.rand(2.5, 3.5)); HL.groom(st.health, 0.5); return; }
+    if (stg === 3 && Math.random() < 0.14) { luckyBeckon(); return; }
+    if (stg >= 4 && S.nightness(env.hour) > 0.5 && Math.random() < 0.12) { spiritLights(); return; }
     if (Math.random() < 0.45) { startExplore(); return; }
     if (r < 0.38) { const band = L.catY - L.floorY; goTo(U.rand(L.minX, L.maxX), null, false, U.rand(L.floorY + band * 0.3, L.catY)); }
     else if (r < 0.52) { setAct('groom', U.rand(2, 3.2)); HL.groom(st.health, 0.5); }
@@ -691,6 +700,19 @@
     else { cat.lookTarget = { x: U.rand(-1, 1), y: U.rand(-0.6, 0.4) }; cat.lookT = 2; }
   }
 
+  // a Lucky Cat's wave (on stream there are no coins, just the sparkle)
+  function luckyBeckon() {
+    setAct('beckon', 2.6);
+    S.burst('sparkle', cat.x + 20 * catScale(), cat.y - 150 * catScale(), 5, { p: { color: '#ffd34e', size: 7 } });
+    sayText('まねき〜', '*beckons a little luck to everyone watching*', true);
+  }
+  // a Nekomata at night: little spirit lights drift up around it
+  function spiritLights() {
+    setAct('nod', 2.2);
+    const s = catScale();
+    if (!RM) for (let i = 0; i < 5; i++) S.emit({ type: 'firefly', x: cat.x + U.rand(-70, 70) * s, y: cat.y - U.rand(40, 140) * s, vx: U.rand(-8, 8), vy: U.rand(-20, -8), life: 4, size: U.rand(4, 6), sway: 12 });
+    sayText('ふふ…', '*its twin tails glow softly*', true);
+  }
   function updateCat(dt) {
     const s = catScale();
     cat.actT += dt;
@@ -2305,7 +2327,7 @@
       env.flare = (RM ? 0.3 : 1) * (0.35 + 0.65 * mf.dropK);
       const big = mf.dropK >= 0.9;
       if (big && cat.act === 'idle' && !cat.perch && !cat.inBox && !cozy.on && T - groove.danceT > 40) {
-        groove.danceT = T; cat.dir = 1; setAct('dance', Math.min(9, 16 * 60 / (mf.bpm || 110))); discover('dance'); HL.exercise(st.health, 1);
+        groove.danceT = T; cat.dir = 1; if (streamHooks.drop) streamHooks.drop(); setAct('dance', Math.min(9, 16 * 60 / (mf.bpm || 110))); discover('dance'); HL.exercise(st.health, 1);
         if (groove.spoke !== groove.file) { groove.spoke = groove.file; sayText('♪♪ にゃーん！ ♪♪', '*the beat drops and so does the cat*', true); }
       }
       if (!RM) {
@@ -2954,6 +2976,7 @@
     env.fairyOff = !!(st && st.fairyOff);
     S.drawRoom(ctx, L, env, T);
     if (st) drawFigs(ctx);
+    if (st) drawGuests(ctx);
     const s = catScale();
     // light pouring in from the window, lantern glow on the floor
     env.sun = NB.Habitat.sunInfo(L, env);
@@ -3048,10 +3071,10 @@
       S.emit({ type: 'snow', x: lp.x + U.rand(-90, 10) * kk, y: lp.y + U.rand(20, 150) * kk, vx: U.rand(-4, 4), vy: U.rand(-3, 3), life: 5, size: U.rand(2.5, 4), alpha: 0.5, sway: 4, dust: true, color: '#ffe6b8' });
     }
     if (sea === 'spring') {
-      if (Math.random() < 0.25) S.emit({ type: 'petal', x: U.rand(-20, W), y: -10, vx: U.rand(20, 60), vy: U.rand(30, 60), life: 12, size: U.rand(6, 10), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 40, weather: true });
+      if (false) S.emit({ type: 'petal', x: U.rand(-20, W), y: -10, vx: U.rand(20, 60), vy: U.rand(30, 60), life: 12, size: U.rand(6, 10), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 40, weather: true });
       if (Math.random() < 0.4) S.emit({ type: 'petal', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(20, 40), life: 8, size: 5, rot: 1, vr: 2, color: '#ffc7da', sway: 30, weather: true }, S.outside);
     } else if (sea === 'autumn') {
-      if (Math.random() < 0.08) S.emit({ type: 'leaf', x: U.rand(-20, W), y: -10, vx: U.rand(10, 50), vy: U.rand(30, 55), life: 14, size: U.rand(7, 11), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ff8a4c', '#e8463c', '#ffb347']), sway: 40, weather: true });
+      if (false) S.emit({ type: 'leaf', x: U.rand(-20, W), y: -10, vx: U.rand(10, 50), vy: U.rand(30, 55), life: 14, size: U.rand(7, 11), rot: U.rand(0, 6), vr: U.rand(-2, 2), color: U.pick(['#ff8a4c', '#e8463c', '#ffb347']), sway: 40, weather: true });
       if (Math.random() < 0.4) S.emit({ type: 'leaf', x: U.rand(w.x, w.x + w.w), y: w.y, vx: U.rand(-10, 30), vy: U.rand(25, 45), life: 9, size: 5, rot: 1, vr: 2, color: U.pick(['#ff8a4c', '#e8463c']), sway: 30, weather: true }, S.outside);
     } else if (sea === 'winter') {
       for (let i = 0; i < 2; i++) S.emit({ type: 'snow', x: U.rand(w.x - 20, w.x + w.w), y: w.y, vx: U.rand(-5, 15), vy: U.rand(25, 50), life: 10, size: U.rand(4, 8), sway: 20, weather: true }, S.outside);
@@ -3320,8 +3343,29 @@
   function drawFigs(c) {
     const show = st.figShow || [];
     if (!show.length) return;
-    const y = L.win.y + L.win.h + 1, s = L.scale * 0.85;
-    show.forEach((id, i) => NB.Capsule.draw(c, id, L.win.x + L.win.w * (0.3 + i * 0.1), y, s));
+    const y = L.win.y + L.win.h + 1, s = L.scale * 1.7; // stream: big enough to read at 1080p
+    show.forEach((id, i) => NB.Capsule.draw(c, id, L.win.x + L.win.w * (0.12 + i * 0.15), y, s));
+  }
+  // viewers' visitor cats sit along the window seat, each with a name tag
+  const guests = [];
+  const GUEST_X = [285, 420, 585, 720];
+  function drawGuests(c) {
+    if (!L.painted || !guests.length) return;
+    const { k, ox, oy } = L.painted, s = L.scale * 0.5;
+    guests.forEach((g, i) => {
+      g.fade = Math.min(1, (g.fade || 0) + 1 / 40);
+      const x = ox + GUEST_X[i % GUEST_X.length] * k, y = oy + 655 * k;
+      const pose = C.defaultPose();
+      pose.blink = Math.sin(T * 1.3 + i * 2) > 0.97 ? 0 : 1; pose.tailPhase = T * 1.4 + i; pose.lookX = U.clamp((cat.x - x) / 300, -1, 1); pose.lookY = 0.3;
+      if (T - (g.bornT || 0) < 3) { pose.eyes = 'happy'; pose.blush = 0.8; }
+      c.save(); c.globalAlpha = g.fade;
+      C.draw(c, g.look, pose, T, x, y + (1 - g.fade) * 16, s);
+      c.font = '800 19px "M PLUS Rounded 1c", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const w = c.measureText(g.name).width + 22;
+      c.fillStyle = 'rgba(40,24,52,0.78)'; U.rr(c, x - w / 2, y + 8, w, 28, 14); c.fill();
+      c.fillStyle = '#fff4f8'; c.fillText(g.name, x, y + 23);
+      c.restore();
+    });
   }
 
   /* ---------- arrange the room ---------- */
@@ -4086,6 +4130,39 @@
         sayText('がんばろう！', info.text || "Let's do it together!", true);
         return 3;
       }
+      case 'cuddle': {
+        streamFree(); cat.flopDir = Math.random() < 0.5 ? -1 : 1;
+        setAct('flop', 4); cat.petK = 1; cat.happyT = 3; trust(0.5);
+        S.burst('heart', cat.x, cat.y - 110 * s, big + 6, { angle: -Math.PI / 2, spread: 1.3, min: 80, max: 230, p: { color: U.pick(['#ff6f9f', '#ff9db8']), size: 18, life: 1.7 } });
+        A.meow(1.25, 0.5);
+        sayText('ぎゅ〜♡', `${nm} cuddles up to ${ppl} ♡`, true);
+        return 4;
+      }
+      case 'greet': {
+        streamFree(); cat.happyT = 3;
+        if (cat.act === 'idle' || cat.act === 'walk') setAct('beckon', 2.4);
+        S.burst('star', cat.x, cat.y - 160 * s, 10, { p: { color: '#ffd34e', size: 12 } });
+        A.meow(1.3, 0.6);
+        sayText('おかえり！', `${nm} runs to greet ${ppl} ✦`, true);
+        return 3.2;
+      }
+      case 'join': {
+        cat.lookTarget = { x: -0.6, y: -0.4 }; cat.lookT = 3; cat.happyT = 1.5;
+        sayText('いらっしゃい！', `${ppl}'s cat came to visit!`, true);
+        return 2.6;
+      }
+      case 'grow': {
+        for (let i = 0; i < 60; i++) S.emit({ type: 'petal', x: U.rand(0, W), y: -10, vx: U.rand(-30, 60), vy: U.rand(60, 160), life: 6, size: U.rand(10, 14), rot: U.rand(0, 6), vr: U.rand(-3, 3), color: U.pick(['#ffc7da', '#ffb0cb', '#ffe0ea']), sway: 50 });
+        streamFree(); cat.dir = 1; setAct('dance', 6); A.play('fanfare'); A.meow(1.2);
+        sayText('おおきくなった！', info.text || `${nm} grew up a little!`, true);
+        return 6;
+      }
+      case 'unlock': {
+        S.burst('sparkle', W / 2, L.win.y + L.win.h, 24, { min: 80, max: 260, p: { color: '#fff3a8', size: 12, life: 1.4 } });
+        A.play('fanfare'); cat.happyT = 2;
+        sayText('あたらしい！', info.text || 'Something new for the room!', true);
+        return 3.5;
+      }
       case 'celebrate': {
         for (let i = 0; i < 90; i++) S.emit({ type: 'confetti', x: U.rand(0, W), y: -10, vx: U.rand(-40, 40), vy: U.rand(80, 240), life: 5, size: U.rand(10, 14), rot: U.rand(0, 6), vr: U.rand(-8, 8), color: U.pick(['#ff6f9f', '#ffd34e', '#7fb6ff', '#9ad17f', '#c591ea']), sway: 50 });
         streamFree(); cat.dir = 1; setAct('dance', 7); A.play('fanfare'); A.meow(1.3);
@@ -4096,7 +4173,20 @@
     return 0;
   }
   // the room's live state for the overlay: what the radio is playing and how loud it is right now
-  const streamAPI = { act: streamAct, music: () => env.music, track: () => A.trackInfo(), get name() { return st && st.name; }, get ready() { return !!st && mode === 'room'; } };
+  const streamHooks = {};
+  // the overlay sets the room's shared level, its unlocked things and the visitor cats on the seat
+  function setRoom(o) {
+    if (!st) return;
+    if (o.level) st.level = o.level;
+    if (o.decor) { st.decor = ['zabuton'].concat(o.decor); st.hidden = []; }
+    if (o.figs) st.figShow = o.figs.slice(-6);
+  }
+  function setGuests(list) {
+    const keep = new Map(guests.map((g) => [g.id, g]));
+    guests.length = 0;
+    list.slice(0, GUEST_X.length).forEach((g) => { const old = keep.get(g.id); guests.push(old ? Object.assign(old, g) : Object.assign({ bornT: T, fade: 0 }, g)); });
+  }
+  const streamAPI = { act: streamAct, setRoom, setGuests, guests, hooks: streamHooks, stageAt, ageAt, portrait: (cv, lk, opts) => C.portrait(cv, lk, opts), FURS: C.FURS, EYES: C.EYES, music: () => env.music, track: () => A.trackInfo(), get name() { return st && st.name; }, get ready() { return !!st && mode === 'room'; } };
   function streamBoot() {
     document.querySelectorAll('[data-icon-name]').forEach((el) => { el.innerHTML = ICON[el.dataset.iconName] || ''; });
     st = load() || freshState('Sushi', { fur: 'mike', eye: 'amber' });
