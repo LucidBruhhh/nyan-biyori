@@ -52,7 +52,7 @@ NB.Cat = (() => {
       sx: 1, sy: 1, bob: 0, headY: 0, headTilt: 0, lean: 0,
       eyes: 'open', blink: 1, lookX: 0, lookY: 0,
       mouth: 'w', mouthOpen: 0, tongue: 0,
-      earDroop: 0, earTwitchL: 0, earTwitchR: 0,
+      earDroop: 0, earTwitchL: 0, earTwitchR: 0, earLag: 0, earSwing: 0, cheek: 0,
       pawL: 0, pawR: 0, pawLx: 0, pawRx: 0, beckon: 0,
       tailPhase: 0, tailAmp: 1, blush: 0.35,
       loaf: 0, wet: 0, dirt: 0, sparkle: 0, flip: 1,
@@ -247,7 +247,7 @@ NB.Cat = (() => {
     const earXform = (s, fn) => {
       ctx.save();
       const tw = s < 0 ? p.earTwitchL : p.earTwitchR;
-      ctx.translate(s * 44, -160); ctx.rotate(s * (p.earDroop * 0.75 + tw * 0.25) + Math.sin(t * 1.1 + s * 1.7) * 0.025); ctx.translate(-s * 44, 160);
+      ctx.translate(s * 44, -160); ctx.rotate(s * (p.earDroop * 0.75 + tw * 0.25 + (p.earLag || 0) * 0.75) + (p.earSwing || 0) + Math.sin(t * 1.1 + s * 1.7) * 0.025); ctx.translate(-s * 44, 160);
       fn(); ctx.restore();
     };
     ctx.strokeStyle = F.line; ctx.lineWidth = LW * 2;
@@ -767,7 +767,7 @@ NB.Cat = (() => {
     // the head leads, a little forward and lower, riding the shoulders' rise and fall
     ctx.save();
     ctx.translate(50 * bodyK, p.headY + 16 + 90 * (1 - bodyK) + body.pitch * 40 + Math.sin(TAU * g * 2 + 0.6) * 1.2);
-    ctx.translate(0, -90); ctx.rotate(p.headTilt + 0.05); ctx.scale(headK * 0.94, headK * 0.94); ctx.translate(0, 90);
+    ctx.translate(0, -90); ctx.rotate(p.headTilt + 0.05); ctx.scale(headK * 0.94 * (1 + (p.cheek || 0) * 0.5), headK * 0.94 * (1 - (p.cheek || 0))); ctx.translate(0, 90);
     drawHead(ctx, F, p, look, t);
     if (look.acc && look.acc.head) drawHeadAcc(ctx, look.acc.head, p, t);
     ctx.restore();
@@ -814,7 +814,7 @@ NB.Cat = (() => {
     // head group
     ctx.save();
     ctx.translate(0, p.headY + p.loaf * 26 - br * 60 + 90 * (1 - bodyK));
-    ctx.translate(0, -90); ctx.rotate(p.headTilt); ctx.scale(headK, headK); ctx.translate(0, 90);
+    ctx.translate(0, -90); ctx.rotate(p.headTilt); ctx.scale(headK * (1 + (p.cheek || 0) * 0.5), headK * (1 - (p.cheek || 0))); ctx.translate(0, 90);
     drawHead(ctx, F, p, look, t);
     if (look.acc && look.acc.head) drawHeadAcc(ctx, look.acc.head, p, t);
     ctx.restore();
