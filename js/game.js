@@ -144,7 +144,7 @@
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     L = homeId() === 'painted' ? NB.Painted.layout(W, H) : S.layout(W, H);
-    cat.y = L.catY; cat.depth = 1; cat.perch = null; cat.hop = null; cat.inBox = false; cat.goal = null; cat.chase = null;
+    cat.y = L.catY; cat.depth = 1; cat.perch = null; cat.hop = null; cat.windup = null; cat.inBox = false; cat.goal = null; cat.chase = null;
     if (cat.act !== 'eat' && cat.act !== 'sleep') setAct('idle', 0.5);
     if (!cat.x) { cat.x = homeX(); cat.tx = cat.x; }
     cat.x = U.clamp(cat.x, L.minX, L.maxX); cat.tx = U.clamp(cat.tx, L.minX, L.maxX);
@@ -321,7 +321,7 @@
     const band = L.catY - L.floorY;
     const dash = (n) => {
       if (n <= 0 || mode !== 'room') { setAct('idle', 0.5); sayText('ふぅ…', '*pants proudly*', true); return; }
-      goTo(n % 2 ? L.minX + 10 : L.maxX - 10, () => { cat.jumpV = -360 * catScale(); cat.jumpY = -1; A.play('whoosh'); dash(n - 1); }, 'zoom', L.floorY + band * U.rand(0.45, 1));
+      goTo(n % 2 ? L.minX + 10 : L.maxX - 10, () => { leap(-360 * catScale(), 0.1); A.play('whoosh'); dash(n - 1); }, 'zoom', L.floorY + band * U.rand(0.45, 1));
     };
     dash(U.randi(4, 6));
   }
@@ -647,6 +647,8 @@
 
   /* ================= CAT AI ================= */
   function setAct(a, dur = 1.5) { cat.act = a; cat.actT = 0; cat.actDur = dur; }
+  // a planned jump: a short crouch first. Startled jumps set jumpV directly, with no warning
+  function leap(v, crouch = 0.14) { cat.windup = { t: crouch, v }; }
   function think() {
     if (mode !== 'room') return;
     if (cozy.on) { cozyThink(); return; }
@@ -732,6 +734,11 @@
     cat.look.x = U.damp(cat.look.x, U.clamp(gx, -1, 1), 8, dt);
     cat.look.y = U.damp(cat.look.y, U.clamp(gy, -1, 1), 8, dt);
 
+    // a crouch, then the leap: the cat gathers itself before it jumps
+    if (cat.windup) {
+      cat.windup.t -= dt; cat.squash = Math.max(cat.squash, 0.85);
+      if (cat.windup.t <= 0) { cat.jumpV = cat.windup.v; cat.jumpY = -1; cat.squash = -0.6; cat.windup = null; }
+    }
     // jump physics
     if (cat.jumpY < 0 || cat.jumpV !== 0) {
       cat.jumpV += 2400 * s * dt; cat.jumpY += cat.jumpV * dt;
@@ -753,7 +760,7 @@
         else if (dist >= 4) {
           const speed = (st && P.stage(st) === 'senior' ? 0.8 : 1) * (cat.fast === 'zoom' ? 330 : cat.chase === 'laser' ? 240 : cat.fast || cat.chase ? 150 : 70);
           const step = Math.min(1, (speed * s * cat.depth * dt) / dist);
-          if (Math.abs(dx) > 2) cat.dir = Math.sign(dx);
+          if (Math.abs(dx) > 2 && Math.sign(dx) !== cat.dir) { cat.dir = Math.sign(dx); cat.squash = Math.max(cat.squash, 0.35); }
           cat.x += dx * step; cat.y += dy * step;
           // strides follow the ground covered, so planted paws stay put
           cat.gaitMode = C.gaitFor(speed);
@@ -850,8 +857,8 @@
       case 'swat': p.pawL = Math.sin(Math.min(1, cat.actT / 0.4) * Math.PI); p.pawLx = 10; p.eyes = 'x'; p.earDroop = 0.6; p.mouthOpen = 0.5; break;
       case 'dizzy': p.eyes = 'dizzy'; p.headTilt = Math.sin(T * 5) * 0.18; p.mouthOpen = 0.3; p.lean = Math.sin(T * 5) * 0.05; break;
       case 'boop': p.eyes = 'surprised'; p.mouthOpen = 0.55; p.earTwitchL = p.earTwitchR = -0.6; p.sy += 0.04; break;
-      case 'jump': p.pawL = 1; p.pawR = 0.9; p.eyes = 'sparkle'; p.mouthOpen = 0.6; p.sy = 1.08; p.sx = 0.94; break;
-      case 'hop': p.pawL = 0.55; p.pawR = 0.55; p.eyes = 'sparkle'; p.sy = 1.06; p.sx = 0.95; p.flip = cat.dir < 0 ? -1 : 1; break;
+      case 'jump': if (cat.windup) { p.eyes = 'sparkle'; p.earDroop = -0.15; p.lookY = -0.6; p.tailPhase = T * 9; break; } p.pawL = 1; p.pawR = 0.9; p.eyes = 'sparkle'; p.mouthOpen = 0.6; p.sy = 1.08; p.sx = 0.94; break;
+      case 'hop': if (cat.hop && cat.hop.t < 0) { p.eyes = 'sparkle'; p.earDroop = -0.15; p.flip = cat.dir < 0 ? -1 : 1; p.tailPhase = T * 9; break; } p.pawL = 0.55; p.pawR = 0.55; p.eyes = 'sparkle'; p.sy = 1.06; p.sx = 0.95; p.flip = cat.dir < 0 ? -1 : 1; break;
       case 'perch': {
         const chatter = cat.perch === 'sill' && birds.some((b) => b.state === 'perch');
         if (chatter) { p.eyes = 'sparkle'; p.mouthOpen = 0.25 + Math.abs(Math.sin(T * 22)) * 0.3; p.tailPhase = T * 9; p.earTwitchL = p.earTwitchR = 0.3; }
@@ -929,6 +936,20 @@
       // a drop is coming: ears up, eyes wide, a little crouch
       if (mf.soon > 0) { p.eyes = 'sparkle'; p.earDroop = 0; p.sy = (p.sy || 1) * (1 - 0.035 * mf.soon); p.lookX = 0; }
     }
+    // follow-through: the ears and cheeks keep moving a moment after the head changes speed, then settle
+    { const k = catScale() * (cat.depth || 1), fo = cat.follow || (cat.follow = { y: null, x: 0, vy: 0, vx: 0, e: 0, ev: 0, w: 0, wv: 0, c: 0, cv: 0 });
+      const y = (cat.y + cat.jumpY) / k + (p.bob || 0) + (p.headY || 0), x = cat.x / k;
+      if (fo.y != null && dt > 0 && dt < 0.1) {
+        const vy = (y - fo.y) / dt, vx = ((x - fo.x) / dt) * (cat.dir || 1), dvy = vy - fo.vy, dvx = vx - fo.vx;
+        fo.vy = vy; fo.vx = vx;
+        // a teleport (a perch reset, a scene change) is not a movement
+        if (Math.abs(dvy) < 2500 && Math.abs(dvx) < 2500) { fo.ev -= dvy * 0.011; fo.wv -= dvx * 0.006; fo.cv -= dvy * 0.004; }
+        fo.ev += (-324 * fo.e - 10.8 * fo.ev) * dt; fo.e += fo.ev * dt;
+        fo.wv += (-256 * fo.w - 9.6 * fo.wv) * dt; fo.w += fo.wv * dt;
+        fo.cv += (-576 * fo.c - 12 * fo.cv) * dt; fo.c += fo.cv * dt;
+      }
+      fo.y = y; fo.x = x;
+      p.earLag = U.clamp(fo.e, -0.3, 0.45); p.earSwing = U.clamp(fo.w, -0.2, 0.2); p.cheek = U.clamp(fo.c, -0.06, 0.09); }
     { const near = Math.hypot(ptr.x - cat.x, ptr.y - (cat.y - 110 * cs())); p.whisk = T - ptr.lastMove < 1 && near < 160 * cs() ? 1 - near / (160 * cs()) : 0; }
     cat.pose = p;
   }
@@ -976,12 +997,14 @@
     setAct('walk', 12);
   }
   function hopTo(x, y, depth, then) {
-    cat.hop = { x0: cat.x, y0: cat.y, d0: cat.depth, x1: x, y1: y, d1: depth, t: 0, dur: 0.62, then };
+    cat.hop = { x0: cat.x, y0: cat.y, d0: cat.depth, x1: x, y1: y, d1: depth, t: -0.16, dur: 0.62, then };
     cat.dir = Math.sign(x - cat.x) || cat.dir;
-    setAct('hop', 99); A.play('boing'); cat.squash = 0.6;
+    setAct('hop', 99);
   }
   function updateHop(dt) {
     const h = cat.hop;
+    // the crouch before the hop, then the spring
+    if (h.t < 0) { h.t += dt; cat.squash = Math.max(cat.squash, 0.85); if (h.t >= 0) { cat.squash = -0.6; A.play('boing'); } return; }
     h.t += dt;
     const k = Math.min(1, h.t / h.dur), e = U.easeInOut(k);
     cat.x = U.lerp(h.x0, h.x1, e); cat.depth = U.lerp(h.d0, h.d1, e);
@@ -1117,7 +1140,7 @@
     if (quirk('boxfear')) { setAct('boop', 0.7); sayText('！？', '*eyes the box suspiciously*', true); return; } goTo(boxX(), () => { cat.inBox = true; setAct('box', U.rand(6, 11)); A.play('pop'); discover('box'); }); }
   function popOut() {
     cat.inBox = false; setAct('boop', 0.6);
-    cat.jumpV = -480 * catScale(); cat.jumpY = -1;
+    leap(-480 * catScale(), 0.12);
     A.meow(1.4, 0.5); S.burst('sparkle', cat.x, cat.y - 80 * catScale(), 8, { p: { color: '#fff3a8', size: 8 } });
   }
 
@@ -1334,8 +1357,8 @@
         if (cat.chase === 'bug') {
           cat.tx = U.clamp(b.x, L.minX, L.maxX);
           const above = cat.y - b.y;
-          if (Math.abs(b.x - cat.x) < 50 * s && above > 150 * s && above < 420 * s && cat.jumpY === 0 && b.flee <= 0) {
-            cat.jumpV = -Math.sqrt(2 * 2400 * s * Math.max(above - 150 * s, 40 * s)); cat.jumpY = -1; cat.chase = null; cat.goal = null;
+          if (Math.abs(b.x - cat.x) < 50 * s && above > 150 * s && above < 420 * s && cat.jumpY === 0 && !cat.windup && b.flee <= 0) {
+            leap(-Math.sqrt(2 * 2400 * s * Math.max(above - 150 * s, 40 * s)), 0.2); cat.chase = null; cat.goal = null;
             setAct('jump', 2); A.play('boing');
             b.flee = 1.4; b.retarget = 0; b.ty = b.y - 120; discover('bug');
             st.needs.fun = U.clamp(st.needs.fun + 5, 0, 100); addXP(2);
