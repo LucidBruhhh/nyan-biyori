@@ -35,6 +35,8 @@ NB.Painted = (function () {
   const spot = (L, id) => at(L, SPOTS.find((s) => s.id === id));
   const randomSpot = (L) => at(L, SPOTS[Math.floor(Math.random() * SPOTS.length)]);
 
+  // the painted fairy-light globes along the top of the room, left to right (in painting pixels)
+  const BULBS = [[152, 93], [167, 103], [226, 128], [255, 139], [308, 136], [341, 134], [356, 131], [397, 127], [483, 126], [552, 157], [590, 165], [626, 131], [652, 142], [682, 162], [718, 151], [764, 165], [774, 128], [812, 155], [860, 146], [863, 122]];
   function layout(W, H) {
     const k = H / 1000, iw = SIZE * k, ox = (W - iw) / 2;
     // tall phones: slide the painting up so the floor has room above the action bar
@@ -177,14 +179,14 @@ NB.Painted = (function () {
     // a gentle twinkle on the painted fairy lights
     const mfl = env.music && env.music.on ? env.music : null;
     if ((night > 0.3 || mfl) && !env.lightsOff && !env.fairyOff) {
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < BULBS.length; i++) {
         let a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
-        let r = 22;
+        let r = 16;
         if (mfl) {
           const n = Math.floor(mfl.beats), lit = (i + n) % 2 ? 0.45 : 1, pulse = Math.pow(mfl.beatK, 1.4) * lit * ((n % 4 + 4) % 4 === 0 ? 1 : 0.7);
-          a = (0.3 + 0.7 * night) * (0.14 + 0.15 * mfl.bass + 0.85 * pulse * (0.5 + 0.5 * mfl.energy)) + 0.35 * (env.flare || 0); r = 22 + 16 * pulse;
+          a = (0.3 + 0.7 * night) * (0.14 + 0.15 * mfl.bass + 0.85 * pulse * (0.5 + 0.5 * mfl.energy)) + 0.35 * (env.flare || 0); r = 16 + 12 * pulse;
         }
-        const px = ox + (220 + i * 72) * k, py = oy + (125 + 14 * Math.sin(i * 1.3)) * k;
+        const px = ox + BULBS[i][0] * k, py = oy + BULBS[i][1] * k;
         const g = ctx.createRadialGradient(px, py, 1, px, py, r * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
         ctx.fillStyle = g; U.ell(ctx, px, py, r * k, r * k); ctx.fill();
       }
