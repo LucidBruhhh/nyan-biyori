@@ -183,8 +183,13 @@ NB.Painted = (function () {
         let a = 0.25 * night * (0.5 + 0.5 * Math.sin(t * 2.2 + i * 1.9));
         let r = 16;
         if (mfl) {
-          const n = Math.floor(mfl.beats), lit = (i + n) % 2 ? 0.45 : 1, pulse = Math.pow(mfl.beatK, 1.4) * lit * ((n % 4 + 4) % 4 === 0 ? 1 : 0.7);
-          a = (0.3 + 0.7 * night) * (0.14 + 0.15 * mfl.bass + 0.85 * pulse * (0.5 + 0.5 * mfl.energy)) + 0.35 * (env.flare || 0); r = 16 + 12 * pulse;
+          // the louder the song is right now, the bigger each beat's flash; quiet parts barely flicker
+          const n = Math.floor(mfl.beats), lit = (i + n) % 2 ? 0.45 : 1, loud = Math.pow(mfl.energy, 1.5);
+          const pulse = Math.pow(mfl.beatK, 1.4) * lit * ((n % 4 + 4) % 4 === 0 ? 1 : 0.7) * (0.2 + 0.8 * loud);
+          // a drop flashes the whole string, with a burst running along it, sized by how big the drop is
+          const fl = env.flare || 0, run = fl * Math.max(0, 1 - Math.abs(i - (1 - fl) * BULBS.length * 1.4) / 2.5);
+          a = (0.3 + 0.7 * night) * (0.12 + 0.2 * mfl.bass * (0.3 + 0.7 * loud) + 0.8 * pulse) + 0.45 * fl + 0.4 * run;
+          r = 13 + 22 * pulse + 14 * fl + 10 * run;
         }
         const px = ox + BULBS[i][0] * k, py = oy + BULBS[i][1] * k;
         const g = ctx.createRadialGradient(px, py, 1, px, py, r * k); g.addColorStop(0, `rgba(255,220,150,${a})`); g.addColorStop(1, 'rgba(255,220,150,0)');
