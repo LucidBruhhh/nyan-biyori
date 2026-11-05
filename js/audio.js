@@ -302,8 +302,8 @@ NB.Audio = (() => {
   }
   let stream = null;
   function setStream(on) {
-    if (on && !stream && ac) { stream = loopNoise('bandpass', 850, 0.6, 0.05, musicBus); }
-    else if (!on && stream) { const s0 = stream; stream = null; s0.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6); setTimeout(() => { try { s0.s.stop(); } catch (e) { /* stopped */ } }, 3000); }
+    if (on && !stream && ac) stream = loopRec('stream', 0.45, musicBus);
+    else if (!on && stream) { stream.stop(0.6); stream = null; }
   }
   function playStep(M, s, t, spb) {
     if (M.lofi) { lofiStep(M, s, t, spb); return; }
@@ -476,33 +476,31 @@ NB.Audio = (() => {
     page: (t) => { noise(t, 0.22, 0.12, sfxBus, 'bandpass', 2600, 1.2, { sweep: 1400, a: 0.04 }); noise(t + 0.12, 0.12, 0.07, sfxBus, 'highpass', 4000, 0.7); },
   };
   let rainNode = null;
-  /* ---------- cozy ambience: rain on the window, a crackling heater, or the city at night ---------- */
-  let amb = null;
-  function loopNoise(type, freq, q, vol, dest) {
-    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
-    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
-    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(vol, ac.currentTime + 2);
-    s.connect(f); f.connect(g); g.connect(dest || sfxBus); s.start();
-    return { s, g };
+  /* ---------- cozy ambience: rain on the window, a crackling fire, the city at night, birds, a brook ---------- */
+  // real recordings (BigSoundBank, CC0) made into seamless loops; see audio/CREDITS.md
+  const REC = { rain: 'audio/amb-rain.mp3', fire: 'audio/amb-fire.mp3', city: 'audio/amb-city.mp3', birds: 'audio/amb-birds.mp3', stream: 'audio/amb-stream.mp3' };
+  const recs = {};
+  const recBuf = (k) => recs[k] || (recs[k] = fetch(REC[k]).then((r) => r.arrayBuffer()).then((ab) => ac.decodeAudioData(ab)));
+  // a recording looping quietly, faded in; stop() fades it out
+  function loopRec(k, vol, dest) {
+    const n = { s: null, g: ac.createGain(), dead: false };
+    n.g.gain.value = 0.0001; n.g.connect(dest || sfxBus);
+    recBuf(k).then((buf) => {
+      if (n.dead) return;
+      n.s = ac.createBufferSource(); n.s.buffer = buf; n.s.loop = true; n.s.connect(n.g);
+      n.s.start(0, Math.random() * buf.duration);
+      n.g.gain.setValueAtTime(0.0001, ac.currentTime); n.g.gain.exponentialRampToValueAtTime(vol, ac.currentTime + 2);
+    }).catch(() => { /* no recording, no ambience */ });
+    n.stop = (fade = 0.5) => { n.dead = true; n.g.gain.setTargetAtTime(0.0001, ac.currentTime, fade); setTimeout(() => { try { n.s && n.s.stop(); } catch (e) { /* stopped */ } }, fade * 5000); };
+    return n;
   }
   // a mixer of ambience layers: { rain, heater, city, birds } each 0..100
   const ambLayers = {};
   function makeLayer(kind) {
     const bus = ac.createGain(); bus.gain.value = 0.0001; bus.connect(sfxBus);
-    const nodes = [];
-    if (kind === 'rain') { nodes.push(loopNoise('bandpass', 1400, 0.5, 0.07, bus)); nodes.push(loopNoise('highpass', 4500, 0.4, 0.025, bus)); }
-    if (kind === 'heater') nodes.push(loopNoise('lowpass', 170, 1.2, 0.06, bus));
-    if (kind === 'city') { nodes.push(loopNoise('lowpass', 260, 0.8, 0.055, bus)); nodes.push(loopNoise('bandpass', 900, 0.3, 0.008, bus)); }
-    if (kind === 'birds') nodes.push(loopNoise('bandpass', 850, 0.6, 0.03, bus));
-    const tick = { heater: 140, city: 4000, birds: 900 }[kind];
-    const timer = tick ? setInterval(() => {
-      if (!sfxOn || bus.gain.value < 0.01) return;
-      const t = ac.currentTime + Math.random() * 0.1;
-      if (kind === 'heater' && Math.random() < 0.55) noise(t, 0.01 + Math.random() * 0.02, 0.02 + Math.random() * 0.05, bus, 'highpass', 2200 + Math.random() * 2500, 0.8);
-      if (kind === 'city' && Math.random() < 0.06) SFX.train(t);
-      if (kind === 'birds' && Math.random() < 0.35) { const f = U.rand(2400, 3600); for (let i = 0; i < U.pick([1, 2, 3]); i++) osc('sine', f, t + i * 0.11, 0.08, 0.03, bus, { slide: f * 1.3, slideT: 0.06 }); }
-    }, tick) : 0;
-    return { bus, nodes, timer };
+    // kept low: a bed under the music, not a soundscape of its own
+    const rec = { rain: ['rain', 0.35], heater: ['fire', 0.28], city: ['city', 0.32], birds: ['birds', 0.22] }[kind];
+    return { bus, nodes: [loopRec(rec[0], rec[1], bus)] };
   }
   function setAmbience(mix) {
     if (!ac) return;
@@ -512,7 +510,7 @@ NB.Audio = (() => {
       if (v > 0 && !ambLayers[k]) ambLayers[k] = makeLayer(k);
       const L = ambLayers[k]; if (!L) return;
       L.bus.gain.setTargetAtTime(v > 0 ? v * 1.4 : 0.0001, ac.currentTime, 0.5);
-      if (v === 0) { delete ambLayers[k]; clearInterval(L.timer); setTimeout(() => L.nodes.forEach((n) => { try { n.s.stop(); } catch (e) { /* stopped */ } }), 2500); }
+      if (v === 0) { delete ambLayers[k]; L.nodes.forEach((n) => n.stop()); }
     });
   }
   // a gentle purr to fall asleep to, separate from petting
@@ -530,18 +528,8 @@ NB.Audio = (() => {
 
   function setRain(on) {
     if (!ac) return;
-    if (on && !rainNode) {
-      const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
-      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 600;
-      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
-      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.09, ac.currentTime + 2);
-      s.connect(hp); hp.connect(lp); lp.connect(g); g.connect(sfxBus); s.start();
-      rainNode = { s, g };
-    } else if (!on && rainNode) {
-      const r = rainNode; rainNode = null;
-      r.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.5);
-      setTimeout(() => { try { r.s.stop(); } catch (e) { /* already stopped */ } }, 2500);
-    }
+    if (on && !rainNode) rainNode = loopRec('rain', 0.22, sfxBus);
+    else if (!on && rainNode) { rainNode.stop(); rainNode = null; }
   }
   let onPlay = null;
   function play(name, v) {
