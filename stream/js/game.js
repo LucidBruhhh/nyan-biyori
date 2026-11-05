@@ -760,9 +760,13 @@
         if (cat.chase === 'ball' && Math.abs(ball.x - cat.x) < 44 * s && ball.h > -30 && Math.abs(dy) < 24) batBall();
         else if (dist < 4 && cat.chase !== 'bug' && cat.chase !== 'laser') { const goal = cat.goal; cat.goal = null; cat.chase = null; setAct('idle', 0.5); goal && goal(); }
         else if (dist >= 4) {
-          const step = Math.min(1, (((st && P.stage(st) === 'senior' ? 0.8 : 1) * (cat.fast === 'zoom' ? 330 : cat.chase === 'laser' ? 240 : cat.fast || cat.chase ? 150 : 70)) * s * cat.depth * dt) / dist);
+          const speed = (st && P.stage(st) === 'senior' ? 0.8 : 1) * (cat.fast === 'zoom' ? 330 : cat.chase === 'laser' ? 240 : cat.fast || cat.chase ? 150 : 70);
+          const step = Math.min(1, (speed * s * cat.depth * dt) / dist);
           if (Math.abs(dx) > 2) cat.dir = Math.sign(dx);
           cat.x += dx * step; cat.y += dy * step;
+          // strides follow the ground covered, so planted paws stay put
+          cat.gaitMode = C.gaitFor(speed);
+          cat.gait = (cat.gait || 0) + (dist * step) / (s * cat.depth) / C.strideLen(cat.gaitMode, ageAt(st ? st.level : 3));
           cat.depth = depthAt(cat.y);
         }
         if (cat.act === 'walk' && cat.actT > cat.actDur) { cat.goal = null; cat.chase = null; setAct('idle', 0.5); }
@@ -822,11 +826,12 @@
     if (cat.grumpyT && T < cat.grumpyT && cat.act === 'idle') { p.blink = Math.min(p.blink, 0.45); p.earDroop = 0.2; p.mouth = 'flat'; }
     p.lookX = cat.look.x; p.lookY = cat.look.y;
     p.side = cat.sideK || 0; if (p.side > 0.02) p.flip = cat.dir < 0 ? -1 : 1;
+    p.gait = cat.gait || 0; p.gaitMode = cat.gaitMode; // turning back to face you, the legs finish where they were
     p.tailPhase = T * (cat.happyT > 0 || cat.petK > 0.2 ? 5 : 1.7);
     p.earTwitchL = cat.twitchL; p.earTwitchR = cat.twitchR;
     p.blush = 0.35 + cat.petK * 0.6 + (cat.happyT > 0 ? 0.3 : 0);
     p.dirt = st ? U.clamp((40 - st.needs.clean) / 40, 0, 1) : 0;
-    p.flip = 1;
+    if (p.side <= 0.02) p.flip = 1;
     if (st && st.level >= 20) { p.twin = true; p.glow = 1; }
     if (st && m < 22 && mode === 'room') { p.eyes = 'sad'; p.earDroop = 0.4; p.mouth = 'flat'; }
     if (cat.zoneT > 0 && cat.zone === 'chin') { p.eyes = 'closed'; p.headY -= 5; p.headTilt += 0.04; p.blush = 1; p.mouth = 'w'; }
@@ -837,12 +842,12 @@
 
     switch (mode === 'sleep' && cat.act === 'sleep' ? 'sleep' : cat.act) {
       case 'walk': {
-        const k = T * (cat.fast === 'zoom' ? 24 : 10);
+        const k = Math.PI * 2 * (cat.gait || 0), gb = C.gaitBody(cat.gaitMode, cat.gait || 0);
         if (cat.fast === 'zoom') { p.eyes = 'sparkle'; p.earDroop = 0.35; p.tailPhase = T * 12; p.mouthOpen = 0.3; }
         if (cat.chase === 'laser') { p.eyes = 'sparkle'; p.tailPhase = T * 10; p.sy -= 0.04; }
-        p.bob = -Math.abs(Math.sin(k)) * 6; p.lean = Math.sin(k) * 0.03;
+        p.bob = gb.bob; p.lean = cat.sideK > 0.5 ? 0 : Math.sin(k) * 0.03;
         p.pawLx = Math.sin(k) * 5; p.pawRx = -Math.sin(k) * 5; p.flip = cat.dir < 0 ? -1 : 1;
-        p.gait = k; p.lookX = 0.8; p.tailPhase = k * 0.5;
+        p.gait = cat.gait || 0; p.gaitMode = cat.gaitMode; p.lookX = 0.8; p.tailPhase = k * 0.5;
         break;
       }
       case 'groom': p.pawR = 0.62 + Math.sin(T * 7) * 0.08; p.pawRx = -24; p.headTilt = -0.14; p.tongue = (Math.sin(T * 10) + 1) / 2; p.eyes = 'closed'; break;
@@ -910,6 +915,9 @@
     if (cat.flopK > 0.01) p.noShadow = true;
     // in the painted room the cat picks up the warm lamplight
     if (L && L.painted) { const n = S.nightness(env.hour); if (n > 0.05 && !env.lightsOff) p.tint = `rgba(255,170,125,${0.15 * n})`; }
+    { const n = S.nightness(env.hour), h = env.hour, gold = h > 15.5 && h < 19 ? Math.sin(Math.PI * (h - 15.5) / 3.5) : 0;
+      p.rim = n > 0.5 ? (env.lightsOff ? 'rgba(170,190,255,0.55)' : 'rgba(255,200,150,0.6)') : gold > 0.1 ? `rgba(255,${Math.round(220 - 40 * gold)},${Math.round(180 - 60 * gold)},0.65)` : 'rgba(255,244,228,0.6)';
+      p.shadow = n > 0.5 ? 'rgba(70,50,120,0.24)' : gold > 0.1 ? 'rgba(150,70,110,0.2)' : 'rgba(120,90,150,0.13)'; }
     // ease every pose into the next one, so the cat never snaps between positions
     const prev = cat.pose;
     if (prev && dt > 0 && cat.act !== 'trick' && cat.act !== 'trap') {

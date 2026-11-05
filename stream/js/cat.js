@@ -22,9 +22,30 @@ NB.Cat = (() => {
     murasaki: { name: 'Fuji',   jp: 'ふじ',   c: ['#321a6e', '#9a68ff', '#e3d5ff'] },
   };
 
-  const LW = 2.8; // outline width
+  let LW = 2.8; // outline width
   // soft coloured line art: outlines lean toward the fur's own shade rather than near-black
-  Object.values(FURS).forEach((f) => { f.line = U.mix(f.line, f.shade, f.dark ? 0.12 : 0.3); });
+  Object.values(FURS).forEach((f) => { f.lineClassic = U.mix(f.line, f.shade, f.dark ? 0.12 : 0.3); f.lineSoft = U.mix(f.line, f.shade, f.dark ? 0.2 : 0.42); });
+  // 'soft': a painted, hand-drawn look to sit in the painted room (finer warm lines, gentler eyes, light from the room).
+  // 'classic': the original bold anime look
+  let soft = true;
+  function setStyle(s) { soft = s !== 'classic'; LW = soft ? 2.1 : 2.8; Object.values(FURS).forEach((f) => { f.line = soft ? f.lineSoft : f.lineClassic; }); }
+  setStyle('soft');
+  // the room's light on the fur: a rim along the lit edge, and the colour the shadows take
+  const RIM = 'rgba(255,238,215,0.55)';
+  const rimOf = (p) => (soft && p.rim) || RIM;
+  // light catching the edge of the fur: a hard line in the classic style, a glow that fades inward in the soft one
+  function rimLight(ctx, p, arc) {
+    ctx.lineCap = 'round'; ctx.strokeStyle = rimOf(p);
+    if (!soft) { ctx.lineWidth = 5; arc(); ctx.stroke(); return; }
+    ctx.save(); [[14, 0.22], [8, 0.4], [3, 0.7]].forEach(([w, a]) => { ctx.globalAlpha = a; ctx.lineWidth = w; arc(); ctx.stroke(); }); ctx.restore();
+  }
+  // a soft-edged shadow on the side away from the light, painted rather than airbrushed
+  function softShade(ctx, x, y, r, p) {
+    if (!soft) return;
+    const g = ctx.createRadialGradient(x, y, r * 0.35, x, y, r);
+    g.addColorStop(0, p.shadow || 'rgba(120,80,140,0.2)'); g.addColorStop(1, 'rgba(120,80,140,0)');
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
 
   function defaultPose() {
     return {
@@ -126,7 +147,8 @@ NB.Cat = (() => {
     }
     if (look.acc && look.acc.body) drawBodyAcc(ctx, look.acc.body, w, h);
     if (p.dirt > 0.45) dirtSpots(ctx, p.dirt, [[-20, -h + 10], [24, -h - 14], [-30, -h - 20]]);
-    ctx.strokeStyle = 'rgba(255,238,215,0.55)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(-3, -h, w, h, 0, -1.0, 0.7); ctx.stroke();
+    softShade(ctx, w * 0.45, -h * 0.35, w * 0.95, p);
+    rimLight(ctx, p, () => { ctx.beginPath(); ctx.ellipse(-3, -h, w, h, 0, soft ? -2.6 : -1.0, soft ? -1.2 : 0.7); });
     if (p.tint) { ctx.fillStyle = p.tint; ctx.fillRect(-w - 10, -2 * h - 10, 2 * w + 20, 2 * h + 20); }
     ctx.restore();
     bodyPath(ctx, p); ctx.strokeStyle = F.line; ctx.lineWidth = LW; ctx.stroke();
@@ -280,15 +302,17 @@ NB.Cat = (() => {
     // muzzle
     ctx.fillStyle = F.dark ? U.mix(F.base, '#ffffff', 0.12) : U.mix(F.base, '#ffffff', 0.6);
     U.ell(ctx, 0, -98, 30, 18); ctx.fill();
-    // hair gloss (天使の輪 style)
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    U.ell(ctx, -36, -172, 15, 6, -0.45); ctx.fill();
-    U.ell(ctx, -16, -182, 6, 3, -0.2); ctx.fill();
+    if (!soft) {
+      // hair gloss (天使の輪 style)
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      U.ell(ctx, -36, -172, 15, 6, -0.45); ctx.fill();
+      U.ell(ctx, -16, -182, 6, 3, -0.2); ctx.fill();
+    }
     if (p.dirt > 0.45) dirtSpots(ctx, p.dirt, [[44, -150], [-50, -110]]);
     if (p.wet > 0) {
       ctx.fillStyle = `rgba(150,200,255,${0.25 * p.wet})`; headPath(ctx); ctx.fill();
     }
-    ctx.strokeStyle = 'rgba(255,238,215,0.5)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(-2, -131, 77, 60, 0, -1.1, 0.6); ctx.stroke();
+    rimLight(ctx, p, () => { ctx.beginPath(); ctx.ellipse(-2, -131, 77, 60, 0, soft ? -2.7 : -1.1, soft ? -1.3 : 0.6); });
     if (p.tint) { ctx.fillStyle = p.tint; ctx.fillRect(-92, -200, 184, 140); }
     ctx.restore();
 
@@ -304,7 +328,7 @@ NB.Cat = (() => {
     const st = p.eyes;
     const open = st === 'closed' ? 0 : p.blink;
     if (st === 'happy') {
-      ctx.strokeStyle = ink; ctx.lineWidth = 5.5;
+      ctx.strokeStyle = ink; ctx.lineWidth = soft ? 4 : 5.5;
       ctx.beginPath(); ctx.moveTo(-14, 5); ctx.quadraticCurveTo(0, -16, 14, 5); ctx.stroke();
     } else if (st === 'dizzy') {
       ctx.strokeStyle = ink; ctx.lineWidth = 3.2; ctx.beginPath();
@@ -313,6 +337,31 @@ NB.Cat = (() => {
     } else if (st === 'x') {
       ctx.strokeStyle = ink; ctx.lineWidth = 5;
       ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, 10); ctx.moveTo(10, -10); ctx.lineTo(-10, 10); ctx.stroke();
+    } else if (open < 0.15 && soft) {
+      ctx.strokeStyle = ink; ctx.lineWidth = 3.4;
+      ctx.beginPath(); ctx.moveTo(-13, 0); ctx.quadraticCurveTo(0, 9, 13, 0); ctx.stroke();
+    } else if (soft && st !== 'love' && st !== 'surprised') {
+      const big = st === 'sparkle' ? 1.05 : 1;
+      ctx.scale(0.97 * big, 0.97 * big * open);
+      const lx = p.lookX * 4, ly = p.lookY * 3.5;
+      ctx.save(); U.ell(ctx, 0, 0, 15.5, 18); ctx.clip();
+      const g = ctx.createLinearGradient(0, -18, 0, 18);
+      g.addColorStop(0, U.mix(E.c[0], E.c[1], 0.35)); g.addColorStop(0.55, E.c[1]); g.addColorStop(1, U.mix(E.c[1], E.c[2], 0.7));
+      ctx.fillStyle = g; ctx.fillRect(-17, -19, 34, 38);
+      // the round pupil widens when excited
+      const pr = st === 'sparkle' ? 9 : 7.6;
+      U.ell(ctx, lx, ly + 1, pr, pr * 1.18); ctx.fillStyle = U.mix('#1a0f1e', E.c[0], 0.25); ctx.fill();
+      // the lid's shadow across the top of the eye
+      ctx.fillStyle = 'rgba(30,10,30,0.22)'; U.ell(ctx, 0, -17, 18, 7); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#ffffff';
+      U.ell(ctx, -4.5 + lx * 0.3, -6 + ly * 0.3, st === 'sparkle' ? 5.4 : 4.6, st === 'sparkle' ? 5.4 : 4.6); ctx.fill();
+      ctx.globalAlpha = 0.85; U.ell(ctx, 5 + lx * 0.3, 6 + ly * 0.3, 1.8, 1.8); ctx.fill(); ctx.globalAlpha = 1;
+      if (st === 'sad') { ctx.fillStyle = 'rgba(200,230,255,0.85)'; ctx.beginPath(); ctx.ellipse(0, 12, 13, 5, 0, 0, Math.PI); ctx.fill(); }
+      ctx.strokeStyle = ink; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(0, 0.5, 16, 18.5, 0, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = U.rgba(ink, 0.5);
+      ctx.beginPath(); ctx.ellipse(0, 0, 15, 18, 0, Math.PI * 0.32, Math.PI * 0.68); ctx.stroke();
     } else if (open < 0.15) {
       ctx.strokeStyle = ink; ctx.lineWidth = 5;
       ctx.beginPath(); ctx.moveTo(-15, -1); ctx.quadraticCurveTo(0, 11, 15, -1); ctx.stroke();
@@ -403,13 +452,15 @@ NB.Cat = (() => {
     drawEye(ctx, 1, F, p, E, t);
 
     // nose
-    ctx.fillStyle = F.dark ? '#ef8fb1' : '#ff8eab';
+    ctx.fillStyle = F.dark ? '#ef8fb1' : soft ? '#f0889c' : '#ff8eab';
+    if (soft) { ctx.save(); ctx.translate(0, -106.5); ctx.scale(0.8, 0.8); ctx.translate(0, 106.5); }
     ctx.beginPath(); ctx.moveTo(-5, -110); ctx.quadraticCurveTo(0, -112, 5, -110); ctx.quadraticCurveTo(1, -103, 0, -103); ctx.quadraticCurveTo(-1, -103, -5, -110); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.7)'; U.ell(ctx, -1.5, -109, 1.5, 1); ctx.fill();
+    if (soft) ctx.restore();
 
     // mouth
     const ink = F.dark ? '#120c1c' : F.line;
-    ctx.strokeStyle = ink; ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = ink; ctx.lineWidth = soft ? 2.2 : 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const m = p.mouth, o = U.clamp(p.mouthOpen, 0, 1);
     if (m === 'flat') {
       ctx.beginPath(); ctx.moveTo(-7, -95); ctx.quadraticCurveTo(0, -99, 7, -95); ctx.stroke();
@@ -432,8 +483,9 @@ NB.Cat = (() => {
         ctx.lineWidth = 2.8;
       }
       // ω
+      const mw = soft ? 0.75 : 1;
       ctx.beginPath();
-      ctx.moveTo(-12, -99); ctx.quadraticCurveTo(-6, -92, 0, -101); ctx.quadraticCurveTo(6, -92, 12, -99);
+      ctx.moveTo(-12 * mw, -99); ctx.quadraticCurveTo(-6 * mw, -93, 0, -101); ctx.quadraticCurveTo(6 * mw, -93, 12 * mw, -99);
       ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, -103); ctx.lineTo(0, -101); ctx.stroke();
       if (p.tongue > 0.05) {
@@ -441,10 +493,10 @@ NB.Cat = (() => {
       }
     }
     // whiskers
-    ctx.strokeStyle = F.dark ? 'rgba(230,220,250,0.65)' : U.rgba(F.line, 0.45); ctx.lineWidth = 1.4;
+    ctx.strokeStyle = F.dark ? 'rgba(230,220,250,0.65)' : U.rgba(F.line, soft ? 0.32 : 0.45); ctx.lineWidth = soft ? 1.1 : 1.4;
     const twitch = Math.max(0, Math.sin(t * 0.9)) ** 12 * Math.sin(t * 40) * 3;
     [-1, 1].forEach((s) => {
-      [[-14, -3], [0, 0], [12, 3]].forEach(([dy, curve]) => {
+      (soft ? [[-8, -2], [8, 2]] : [[-14, -3], [0, 0], [12, 3]]).forEach(([dy, curve]) => {
         const wob = Math.sin(t * 1.6 + dy * 0.2 + s) * 1.2 + twitch + (p.whisk || 0) * Math.sin(t * 34 + dy) * 2.6;
         ctx.beginPath(); ctx.moveTo(s * 60, -106 + dy * 0.3); ctx.quadraticCurveTo(s * 80, -110 + dy * 0.6 + curve + wob * 0.5, s * 98, -110 + dy + wob); ctx.stroke();
       });
@@ -645,24 +697,62 @@ NB.Cat = (() => {
 
   /* ---------- main ---------- */
   /* ---------- walking, seen from the side ---------- */
-  // one leg: a soft rounded column swinging from the hip, the paw lifting as it comes forward
-  function sideLeg(ctx, F, hx, hy, len, ang, far) {
-    ctx.save(); ctx.translate(hx, hy); ctx.rotate(ang);
-    const w = 16;
-    U.rr(ctx, -w / 2, -6, w, len + 6, w / 2);
-    ctx.fillStyle = far ? F.shade : F.base; ctx.fill(); ctx.strokeStyle = F.line; ctx.lineWidth = LW; ctx.stroke();
-    U.ell(ctx, 3, len, 11, 7);
-    ctx.fillStyle = F.pattern === 'socks' ? F.mark : far ? F.shade : F.base; ctx.fill(); ctx.stroke();
+  // Each paw is planted on the floor while the body passes over it (stance), then lifts and swings forward (swing).
+  // p.gait counts strides, and the game advances it by distance walked, so planted paws never slide.
+  // d: share of the stride a paw spends on the floor; r: half the paw's travel; h: lift; legs: when each paw sets off
+  const GAITS = {
+    walk: { d: 0.62, r: 12, h: 7, legs: { nh: 0, nf: 0.25, fh: 0.5, ff: 0.75 }, bob: 1.6, pitch: 0 }, // one paw at a time
+    trot: { d: 0.5, r: 15, h: 9, legs: { nh: 0, ff: 0, fh: 0.5, nf: 0.5 }, bob: 2.6, pitch: 0 },    // diagonal pairs
+    gallop: { d: 0.38, r: 22, h: 13, legs: { nh: 0, fh: 0.1, nf: 0.5, ff: 0.6 }, bob: 5, pitch: 0.09 }, // back feet push, front feet land
+  };
+  // body units travelled in one stride, for the game to turn distance into stride count
+  const strideLen = (mode, age) => { const G = GAITS[mode] || GAITS.walk; return (2 * G.r / G.d) * (0.74 + 0.26 * (age == null ? 1 : age)); };
+  const gaitFor = (speed) => (speed >= 200 ? 'gallop' : speed >= 120 ? 'trot' : 'walk');
+  // the body rises over each planted paw; a gallop also rocks nose-up, nose-down
+  function gaitBody(mode, gait) {
+    const G = GAITS[mode] || GAITS.walk, a = TAU * gait;
+    return mode === 'gallop' ? { bob: -G.bob * (0.5 + 0.5 * Math.sin(a)), pitch: G.pitch * Math.cos(a) } : { bob: -G.bob * (0.5 - 0.5 * Math.cos(2 * a)), pitch: 0 };
+  }
+  // where a paw is, relative to its hip, at this point in the stride
+  function pawAt(G, ph) {
+    const u = ((ph % 1) + 1) % 1;
+    if (u < G.d) return { x: G.r - 2 * G.r * (u / G.d), lift: 0, swing: 0 };
+    const v = (u - G.d) / (1 - G.d), e = v * v * (3 - 2 * v);
+    return { x: -G.r + 2 * G.r * e, lift: Math.sin(Math.PI * v) * G.h, swing: Math.sin(Math.PI * v) };
+  }
+  // a leg in two parts. Front legs bend forward at the wrist so the paw tucks as it lifts; back legs bend
+  // backward at the hock, the way a cat's do
+  function sideLeg(ctx, F, hip, paw, upper, lower, front, far) {
+    const dx = paw.x - hip.x, dy = paw.y - hip.y, d = Math.min(Math.hypot(dx, dy), upper + lower - 0.5);
+    const base = Math.atan2(dy, dx), bend = Math.acos(U.clamp((upper * upper + d * d - lower * lower) / (2 * upper * d), -1, 1));
+    const ang = front ? base - bend : base + bend;
+    const jx = hip.x + Math.cos(ang) * upper, jy = hip.y + Math.sin(ang) * upper;
+    const fx = hip.x + Math.cos(base) * d, fy = hip.y + Math.sin(base) * d;
+    const col = far ? F.shade : F.base, w = front ? 14 : 15;
+    const limb = () => { ctx.beginPath(); ctx.moveTo(hip.x, hip.y - 8); ctx.lineTo(hip.x, hip.y); ctx.lineTo(jx, jy); ctx.lineTo(fx, fy); };
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    limb(); ctx.strokeStyle = F.line; ctx.lineWidth = w + LW * 2; ctx.stroke();
+    limb(); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+    // the paw: flat on the floor when planted, tipping as it swings
+    ctx.save(); ctx.translate(fx + 2, fy + 1); ctx.rotate(front ? paw.tilt * 0.6 : -paw.tilt * 0.4);
+    U.ell(ctx, 0, 0, 9.5, 6);
+    ctx.fillStyle = F.pattern === 'socks' ? F.mark : col; ctx.fill(); ctx.strokeStyle = F.line; ctx.lineWidth = LW; ctx.stroke();
     ctx.restore();
   }
   function drawSide(ctx, F, p, look, t, bodyK, headK) {
-    const g = p.gait || 0, sw = (ph) => Math.sin(g + ph) * 0.42;
-    // a paw only lifts while it swings forward
-    const legLen = (ph) => 34 - p.bob - Math.max(0, Math.cos(g + ph)) * 7;
+    const mode = GAITS[p.gaitMode] ? p.gaitMode : 'walk', G = GAITS[mode], g = p.gait || 0;
+    const body = gaitBody(mode, g);
+    // the floor, in this drawing's units: the whole cat has already been lifted by p.bob
+    const floor = (2 - p.bob) / bodyK - 6;
+    const leg = (key, hx, hy, upper, lower, front, far) => {
+      const q = pawAt(G, g + G.legs[key]);
+      sideLeg(ctx, F, { x: hx, y: hy }, { x: hx + q.x + (front ? 4 : -2), y: floor - q.lift, tilt: q.swing }, upper, lower, front, far);
+    };
     ctx.save(); ctx.scale(bodyK, bodyK);
+    ctx.translate(0, -30); ctx.rotate(-body.pitch); ctx.translate(0, 30);
     // far legs, in shadow behind the body
-    sideLeg(ctx, F, 30, -34, legLen(Math.PI), sw(Math.PI), true);
-    sideLeg(ctx, F, -50, -34, legLen(0), sw(0), true);
+    leg('ff', 30, -36, 17, 17, true, true);
+    leg('fh', -48, -38, 18, 19, false, true);
     // tail out behind, swaying as it walks
     ctx.save(); ctx.translate(-30, -22); ctx.scale(-1, 1);
     if (p.twin) { ctx.save(); ctx.translate(8, -6); drawTail(ctx, F, Object.assign({}, p, { tailPhase: p.tailPhase + 1.4 }), t, 0); ctx.restore(); }
@@ -670,13 +760,13 @@ NB.Cat = (() => {
     // a longer, lower body
     ctx.save(); ctx.translate(0, -16); ctx.scale(1.4, 0.8); drawBody(ctx, F, Object.assign({}, p, { loaf: 0, side: 1 }), look); ctx.restore();
     // near legs, in front
-    sideLeg(ctx, F, -40, -30, legLen(Math.PI), sw(Math.PI), false);
-    sideLeg(ctx, F, 42, -30, legLen(0), sw(0), false);
+    leg('nh', -40, -34, 18, 19, false, false);
+    leg('nf', 40, -32, 17, 17, true, false);
     if (look.acc && look.acc.neck) { ctx.save(); ctx.translate(46, 10); ctx.scale(0.85, 0.85); drawNeckAcc(ctx, look.acc.neck, p, t); ctx.restore(); }
     ctx.restore();
-    // the head leads, a little forward and lower, looking where it's going
+    // the head leads, a little forward and lower, riding the shoulders' rise and fall
     ctx.save();
-    ctx.translate(50 * bodyK, p.headY + 16 + 90 * (1 - bodyK) + Math.sin(g * 2) * 1.5);
+    ctx.translate(50 * bodyK, p.headY + 16 + 90 * (1 - bodyK) + body.pitch * 40 + Math.sin(TAU * g * 2 + 0.6) * 1.2);
     ctx.translate(0, -90); ctx.rotate(p.headTilt + 0.05); ctx.scale(headK * 0.94, headK * 0.94); ctx.translate(0, 90);
     drawHead(ctx, F, p, look, t);
     if (look.acc && look.acc.head) drawHeadAcc(ctx, look.acc.head, p, t);
@@ -696,7 +786,7 @@ NB.Cat = (() => {
     if (p.glow > 0) drawHitodama(ctx, t);
 
     // growing up: a kitten is mostly head on a small body; a grown cat has its full shape
-    const age = look.age == null ? 1 : look.age, bodyK = 0.74 + 0.26 * age, headK = 1 + 0.2 * (1 - age);
+    const age = look.age == null ? 1 : look.age, bodyK = 0.74 + 0.26 * age, headK = (1 + 0.2 * (1 - age)) * (soft ? 0.95 : 1);
     if (p.side > 0.5) { ctx.scale(0.75 + 0.25 * (2 * p.side - 1), 1); drawSide(ctx, F, p, look, t, bodyK, headK); ctx.restore(); return; }
     if (p.side > 0) ctx.scale(1 - 0.25 * (2 * p.side), 1);
     ctx.save(); ctx.scale(bodyK, bodyK);
@@ -749,5 +839,5 @@ NB.Cat = (() => {
     draw(ctx, look, p, opts.t || 0, w / 2, h / 2 + (opts.full ? 105 : 150) * s, s);
   }
 
-  return { FURS, EYES, draw, portrait, defaultPose };
+  return { FURS, EYES, draw, portrait, defaultPose, strideLen, gaitFor, gaitBody, setStyle, style: () => (soft ? 'soft' : 'classic') };
 })();
