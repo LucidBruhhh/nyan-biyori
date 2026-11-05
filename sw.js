@@ -1,5 +1,5 @@
 /* にゃん日和 — offline cache */
-const VERSION = 'nyanbiyori-v49';
+const VERSION = 'nyanbiyori-v50';
 const SHELL = [
   './', './index.html', './css/style.css', './manifest.webmanifest',
   './audio/kitten-mew.mp3', './audio/cat-mew.mp3', './audio/cat-purr.mp3', './js/util.js', './js/native.js', './js/data.js', './js/audio.js', './js/cat.js', './js/scene.js', './js/habitat.js', './js/apartment.js', './js/painted.js', './art/apartment-night.webp', './art/train-mask.png', './js/personality.js', './js/health.js', './js/bond.js', './js/diary.js', './js/season.js', './js/share.js', './js/store.js', './js/capsule.js', './js/visitors.js', './js/minigames.js', './js/game.js',

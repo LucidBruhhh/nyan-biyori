@@ -37,7 +37,9 @@ NB.Audio = (() => {
     ac = new AC();
     master = ac.createGain(); master.gain.value = 0.85;
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
-    master.connect(comp); comp.connect(ac.destination);
+    // the speakers sit behind their own switch, so a developer can mute them while recordings still hear everything
+    out = ac.createGain(); out.gain.value = devMute ? 0 : 1;
+    master.connect(comp); comp.connect(out); out.connect(ac.destination);
     musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master);
     ana = ac.createAnalyser(); ana.fftSize = 2048; ana.smoothingTimeConstant = 0.45; ana.minDecibels = -105; ana.maxDecibels = -40; musicBus.connect(ana); fbuf = new Uint8Array(ana.frequencyBinCount);
     sfxBus = ac.createGain(); sfxBus.gain.value = sfxOn ? 0.7 : 0; sfxBus.connect(master);
@@ -85,6 +87,20 @@ NB.Audio = (() => {
     track.i = (track.i + 1) % track.list.length;
     track.el.src = track.list[track.i]; track.el.play().catch(() => {}); applyProfile();
   }
+  // jump to a song on the playing station, at a moment in it (used when recording clips)
+  function seekTrack(file, t) {
+    if (!track) return false;
+    const i = track.list.findIndex((u) => u.endsWith(file)); if (i < 0) return false;
+    if (i !== track.i) { track.i = i; track.el.src = track.list[i]; applyProfile(); }
+    const go = () => { track.el.currentTime = t; track.el.play().catch(() => {}); };
+    if (track.el.readyState >= 1) go(); else track.el.addEventListener('loadedmetadata', go, { once: true });
+    return true;
+  }
+  // everything you hear, as a stream a recorder can take
+  let capDest = null, out = null, devMute = false;
+  try { devMute = localStorage.getItem('nb-devmute') === '1'; } catch (e) { /* no storage */ }
+  function setDevMute(on) { devMute = !!on; try { localStorage.setItem('nb-devmute', devMute ? '1' : '0'); } catch (e) { /* no storage */ } if (out) out.gain.setTargetAtTime(devMute ? 0 : 1, ac.currentTime, 0.02); return devMute; }
+  function captureStream() { if (!ac) return null; if (!capDest) { capDest = ac.createMediaStreamDestination(); master.connect(capDest); } return capDest.stream; }
   const trackInfo = () => (track ? { i: track.i, n: track.list.length, file: track.list[track.i].split('/').pop() } : null);
 
   /* ---------- listening to the music: bands, beats, tempo and drops ---------- */
@@ -543,7 +559,7 @@ NB.Audio = (() => {
     onSound(fn) { onPlay = fn; }, sleepPurr,
     setVoice(v) { if (v) voice = { pitch: v.pitch || 1, sig: v.sig || 0 }; },
     setCozy(on) { cozyOn = on; if (sfxBus) sfxBus.gain.setTargetAtTime(sfxOn ? (on ? 0.45 : 0.7) : 0, ac.currentTime, 0.4); }, setAmbience,
-    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, nextTrack, trackInfo, listen, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
+    unlock, play, meow, chirp, startPurr, stopPurr, purrLevel, setRain, playTrack, stopTrack, nextTrack, seekTrack, captureStream, setDevMute, devMuted: () => devMute, trackInfo, listen, samples: () => Object.fromEntries(Object.entries(smp).map(([k, v]) => [k, v.cuts.length])),
     setMode(m) { if (MODES[m] && m !== mode) { mode = m; setStream(m === 'nature'); } },
     get mode() { return mode; },
     setMusic(on) { musicOn = on; if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.2); },
