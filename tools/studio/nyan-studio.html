@@ -116,7 +116,48 @@ header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content:
 .addidea { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .addidea input { flex: 1 1 260px; min-width: 0; background: var(--panel); border: 2px solid var(--line); border-radius: 999px; padding: 8px 16px; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 18px; border-radius: 99px; font-weight: 800; font-size: 14px; z-index: 5; }
-@media (prefers-reduced-motion: reduce) { .phone { transition: none; } }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar button[aria-pressed="true"] { background: var(--pink); border-color: var(--pink); color: var(--bg); }
+.field textarea.beats { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; white-space: pre; overflow-x: auto; }
+
+/* kinetic text: the hook and the timed beats, animated over the clip the way they'd be burned in.
+   Sized in container units so the same text fits the little shelf phones and the big review phone */
+.phone { container-type: inline-size; }
+.kt { position: absolute; inset: 0; pointer-events: none; overflow: hidden; font-family: var(--f-ui); z-index: 1; }
+.kt-b { position: absolute; left: 6%; right: 6%; top: var(--y, 16%); display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.12; }
+.kt-line { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .28em; }
+.kt-w { display: inline-block; white-space: pre; }
+.kt-t { color: #fff; font-weight: 900; -webkit-text-stroke: .17em #3b2340; paint-order: stroke fill; text-shadow: 0 .09em 0 #ff5c8d; }
+.kt-b.out { animation: kt-out .22s ease-in forwards !important; }
+.s-pop { font-size: 8.4cqw; }
+.s-pop .kt-w { animation: kt-pop .46s cubic-bezier(.34, 1.56, .64, 1) both; animation-delay: calc(var(--i) * 90ms - var(--off)); }
+.s-slam { --y: 33%; font-size: 21cqw; animation: kt-slam .34s cubic-bezier(.2, .9, .3, 1.25) both, kt-shake .36s linear; animation-delay: calc(0s - var(--off)), calc(.3s - var(--off)); }
+.s-slam .kt-t { color: #ff5c8d; -webkit-text-stroke-color: #fff; text-shadow: 0 .06em 0 #3b2340; }
+.s-type { font-size: 7cqw; }
+.s-type .kt-t { font-weight: 800; -webkit-text-stroke: .13em rgba(42, 20, 48, .85); text-shadow: 0 0 .45em rgba(255, 160, 200, .9); }
+.s-type .kt-c { animation: kt-in .01s steps(1) both; animation-delay: calc(var(--i) * 55ms - var(--off)); }
+.s-wave { --y: 22%; font-size: 10.5cqw; }
+.s-wave .kt-t { color: #ffd34e; }
+.s-wave .kt-c { display: inline-block; animation: kt-pop .4s cubic-bezier(.34, 1.56, .64, 1) both, kt-wave .9s ease-in-out infinite; animation-delay: calc(var(--i) * 45ms - var(--off)), calc(var(--i) * 80ms); }
+.s-stamp { --y: 11%; align-items: flex-end; right: 8%; left: auto; gap: .5cqw; }
+.kt-seal { font-family: var(--f-disp); font-size: 15cqw; line-height: 1.15; color: #fff; background: #e0304f; border-radius: .16em; padding: .04em .2em .02em; box-shadow: inset 0 0 0 .05em #fff, 0 .06em 0 rgba(59, 35, 64, .6); animation: kt-stamp .38s cubic-bezier(.2, 1.4, .4, 1) both; animation-delay: calc(0s - var(--off)); transform: rotate(-8deg); }
+.kt-sub { font-size: 5.6cqw; animation: kt-pop .4s cubic-bezier(.34, 1.56, .64, 1) both; animation-delay: calc(.22s - var(--off)); }
+.s-card { --y: 38%; gap: 1.5cqw; animation: kt-rise .6s ease-out both; animation-delay: calc(0s - var(--off)); }
+.kt-logo { font-family: var(--f-disp); font-weight: 400; font-size: 15cqw; -webkit-text-stroke-color: #ff5c8d; text-shadow: 0 .07em 0 #3b2340; }
+.s-card .kt-sub { -webkit-text-stroke-width: .14em; }
+@keyframes kt-pop { from { transform: scale(0) translateY(.3em) rotate(-6deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes kt-slam { from { transform: scale(2.6); opacity: 0; filter: blur(6px); } 60% { opacity: 1; filter: none; } to { transform: scale(1); } }
+@keyframes kt-shake { 0%, 100% { translate: 0 0; } 20% { translate: -3% 1%; } 40% { translate: 3% -1%; } 60% { translate: -2% 0; } 80% { translate: 1% 1%; } }
+@keyframes kt-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kt-wave { 0%, 100% { translate: 0 0; } 50% { translate: 0 -.16em; } }
+@keyframes kt-stamp { from { transform: scale(2.2) rotate(-24deg); opacity: 0; } to { transform: rotate(-8deg); opacity: 1; } }
+@keyframes kt-rise { from { transform: translateY(1.2em); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes kt-out { to { opacity: 0; transform: scale(.92); } }
+/* where TikTok's own buttons and caption sit, so the text can stay clear of them */
+.show-safe .phone::before, .show-safe .phone::after { content: ""; position: absolute; z-index: 2; pointer-events: none; border: 2px dashed rgba(255, 255, 255, .75); background: rgba(255, 255, 255, .12); border-radius: 10px; }
+.show-safe .phone::before { right: 2%; bottom: 13%; width: 13%; height: 42%; }
+.show-safe .phone::after { left: 3%; bottom: 3%; width: 76%; height: 14%; }
+@media (prefers-reduced-motion: reduce) { .phone { transition: none; } .kt * { animation-duration: .01s !important; animation-iteration-count: 1 !important; } }
 </style>
 
 <div class="wrap">
@@ -129,7 +170,8 @@ header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content:
   </header>
 
   <section aria-labelledby="shelfT">
-    <div class="sec-head"><h2 id="shelfT">Recorded clips</h2><p class="sub">Tap a clip to review its caption. Recorded straight from the game at 1080×1920.</p></div>
+    <div class="sec-head"><div><h2 id="shelfT">Recorded clips</h2><p class="sub">Hover to play, tap to review. The text on top is a live preview of the kinetic typography.</p></div>
+      <div class="toolbar"><button type="button" id="tText" aria-pressed="true">Text on screen</button><button type="button" id="tSafe" aria-pressed="false">Show app buttons</button></div></div>
     <div class="shelf" id="shelf"><p class="msg">Your clips appear here once the page has loaded.</p></div>
   </section>
 
@@ -158,6 +200,57 @@ const STATUS = { review: "To review", approved: "Approved", changes: "Needs chan
 const PLATFORMS = ["TikTok", "Instagram Reels", "YouTube Shorts"];
 let db = null, assets = null, posts = [], ideas = [], currentId = null, loaded = false;
 
+/* kinetic text: each clip's beats, timed to its video. A beat is { t: start, d: seconds, s: style, w: words, sub? } */
+const STYLES = ["pop", "slam", "type", "wave", "stamp", "card"];
+let textOn = true;
+const beatsOf = (p) => Array.isArray(p.beats) && p.beats.length ? p.beats : p.hook ? [{ t: 0.1, d: 2.6, s: "pop", w: p.hook }] : [];
+const beatsToText = (bs) => bs.map((b) => `${(+b.t).toFixed(1)}-${(+b.t + +b.d).toFixed(1)} ${b.s} ${b.w}${b.sub ? " | " + b.sub : ""}`).join("\n");
+function parseBeats(text) {
+  return text.split("\n").map((l) => l.match(/^\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(\w+)\s+(.+?)\s*$/)).filter(Boolean).map((m) => {
+    const [w, sub] = m[4].split("|").map((s) => s.trim());
+    return { t: +m[1], d: Math.max(0.2, +m[2] - +m[1]), s: STYLES.includes(m[3]) ? m[3] : "pop", w, ...(sub ? { sub } : {}) };
+  });
+}
+function beatEl(b) {
+  const el = document.createElement("div"); el.className = "kt-b s-" + b.s;
+  let i = 0;
+  const chars = b.s === "type" || b.s === "wave";
+  const words = String(b.w).split(/\s+/).filter(Boolean).map((w) => chars
+    ? `<span class="kt-w">${[...w].map((c) => `<span class="kt-t kt-c" style="--i:${i++}">${esc(c)}</span>`).join("")}</span>`
+    : `<span class="kt-w kt-t" style="--i:${i++}">${esc(w)}</span>`).join("");
+  const sub = b.sub ? `<span class="kt-sub kt-t">${esc(b.sub)}</span>` : "";
+  el.innerHTML = b.s === "stamp" ? `<span class="kt-seal">${esc(b.w)}</span>${sub}` : b.s === "card" ? `<span class="kt-logo kt-t">${esc(b.w)}</span>${sub}` : `<span class="kt-line">${words}</span>${sub}`;
+  return el;
+}
+const players = new Set();
+function attachKT(phone, getBeats) {
+  const v = phone.querySelector("video"); if (!v) return;
+  const layer = document.createElement("div"); layer.className = "kt"; layer.setAttribute("aria-hidden", "true"); phone.appendChild(layer);
+  const k = { phone, v, layer, getBeats, live: new Map() };
+  players.add(k);
+  ["seeked", "loadeddata", "timeupdate"].forEach((e) => v.addEventListener(e, () => { k.dirty = true; }));
+  k.dirty = true;
+  return k;
+}
+function tickKT(k, rebuild) {
+  if (rebuild) { k.live.forEach((el) => el.remove()); k.live.clear(); }
+  const ct = k.v.currentTime || 0, want = new Map();
+  (textOn ? k.getBeats() : []).forEach((b) => { if (ct >= b.t && ct < b.t + b.d) want.set(b.t + "|" + b.s + "|" + b.w + "|" + (b.sub || ""), b); });
+  k.live.forEach((el, key) => { if (!want.has(key)) { el.classList.add("out"); setTimeout(() => el.remove(), 230); k.live.delete(key); } });
+  want.forEach((b, key) => {
+    if (k.live.has(key)) return;
+    // started part-way through a beat (a seek, a paused frame): the animation picks up where it would be
+    const el = beatEl(b); el.style.setProperty("--off", Math.max(0, ct - b.t).toFixed(3) + "s");
+    k.layer.appendChild(el); k.live.set(key, el);
+  });
+}
+(function loop() {
+  players.forEach((k) => { if (!k.phone.isConnected) { players.delete(k); return; } if (!k.v.paused || k.dirty) { k.dirty = false; tickKT(k); } });
+  requestAnimationFrame(loop);
+})();
+g("tText").addEventListener("click", (e) => { textOn = !textOn; e.currentTarget.setAttribute("aria-pressed", String(textOn)); players.forEach((k) => tickKT(k, true)); });
+g("tSafe").addEventListener("click", (e) => { const on = document.body.classList.toggle("show-safe"); e.currentTarget.setAttribute("aria-pressed", String(on)); });
+
 let toastT = 0;
 function toast(t) { const el = g("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2200); }
 const pillOf = (p) => p.posted ? `<span class="pill posted">Posted</span>` : `<span class="pill ${esc(p.status || "review")}">${STATUS[p.status || "review"]}</span>`;
@@ -183,6 +276,7 @@ function renderShelf() {
   if (!list.length && !assets) wrap.innerHTML = `<p class="msg">No clips yet. Claude adds each recorded reel here.</p>`;
   wrap.querySelectorAll(".clip").forEach((b) => {
     const v = b.querySelector("video");
+    attachKT(b.querySelector(".phone"), () => { const p = posts.find((x) => x.id === b.dataset.open); return p ? beatsOf(p) : []; });
     if (v) { b.addEventListener("mouseenter", () => v.play().catch(() => {})); b.addEventListener("mouseleave", () => { v.pause(); }); }
     b.addEventListener("click", () => { currentId = b.dataset.open; renderShelf(); renderDesk(true); g("deskT").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); });
   });
@@ -212,7 +306,8 @@ function renderDesk(force) {
       <div class="row"><h3>${esc(p.title)}</h3><span class="pill-slot">${pillOf(p)}</span></div>
       ${p.why ? `<div class="why"><span class="lbl">Why it should work</span>${esc(p.why)}</div>` : ""}
       ${p.note ? `<div class="why"><span class="lbl">Change requested</span>${esc(p.note)}</div>` : ""}
-      <div class="field"><label for="f-hook">On-screen text (first 2 seconds)</label><input id="f-hook" maxlength="80" value="${esc(p.hook)}"></div>
+      <div class="field"><label for="f-hook">Hook (first 2 seconds)</label><input id="f-hook" maxlength="80" value="${esc(p.hook)}"></div>
+      <div class="field"><label for="f-beats">Kinetic text</label><textarea id="f-beats" class="beats" rows="7" spellcheck="false">${esc(beatsToText(beatsOf(p)))}</textarea><span class="count" id="beatHelp">One line each: start-end style words. Styles: ${STYLES.join(", ")}. Add | for a smaller second line.</span></div>
       <div class="field"><label for="f-cap">Caption</label><textarea id="f-cap" rows="6">${esc(p.caption)}</textarea><span class="count" id="capCount"></span></div>
       <div class="field"><label for="f-tags">Hashtags</label><input id="f-tags" value="${esc(tags)}"></div>
       <div class="two">
@@ -232,13 +327,16 @@ function renderDesk(force) {
   const cap = g("f-cap"), cc = g("capCount");
   const count = () => { const n = cap.value.length; cc.textContent = `${n} / 2,200 (Instagram's limit)`; cc.classList.toggle("over", n > 2200); };
   cap.addEventListener("input", count); count();
+  // the review phone previews the beats as they're typed, before anything is saved
+  const bt = g("f-beats"), kp = attachKT(desk.querySelector(".phone"), () => parseBeats(bt.value));
+  bt.addEventListener("input", () => { if (kp) tickKT(kp, true); });
   g("plats").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")); });
   desk.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => act(p, b.dataset.act)));
 }
 
 function readForm() {
   return {
-    hook: g("f-hook").value.trim(), caption: g("f-cap").value, alt: g("f-alt").value.trim(), date: g("f-date").value,
+    hook: g("f-hook").value.trim(), beats: parseBeats(g("f-beats").value), caption: g("f-cap").value, alt: g("f-alt").value.trim(), date: g("f-date").value,
     tags: g("f-tags").value.split(/[\s,]+/).filter(Boolean).map((t) => t.startsWith("#") ? t : "#" + t),
     platforms: [...g("plats").querySelectorAll('[aria-pressed="true"]')].map((b) => b.dataset.plat),
   };
@@ -292,7 +390,7 @@ g("addIdea").addEventListener("submit", async (e) => {
   catch (err) { toast("Couldn't add that idea. Try again."); }
 });
 
-function renderAll() { renderCounts(); renderShelf(); renderDesk(false); renderWeeks(); renderIdeas(); }
+function renderAll() { players.forEach((k) => { k.dirty = true; }); renderCounts(); renderShelf(); renderDesk(false); renderWeeks(); renderIdeas(); }
 renderAll();
 (async () => {
   const c = window.claude;
