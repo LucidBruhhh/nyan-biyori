@@ -1,4 +1,4 @@
-/* にゃん日和 — the cat's diary and the little gifts they leave for you */
+/* Kotatsu Cat — the cat's diary and the little gifts they leave for you */
 'use strict';
 window.NB = window.NB || {};
 

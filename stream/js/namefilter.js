@@ -1,4 +1,4 @@
-/* にゃん日和 stream — keeps rude usernames off the screen */
+/* Kotatsu Cat stream — keeps rude usernames off the screen */
 'use strict';
 window.NB = window.NB || {};
 

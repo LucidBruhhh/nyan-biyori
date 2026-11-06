@@ -1,4 +1,4 @@
-/* にゃん日和 stream — one save, kept in this browser and (when set up) online in a Cloudflare Worker */
+/* Kotatsu Cat stream — one save, kept in this browser and (when set up) online in a Cloudflare Worker */
 'use strict';
 window.NB = window.NB || {};
 

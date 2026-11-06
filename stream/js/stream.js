@@ -1,4 +1,4 @@
-/* にゃん日和 stream — Twitch chat, the shared progression and the overlay around the room */
+/* Kotatsu Cat stream — Twitch chat, the shared progression and the overlay around the room */
 'use strict';
 (() => {
   const U = NB.U, D = NB.Data, Save = NB.StreamSave, $ = (q) => document.querySelector(q);

@@ -1,4 +1,4 @@
-/* にゃん日和 — what makes each cat one of a kind: quirks, likes and dislikes, a voice, a favourite spot and a ritual */
+/* Kotatsu Cat — what makes each cat one of a kind: quirks, likes and dislikes, a voice, a favourite spot and a ritual */
 'use strict';
 window.NB = window.NB || {};
 

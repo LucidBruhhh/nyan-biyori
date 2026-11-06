@@ -1,4 +1,4 @@
-/* にゃん日和 stream overlay: a fixed 1920×1080 stage, scaled to fit any window */
+/* Kotatsu Cat stream overlay: a fixed 1920×1080 stage, scaled to fit any window */
 :root {
   --night: rgba(30, 20, 48, 0.8);
   --night-line: rgba(255, 179, 210, 0.32);

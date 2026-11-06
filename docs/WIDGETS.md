@@ -4,7 +4,7 @@ Both widgets show the cat's mood portrait, name and the four needs. While the ap
 
 ## Android (ready in the project)
 
-Everything is already in `android/`: `CatWidget.java` (the widget), `WidgetBridgePlugin.java` (receives data from the game), `res/layout/cat_widget.xml`, `res/xml/cat_widget_info.xml` and the receiver in `AndroidManifest.xml`. Build with `npm run android`, then long-press the home screen → Widgets → Nyan Biyori.
+Everything is already in `android/`: `CatWidget.java` (the widget), `WidgetBridgePlugin.java` (receives data from the game), `res/layout/cat_widget.xml`, `res/xml/cat_widget_info.xml` and the receiver in `AndroidManifest.xml`. Build with `npm run android`, then long-press the home screen → Widgets → Kotatsu Cat.
 
 ## iOS (one-time setup in Xcode on the Mac)
 
@@ -15,6 +15,6 @@ The plugin is already in `ios/App/App/AppDelegate.swift`. The widget itself is a
 3. Replace the generated `NyanWidget.swift` with `ios/NyanWidget/NyanWidget.swift` from this repo, and delete the other generated Swift files in that folder (the bundle file).
 4. Select the **App** target › Signing & Capabilities › + Capability › **App Groups**, add `group.com.lucidbruhhh.nyanbiyori`.
 5. Do the same for the **NyanWidgetExtension** target with the same group.
-6. Run on your iPhone, open the game once, then long-press the home screen › + › Nyan Biyori.
+6. Run on your iPhone, open the game once, then long-press the home screen › + › Kotatsu Cat.
 
 If the app ID changes from `com.lucidbruhhh.nyanbiyori`, update the group name in `AppDelegate.swift`, `NyanWidget.swift` and both targets' App Groups.

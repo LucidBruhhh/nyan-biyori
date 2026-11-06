@@ -1,4 +1,4 @@
-/* にゃん日和 — game content */
+/* Kotatsu Cat — game content */
 'use strict';
 NB.Data = {
   FOODS: [

@@ -1,4 +1,4 @@
-// にゃん日和 stream save: a tiny Cloudflare Worker that keeps one JSON save in Workers KV.
+// Kotatsu Cat stream save: a tiny Cloudflare Worker that keeps one JSON save in Workers KV.
 // GET /save returns it, PUT /save replaces it. Both need "Authorization: Bearer <SAVE_KEY>".
 // Bindings: SAVES (a KV namespace) and SAVE_KEY (a secret). Optional ALLOWED_ORIGINS, comma-separated.
 

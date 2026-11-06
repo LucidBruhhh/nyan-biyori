@@ -1,4 +1,4 @@
-/* にゃん日和 — fully synthesized audio: koto-style generative music, nya~, purrs and sfx */
+/* Kotatsu Cat — fully synthesized audio: koto-style generative music, nya~, purrs and sfx */
 'use strict';
 NB.Audio = (() => {
   const U = NB.U;

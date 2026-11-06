@@ -1,4 +1,4 @@
-/* にゃん日和 — long-term wellbeing: weight, fitness, coat and an overall vitality score */
+/* Kotatsu Cat — long-term wellbeing: weight, fitness, coat and an overall vitality score */
 'use strict';
 window.NB = window.NB || {};
 

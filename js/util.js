@@ -1,4 +1,4 @@
-/* にゃん日和 — shared helpers */
+/* Kotatsu Cat — shared helpers */
 'use strict';
 window.NB = window.NB || {};
 

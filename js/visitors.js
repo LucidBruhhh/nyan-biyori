@@ -1,4 +1,4 @@
-/* にゃん日和 — stray cats who visit the window, and the story of where your cat came from */
+/* Kotatsu Cat — stray cats who visit the window, and the story of where your cat came from */
 'use strict';
 window.NB = window.NB || {};
 

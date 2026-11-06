@@ -1,4 +1,4 @@
-# にゃん日和 · Stream
+# こたつねこ · Stream
 
 A 1920×1080 live-stream overlay: Sushi's painted room in the middle, now playing on the left, the community goal on the right. Twitch chat plays with the cat, everyone who watches becomes a Friend of Sushi, and the cat grows up over the weeks.
 

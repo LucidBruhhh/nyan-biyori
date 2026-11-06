@@ -1,4 +1,4 @@
-/* にゃん日和 — seasonal events: a free reward track you fill just by playing */
+/* Kotatsu Cat — seasonal events: a free reward track you fill just by playing */
 'use strict';
 window.NB = window.NB || {};
 

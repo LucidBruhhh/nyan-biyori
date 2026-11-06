@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Nyan Biyori</string>
-    <string name="title_activity_main">Nyan Biyori</string>
+    <string name="app_name">Kotatsu Cat</string>
+    <string name="title_activity_main">Kotatsu Cat</string>
     <string name="package_name">com.lucidbruhhh.nyanbiyori</string>
     <string name="custom_url_scheme">com.lucidbruhhh.nyanbiyori</string>
 </resources>

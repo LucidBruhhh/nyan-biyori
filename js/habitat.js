@@ -1,4 +1,4 @@
-/* にゃん日和 — habitat: garden view, light & shadow, weather, cat furniture, foreground depth */
+/* Kotatsu Cat — habitat: garden view, light & shadow, weather, cat furniture, foreground depth */
 'use strict';
 NB.Habitat = (() => {
   const U = NB.U, S = NB.Scene;

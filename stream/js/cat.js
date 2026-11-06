@@ -1,4 +1,4 @@
-/* にゃん日和 — procedural anime cat renderer.
+/* Kotatsu Cat — procedural anime cat renderer.
    Everything is vector-drawn in "cat units" (~210 tall) with origin at the ground, centre of the cat. */
 'use strict';
 NB.Cat = (() => {

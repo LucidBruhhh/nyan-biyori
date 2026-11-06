@@ -1,4 +1,4 @@
-/* にゃん日和 — washitsu room, real-time sky, seasons, decor, food & particles */
+/* Kotatsu Cat — washitsu room, real-time sky, seasons, decor, food & particles */
 'use strict';
 NB.Scene = (() => {
   const U = NB.U;

@@ -1,4 +1,4 @@
-/* にゃん日和 — minigames: Sakana Catch · Taiko Nyan · Shinkei-suijaku */
+/* Kotatsu Cat — minigames: Sakana Catch · Taiko Nyan · Shinkei-suijaku */
 'use strict';
 NB.Mini = (() => {
   const U = NB.U, S = NB.Scene, C = NB.Cat, A = NB.Audio;

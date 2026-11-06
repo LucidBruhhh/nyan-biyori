@@ -1,8 +1,8 @@
 {
-  "name": "nyan-biyori",
+  "name": "kotatsu-cat",
   "version": "1.0.0",
   "private": true,
-  "description": "にゃん日和 Nyan Biyori: a kawaii Japanese virtual cat",
+  "description": "こたつねこ Kotatsu Cat: a kawaii Japanese virtual cat",
   "scripts": {
     "dev": "node tools/server.js",
     "build": "node tools/build-web.js",

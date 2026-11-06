@@ -1,4 +1,4 @@
-/* にゃん日和 — capsule toys (gachapon) bought with earned koban only, never real money */
+/* Kotatsu Cat — capsule toys (gachapon) bought with earned koban only, never real money */
 'use strict';
 window.NB = window.NB || {};
 

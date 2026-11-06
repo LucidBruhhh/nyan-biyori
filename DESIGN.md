@@ -1,4 +1,4 @@
-# にゃん日和 · Nyan Biyori — Design Notes
+# こたつねこ · Kotatsu Cat — Design Notes
 
 *A kawaii, Japanese-themed virtual kitty for iPhone, Android and desktop browsers.*
 

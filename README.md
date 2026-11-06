@@ -1,4 +1,4 @@
-# にゃん日和 · Nyan Biyori
+# こたつねこ · Kotatsu Cat
 
 A super-kawaii, Japanese-themed virtual kitty for iPhone, Android and desktop browsers. It's an installable PWA with no build step, no dependencies, no ads, and it works offline.
 

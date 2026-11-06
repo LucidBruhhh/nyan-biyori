@@ -1,4 +1,4 @@
-/* にゃん日和 — turn moments into shareable pictures: photo frames, the personality card, diary pages */
+/* Kotatsu Cat — turn moments into shareable pictures: photo frames, the personality card, diary pages */
 'use strict';
 window.NB = window.NB || {};
 
@@ -14,7 +14,7 @@ NB.Share = (function () {
     if (!blob) return 'failed';
     const file = new File([blob], filename, { type: 'image/png' });
     try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'にゃん日和', text }); return 'shared'; }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Kotatsu Cat', text }); return 'shared'; }
     } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
@@ -62,7 +62,7 @@ NB.Share = (function () {
       x.fillText(`${caption} · ${sub}`, pad + 26 * u, pad + 50 * u); x.shadowBlur = 0;
     }
     x.textAlign = 'right'; x.font = `700 ${24 * u}px ${FONT_UI}`; x.fillStyle = kind === 'polaroid' ? '#d1aebd' : 'rgba(255,255,255,0.85)';
-    x.fillText('にゃん日和 Nyan Biyori', c.width - pad - 22 * u, kind === 'polaroid' ? c.height - 22 * u : pad + h - 22 * u);
+    x.fillText('こたつねこ Kotatsu Cat', c.width - pad - 22 * u, kind === 'polaroid' ? c.height - 22 * u : pad + h - 22 * u);
     return c;
   }
 
@@ -99,7 +99,7 @@ NB.Share = (function () {
     x.textAlign = 'left'; x.fillStyle = '#5b3a4a'; x.font = `32px ${FONT_HAND}`;
     y = wrap(x, `Favourite spot: ${info.spot}`, 150, y + 6, W - 300, 44);
     y = wrap(x, `Ritual: ${info.ritual}`, 150, y, W - 300, 44);
-    x.textAlign = 'center'; x.fillStyle = '#d1aebd'; x.font = `700 28px ${FONT_UI}`; x.fillText('にゃん日和 · Nyan Biyori', W / 2, H - 100);
+    x.textAlign = 'center'; x.fillStyle = '#d1aebd'; x.font = `700 28px ${FONT_UI}`; x.fillText('こたつねこ · Kotatsu Cat', W / 2, H - 100);
     return c;
   }
 
@@ -117,7 +117,7 @@ NB.Share = (function () {
     x.fillStyle = '#5b3a4a'; x.font = `40px ${FONT_HAND}`;
     let y = 308; info.lines.forEach((l) => { y = wrap(x, l, 180, y, W - 280, 64); });
     x.textAlign = 'right'; x.fillStyle = '#ff6f9f'; x.font = `44px ${FONT_HAND}`; x.fillText(`— ${info.name} 🐾`, W - 110, Math.min(H - 110, y + 30));
-    x.fillStyle = '#d1aebd'; x.font = `700 26px ${FONT_UI}`; x.fillText('にゃん日和 Nyan Biyori', W - 110, H - 50);
+    x.fillStyle = '#d1aebd'; x.font = `700 26px ${FONT_UI}`; x.fillText('こたつねこ Kotatsu Cat', W - 110, H - 50);
     return c;
   }
 
@@ -138,7 +138,7 @@ NB.Share = (function () {
       x.fillStyle = '#fff'; x.font = `700 28px ${FONT_UI}`; x.fillText(lab, bx + bw / 2, 950);
       if (mins) { x.fillStyle = '#ffe0ec'; x.font = `700 24px ${FONT_UI}`; x.fillText(mins + 'm', bx + bw / 2, 890 - h); }
     });
-    x.fillStyle = 'rgba(255,255,255,0.7)'; x.font = `700 26px ${FONT_UI}`; x.fillText('にゃん日和 · Nyan Biyori', W / 2, H - 50);
+    x.fillStyle = 'rgba(255,255,255,0.7)'; x.font = `700 26px ${FONT_UI}`; x.fillText('こたつねこ · Kotatsu Cat', W / 2, H - 50);
     return c;
   }
 

@@ -1,4 +1,4 @@
-/* にゃん日和 — real-money store, ready for App Store / Play billing.
+/* Kotatsu Cat — real-money store, ready for App Store / Play billing.
    Only cosmetics and koban are ever sold: never care, needs relief or the cat's affection. */
 'use strict';
 window.NB = window.NB || {};

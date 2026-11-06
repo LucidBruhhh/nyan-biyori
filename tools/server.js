@@ -50,4 +50,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' });
     res.end(data);
   });
-}).listen(PORT, () => console.log(`にゃん日和 running at http://localhost:${PORT}`));
+}).listen(PORT, () => console.log(`Kotatsu Cat running at http://localhost:${PORT}`));

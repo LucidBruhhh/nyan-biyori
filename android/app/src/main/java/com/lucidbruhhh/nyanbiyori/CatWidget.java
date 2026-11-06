@@ -38,7 +38,7 @@ public class CatWidget extends AppWidgetProvider {
 
         String json = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("cat", null);
         if (json == null || json.isEmpty()) {
-            v.setTextViewText(R.id.widget_name, "Nyan Biyori");
+            v.setTextViewText(R.id.widget_name, "Kotatsu Cat");
             v.setTextViewText(R.id.widget_mood, "Open the app to meet your cat");
             return v;
         }

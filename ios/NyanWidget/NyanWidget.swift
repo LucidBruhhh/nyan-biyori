@@ -1,4 +1,4 @@
-// にゃん日和 home-screen widget: your cat's face and needs, projected forward while the app is closed.
+// Kotatsu Cat home-screen widget: your cat's face and needs, projected forward while the app is closed.
 // Add to Xcode as a Widget Extension target named "NyanWidget" (see docs/WIDGETS.md).
 import WidgetKit
 import SwiftUI
@@ -100,7 +100,7 @@ struct NyanWidgetView: View {
             if family == .systemSmall {
                 VStack(spacing: 2) {
                     face.frame(height: 92)
-                    Text(entry.cat?.name ?? "Nyan Biyori").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundColor(ink)
+                    Text(entry.cat?.name ?? "Kotatsu Cat").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundColor(ink)
                     Text(moodText).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundColor(pink).lineLimit(1).minimumScaleFactor(0.7)
                 }
             } else {
@@ -108,7 +108,7 @@ struct NyanWidgetView: View {
                     face.frame(width: 110, height: 110)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text(entry.cat?.name ?? "Nyan Biyori").font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundColor(ink)
+                            Text(entry.cat?.name ?? "Kotatsu Cat").font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundColor(ink)
                             Spacer()
                             if let c = entry.cat { Text("Lv \(c.level)").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundColor(pink) }
                         }
@@ -138,7 +138,7 @@ struct WidgetBackground: ViewModifier {
 struct NyanWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "NyanWidget", provider: Provider()) { entry in NyanWidgetView(entry: entry) }
-            .configurationDisplayName("Nyan Biyori")
+            .configurationDisplayName("Kotatsu Cat")
             .description("See how your cat is feeling at a glance.")
             .supportedFamilies([.systemSmall, .systemMedium])
     }

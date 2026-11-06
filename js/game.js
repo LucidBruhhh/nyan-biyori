@@ -1,4 +1,4 @@
-/* にゃん日和 — main game: state, cat AI, interaction, UI */
+/* Kotatsu Cat — main game: state, cat AI, interaction, UI */
 'use strict';
 (() => {
   const P = NB.Persona;
@@ -134,7 +134,7 @@
     // iPhone Safari has no full-screen mode for web pages: the Home Screen app is full screen
     modal(`<div class="letter"><div class="envelope">⛶</div><h2>ぜんがめん <small>Full screen</small></h2>
       <p>On iPhone, add the game to your Home Screen and open it from there. It runs full screen like an app.</p>
-      <ol class="steps"><li>Tap <b>Share</b> <span class="share-ic">⬆︎</span></li><li>Choose <b>Add to Home Screen</b></li><li>Open にゃん日和 from your Home Screen</li></ol>
+      <ol class="steps"><li>Tap <b>Share</b> <span class="share-ic">⬆︎</span></li><li>Choose <b>Add to Home Screen</b></li><li>Open Kotatsu Cat from your Home Screen</li></ol>
       <button class="btn" data-ui="closemodal">わかった！ Got it</button></div>`, 'letter');
   }
   function resize() {
@@ -1510,7 +1510,7 @@
   /* ================= SUPPORT STORE ================= */
   function buyProduct(id) {
     NB.Store.purchase(id, grantProduct, () => modal(`<div class="letter"><div class="envelope">🛍</div><h2>もうすぐ！ <small>Coming soon</small></h2>
-      <p>Purchases arrive with the App Store and Google Play versions of にゃん日和. Thank you so much for wanting to support the game! 💕</p>
+      <p>Purchases arrive with the App Store and Google Play versions of Kotatsu Cat. Thank you so much for wanting to support the game! 💕</p>
       <p class="sub">Everything for ${st.name}'s care stays free, always.</p><button class="btn" data-ui="closemodal">わかった！ Got it</button></div>`, 'letter'));
   }
   function grantProduct(p) {
@@ -1760,9 +1760,9 @@
       story: [`${f.name} came all the way from a friend's home to say hi!`, `${f.name} and ${st.name} touched noses through the glass.`, `${f.name} brought news from their own room. Apparently it's very nice.`, `${f.name} stayed for a long time today. They seem to like it here.`, `${f.name} and ${st.name} are best friends now.`] };
   };
   async function shareCatCode() {
-    const code = catCode(), text = `Meet my cat ${st.name} in にゃん日和! Add this code under Album › Friends: ${code}`;
+    const code = catCode(), text = `Meet my cat ${st.name} in Kotatsu Cat! Add this code under Album › Friends: ${code}`;
     if (NB.Native.isNative) { const r = await NB.Native.shareText(text); if (r === 'failed') toast('Could not open sharing. Your code: ' + code); return; }
-    try { if (navigator.share) { await navigator.share({ title: 'にゃん日和', text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { if (navigator.share) { await navigator.share({ title: 'Kotatsu Cat', text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     try { await navigator.clipboard.writeText(code); toast('📋 Cat code copied! Send it to a friend.'); } catch (e) { prompt('Copy your cat code:', code); }
   }
   function spawnVisitor(force) {
@@ -1986,7 +1986,7 @@
     C.portrait(port, look(), { zoom: 1.1, bg: ['#fff1f6', '#ffe0ec'], pose: MOOD_POSE[p.mood] || MOOD_POSE.happy });
     const wx = Di.WX[p.wx] || Di.WX.clear;
     const pic = NB.Share.diaryPage({ date: Di.label(p.day), weather: `${wx[0]} ${wx[1]}`, title: p.title, lines: p.lines, name: st.name, portrait: port });
-    sharePic(pic, `${st.name}-diary.png`, `${st.name}'s diary · にゃん日和`);
+    sharePic(pic, `${st.name}-diary.png`, `${st.name}'s diary · Kotatsu Cat`);
   }
   function personaHTML() {
     const i = personalityInfo(), t = P.title(pers());
@@ -2072,7 +2072,7 @@
     C.portrait(port, look(), { zoom: 1.1, bg: ['#fff1f6', '#ffe0ec'], pose: { eyes: 'closed', blush: 0.8, mouth: 'w' } });
     const hours = w.total >= 60 ? `${Math.floor(w.total / 60)}h ${w.total % 60}m` : `${w.total} min`;
     const pic = NB.Share.focusCard({ name: st.name, portrait: port, hours, sessions: w.sessions, days: w.days });
-    sharePic(pic, `${st.name}-focus-week.png`, `I focused for ${hours} this week with ${st.name} · にゃん日和`);
+    sharePic(pic, `${st.name}-focus-week.png`, `I focused for ${hours} this week with ${st.name} · Kotatsu Cat`);
   }
 
   /* ================= MOMENTS: birthdays, a photo album, letters, wishes on stars, the full moon ================= */
@@ -3285,7 +3285,7 @@
     } else if (shopTab === 'capsule') {
       body = capsuleHTML();
     } else if (shopTab === 'support') {
-      body = `<p class="sub">にゃん日和 is free with no ads. These optional packs help the game keep growing. Nothing here ever affects ${st.name}'s care, needs or love.</p>
+      body = `<p class="sub">Kotatsu Cat is free with no ads. These optional packs help the game keep growing. Nothing here ever affects ${st.name}'s care, needs or love.</p>
         <div class="store">${NB.Store.PRODUCTS.map((p) => { const owned = p.once && st.supporter; return `<button class="store-item ${p.id === 'supporter' ? 'feat' : ''}" data-buy="${p.id}" ${owned ? 'disabled' : ''}>
           <div class="ic">${p.id === 'supporter' ? '💝' : p.koban > 500 ? '🏺' : '👛'}</div><div class="nm"><b>${p.jp}</b><small>${p.en}</small><p class="desc">${p.desc}</p></div>
           <span class="price real">${owned ? 'Owned ✓' : p.price}</span></button>`; }).join('')}</div>
@@ -3688,7 +3688,7 @@
       <div class="btnrow"><button class="btn ghost" data-ui="export">Copy backup code</button><button class="btn ghost" data-ui="import">Restore from code</button></div>
       <button class="btn danger" data-ui="reset">Start over…</button>
       ${DEV ? '<div class="btnrow"><button class="btn ghost" data-ui="dev-coins">+1000 koban</button><button class="btn ghost" data-ui="dev-lv">+1 level</button><button class="btn ghost" data-ui="dev-low">Low needs</button><button class="btn ghost" data-ui="dev-bond">+15 bond</button><button class="btn ghost" data-ui="dev-gift">Gift</button><button class="btn ghost" data-ui="dev-day">Next day</button></div>' : ''}
-      <p class="credits">にゃん日和 · Nyan Biyori v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” and the Chill Dubstep station by Alien Instinct. No ads, no tracking.</p>`;
+      <p class="credits">こたつねこ · Kotatsu Cat v1.0<br>Music and most sounds are generated live in code. Cat voices: BigSoundBank (CC0), with thanks. Radio: “Snowy Chillstep” and the Chill Dubstep station by Alien Instinct. No ads, no tracking.</p>`;
     openSheet('Settings', 'せってい', html, (sh) => {
       sh.querySelectorAll('[data-amb]').forEach((r) => r.addEventListener('input', () => { const m = Object.assign({}, ambMix()); m[r.dataset.amb] = +r.value; st.settings.amb = m; if (cozy.on) A.setAmbience(m); }));
       sh.querySelectorAll('[data-amb]').forEach((r) => r.addEventListener('change', save));
@@ -3866,7 +3866,7 @@
       st.iosNudge = Date.now();
       setTimeout(() => modal(`<div class="letter"><div class="envelope">📱</div><h2>おうちを守ろう <small>Keep ${st.name} safe</small></h2>
         <p>Safari may clear ${st.name}'s save if you don't visit for a week. Adding the game to your Home Screen keeps it safe, and it opens full-screen like an app.</p>
-        <ol class="steps"><li>Tap <b>Share</b> <span class="share-ic">⬆︎</span> in Safari</li><li>Choose <b>Add to Home Screen</b></li><li>Open にゃん日和 from your Home Screen</li></ol>
+        <ol class="steps"><li>Tap <b>Share</b> <span class="share-ic">⬆︎</span> in Safari</li><li>Choose <b>Add to Home Screen</b></li><li>Open Kotatsu Cat from your Home Screen</li></ol>
         <p class="sub">You can also copy a backup code any time in Settings.</p>
         <button class="btn" data-ui="closemodal">わかった！ Got it</button></div>`, 'letter'), 4000);
     }
@@ -4059,8 +4059,8 @@
       case 'photoclose': endPhoto(); break;
       case 'photoshoot': takePhoto(); break;
       case 'card': shareCard(); break;
-      case 'sharepic': sharePic(cozy.lastPic, `${st.name}-photo.png`, `${st.name} · にゃん日和`); break;
-      case 'sharecard': sharePic(cozy.lastPic, `${st.name}-card.png`, `Meet ${st.name} · にゃん日和`); break;
+      case 'sharepic': sharePic(cozy.lastPic, `${st.name}-photo.png`, `${st.name} · Kotatsu Cat`); break;
+      case 'sharecard': sharePic(cozy.lastPic, `${st.name}-card.png`, `Meet ${st.name} · Kotatsu Cat`); break;
       case 'fullscreen': closeSheet(); toggleFullscreen(); break;
       case 'bugreport': openBugReport(); break;
       case 'visitortreat': visitorTreat(); break;

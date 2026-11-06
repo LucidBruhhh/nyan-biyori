@@ -1,4 +1,4 @@
-/* にゃん日和 — trust & memory: how well the cat knows you */
+/* Kotatsu Cat — trust & memory: how well the cat knows you */
 'use strict';
 window.NB = window.NB || {};
 

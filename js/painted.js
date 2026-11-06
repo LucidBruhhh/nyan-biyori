@@ -1,4 +1,4 @@
-/* にゃん日和 — the painted apartment: hand-painted room art with a live window */
+/* Kotatsu Cat — the painted apartment: hand-painted room art with a live window */
 'use strict';
 window.NB = window.NB || {};
 

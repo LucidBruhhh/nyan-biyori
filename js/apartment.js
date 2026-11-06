@@ -1,4 +1,4 @@
-/* にゃん日和 — the Tokyo apartment home: a cosy flat above the city lights */
+/* Kotatsu Cat — the Tokyo apartment home: a cosy flat above the city lights */
 'use strict';
 window.NB = window.NB || {};
 

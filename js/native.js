@@ -1,4 +1,4 @@
-/* にゃん日和 — native app bridge (Capacitor). Every call is a safe no-op in the browser. */
+/* Kotatsu Cat — native app bridge (Capacitor). Every call is a safe no-op in the browser. */
 'use strict';
 window.NB = window.NB || {};
 
@@ -87,14 +87,14 @@ NB.Native = (function () {
     if (!fsys || !sh) return 'failed';
     try {
       const w = await fsys.writeFile({ path: filename, data: base64, directory: 'CACHE' });
-      await sh.share({ title: 'にゃん日和', text, files: [w.uri], dialogTitle: 'Share' });
+      await sh.share({ title: 'Kotatsu Cat', text, files: [w.uri], dialogTitle: 'Share' });
       return 'shared';
     } catch (e) { return cancelled(e) ? 'cancelled' : 'failed'; }
   }
   async function shareText(text) {
     const sh = P('Share');
     if (!sh) return 'failed';
-    try { await sh.share({ title: 'にゃん日和', text, dialogTitle: 'Share' }); return 'shared'; } catch (e) { return cancelled(e) ? 'cancelled' : 'failed'; }
+    try { await sh.share({ title: 'Kotatsu Cat', text, dialogTitle: 'Share' }); return 'shared'; } catch (e) { return cancelled(e) ? 'cancelled' : 'failed'; }
   }
 
   return { isNative, platform: isNative ? Cap.getPlatform() : 'web', mirror, restore, haptic, permission, planNotes, clearNotes, onLifecycle, minimize, ready, widget, shareFile, shareText };
