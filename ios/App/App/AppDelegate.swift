@@ -52,7 +52,7 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "WidgetBridgePlugin"
     public let jsName = "WidgetBridge"
     public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "update", returnType: CAPPluginReturnPromise)]
-    static let appGroup = "group.com.lucidbruhhh.nyanbiyori"
+    static let appGroup = "group.com.lucidbruhhh.kotatsucat"
 
     @objc func update(_ call: CAPPluginCall) {
         UserDefaults(suiteName: Self.appGroup)?.set(call.getString("json") ?? "", forKey: "cat")

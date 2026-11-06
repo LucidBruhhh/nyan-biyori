@@ -44,6 +44,6 @@ npm run android      # open in Android Studio (needs Android Studio + JDK)
 npm run ios          # open in Xcode (needs a Mac)
 ```
 
-- App id: `com.lucidbruhhh.nyanbiyori` (in `capacitor.config.json`; it is permanent once the app is uploaded to a store).
+- App id: `com.lucidbruhhh.kotatsucat` (in `capacitor.config.json`; it is permanent once the app is uploaded to a store).
 - Icons and splash screens come from `assets/` via `npx @capacitor/assets generate` (regenerate `icons/icon-1024.png` with `tools/icons.html` first).
 - Run `npm run sync` after every change to the game before building the apps.

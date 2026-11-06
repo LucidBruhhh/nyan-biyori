@@ -1,4 +1,4 @@
-package com.lucidbruhhh.nyanbiyori;
+package com.lucidbruhhh.kotatsucat;
 
 import android.content.Context;
 import android.util.Base64;

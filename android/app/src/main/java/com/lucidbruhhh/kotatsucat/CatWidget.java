@@ -1,4 +1,4 @@
-package com.lucidbruhhh.nyanbiyori;
+package com.lucidbruhhh.kotatsucat;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;

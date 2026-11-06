@@ -3,7 +3,7 @@
 import WidgetKit
 import SwiftUI
 
-private let appGroup = "group.com.lucidbruhhh.nyanbiyori"
+private let appGroup = "group.com.lucidbruhhh.kotatsucat"
 private let needKeys = ["hunger", "fun", "clean", "energy"]
 
 struct CatData: Codable {
@@ -121,7 +121,7 @@ struct NyanWidgetView: View {
                 }
             }
         }
-        .widgetURL(URL(string: "nyanbiyori://home"))
+        .widgetURL(URL(string: "kotatsucat://home"))
         .modifier(WidgetBackground())
     }
 }
