@@ -52,7 +52,7 @@
     goals: { info: true, verb: 'checked tonight’s goal' },
     cuddle: { xp: 2, verb: 'got a cuddle ♡', lv: 10 },
   };
-  const ALIAS = { pat: 'pet', pets: 'pet', snack: 'treat', feed: 'treat', play: 'ball', sleep: 'nap', groom: 'brush', music: 'song', np: 'song', goal: 'goals', lvl: 'level', rank: 'level', sticker: 'stickers', album: 'stickers', visit: 'join', hug: 'cuddle' };
+  const ALIAS = { pat: 'pet', pets: 'pet', snack: 'treat', feed: 'treat', play: 'ball', sleep: 'nap', groove: 'dance', vibe: 'dance', bop: 'dance', groom: 'brush', music: 'song', np: 'song', goal: 'goals', lvl: 'level', rank: 'level', sticker: 'stickers', album: 'stickers', visit: 'join', hug: 'cuddle' };
   const STICKERS = [
     ['hello', '🌸', 'First visit'], ['goal', '🎉', 'Reached a goal together'], ['drop', '🎧', 'Felt the big drop'], ['treat', '🐟', 'First treat'],
     ['levelup', '⭐', 'Room level up'], ['grow', '🌱', 'Watched Sushi grow up'], ['vote', '🗳️', 'Voted for the room'], ['unlock', '🏮', 'Something new for the room'],

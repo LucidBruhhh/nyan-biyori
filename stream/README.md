@@ -27,7 +27,7 @@ This is a separate copy of the game. Change files here only; the app in the repo
 
 | Command | Who | What happens |
 |---|---|---|
-| `!pet` `!treat` `!ball` `!brush` `!dance` `!nap` | everyone | Sushi reacts and says the viewer's name |
+| `!pet` `!treat` `!ball` `!brush` `!dance` `!nap` | everyone | Sushi reacts and says the viewer's name. `!groove`, `!vibe` and `!bop` also dance |
 | `!song` `!goals` | everyone | What's playing, how the goal is going |
 | `!level` `!stickers` | everyone | The viewer's Friend of Sushi card, or their sticker album |
 | `!history` | everyone | Sushi's story so far |
